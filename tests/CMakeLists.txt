@@ -49,6 +49,9 @@ if(CRYPTOCOGS_BUILD_KRAKEN)
     add_executable(private_rest examples/private_rest.cpp)
     target_link_libraries(private_rest kraken spdlog::spdlog CLI11::CLI11 example_backward)
 
+    add_executable(get_balance examples/get_balance.cpp)
+    target_link_libraries(get_balance kraken spdlog::spdlog CLI11::CLI11 example_backward)
+
     add_executable (public_rest examples/public_rest.cpp)
     target_link_libraries(public_rest kraken spdlog::spdlog CLI11::CLI11 example_backward)
 
