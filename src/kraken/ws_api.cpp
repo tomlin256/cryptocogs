@@ -96,7 +96,7 @@ json AmendOrderRequest::to_json() const {
     if (limit_price)      params["limit_price"]      = limit_price->to_json();
     if (limit_price_type) params["limit_price_type"] = to_string(*limit_price_type);
     if (triggers)         params["triggers"]         = triggers->to_json();
-    if (post_only_price)  params["post_only_price"]  = post_only_price->to_json();
+    if (post_only)        params["post_only"]        = *post_only;
     if (deadline)         params["deadline"]         = *deadline;
 
     json msg;

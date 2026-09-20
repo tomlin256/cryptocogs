@@ -125,7 +125,7 @@ struct AmendOrderRequest : TypedWsRequest<AmendOrderResponse> {
     std::optional<TickPrice> limit_price;
     std::optional<PriceType> limit_price_type;
     std::optional<Triggers>  triggers;
-    std::optional<TickPrice> post_only_price;
+    std::optional<bool>      post_only;
     std::optional<std::string> deadline;
 
     json to_json() const;

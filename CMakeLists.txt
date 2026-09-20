@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15...4.2)
-project(CRYPTOCOGS VERSION 0.5.4 LANGUAGES CXX)
+project(CRYPTOCOGS VERSION 0.5.5 LANGUAGES CXX)
 
 # Allow fetched dependencies that declare cmake_minimum_required < 3.5
 # (CMake 4.x removed compatibility below 3.5)
