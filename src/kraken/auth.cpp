@@ -32,14 +32,19 @@ namespace detail {
 
 std::string base64_decode(const std::string& in) {
     std::string out;
-    int val = 0, bits = -8;
+    // val takes every 6-bit group and is never reduced, so after the fifth
+    // character it has shifted out of 31 bits. A signed int is undefined
+    // behaviour there (issue #23); unsigned wraps, and only the low 12 bits are
+    // ever read below (bits is 0, 2 or 4 when a byte is emitted).
+    unsigned int val = 0;
+    int bits = -8;
     static const std::string chars =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     for (unsigned char c : in) {
         if (c == '=') break;
         auto pos = chars.find(c);
         if (pos == std::string::npos) continue;
-        val = (val << 6) + static_cast<int>(pos);
+        val = (val << 6) + static_cast<unsigned int>(pos);
         bits += 6;
         if (bits >= 0) {
             out.push_back(static_cast<char>((val >> bits) & 0xFF));

@@ -99,6 +99,26 @@ TEST(CoinbaseCrypto, Base64Decode_KnownVectorAndRoundTrip) {
     EXPECT_EQ(detail::base64_decode(encoded), original);
 }
 
+// A 64-byte, 88-character input (the shape of a real API secret) decodes to
+// exactly the bytes it was encoded from. The vector is Python's base64.b64encode
+// over bytes((i * 7 + 3) % 256 for i in range(64)), so it does not lean on this
+// library's own encoder.
+//
+// Any input over five characters carries the decoder's accumulator past 31 bits.
+// This pins the bytes, which is all an assertion can see: the shift itself is
+// undefined behaviour that every compiler in use wraps, and only a UBSan build of
+// this test reports it (issue #23).
+TEST(CoinbaseCrypto, Base64Decode_LongInputDecodesToExactBytes) {
+    std::string expected;
+    for (int i = 0; i < 64; ++i)
+        expected.push_back(static_cast<char>((i * 7 + 3) % 256));
+
+    EXPECT_EQ(detail::base64_decode(
+                  "AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dzj6vH4/wYNFBsiKTA3PkVM"
+                  "U1phaG92fYSLkpmgp661vA=="),
+              expected);
+}
+
 // ── coinbase_sign — composition ──────────────────────────────────────────────
 
 // coinbase_sign must equal base64(HMAC-SHA256(base64_decode(secret), prehash)).
