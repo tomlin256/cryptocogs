@@ -31,8 +31,9 @@ For every row:
 1. Write the header(s) and/or source named in the row.
 2. Write its unit test(s) **in the same step** — tests are required for all
    code, no exceptions.
-3. `cmake --build build` — must compile clean.
-4. `cd build && ctest --output-on-failure` — must be **fully green** (the whole
+3. `cmake --build --preset release-macos-arm64` — must compile clean. (Your host's presets are listed by
+   `cmake --list-presets`; `CLAUDE.md`'s "Build trees" says what the names mean.)
+4. `ctest --preset release-macos-arm64` — must be **fully green** (the whole
    suite, not just your new test).
 5. Checkpoint commit with a `feat: <exchange> — <what>` message. Never batch
    multiple checklist items into one commit.
@@ -304,13 +305,14 @@ These apply to every adapter and are easy to miss:
 
 Declare the integration complete only when **all** hold:
 
-1. `cmake -B build && cmake --build build` succeeds from a clean dir with every
-   exchange flag `ON`.
-2. `ctest --output-on-failure` passes **every** test, including your exchange's
+1. `cmake --preset release-macos-arm64 && cmake --build --preset release-macos-arm64` succeeds from a clean
+   tree (`rm -rf build/release-macos-arm64` first) with every exchange flag `ON`.
+2. `ctest --preset release-macos-arm64` passes **every** test, including your exchange's
    auth, REST, and WS suites.
 3. Both CLI examples run against the **live** exchange and print parsed output
    (public endpoints need no credentials).
-4. `cmake -B build -DCRYPTOCOGS_BUILD_<NAME>=OFF && cmake --build build` succeeds
+4. `cmake -S . -B build/decoupled-macos-arm64 -DCRYPTOCOGS_BUILD_<NAME>=OFF && cmake --build build/decoupled-macos-arm64`
+   (a hand-made tree: any kind word) succeeds
    with **no trace** of your exchange's targets — the decoupling proof, exactly
    as Step 9's matrix cell 3 proved for Binance.
 

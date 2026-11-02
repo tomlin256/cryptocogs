@@ -182,6 +182,8 @@ cryptocogs/
 - **System dependencies** (must be installed before configuring):
   - OpenSSL (`libssl-dev`)
   - libcurl (`libcurl4-openssl-dev`)
+  - zlib (`zlib1g-dev`): the fetched IXWebSocket needs it for the examples and tests, and on Ubuntu
+    `libcurl4-openssl-dev` only suggests it
 - **Fetched automatically** by `FetchContent` at configure time:
   | Library | Version | Used by |
   |---|---|---|
@@ -208,7 +210,7 @@ Crypto.com-only tree. All default `ON`. `exchange_common` (the generic
 `ExchangeWsClient` implementation) is always built — every adapter links it.
 Turning all four exchanges off emits a "nothing will be built" warning.
 
-**Installing**: `cmake --install build --prefix <p>` lays down the six static
+**Installing**: `cmake --install <tree> --prefix <p>` lays down the six static
 libs, the public headers (component-gated by the build flags), and a package
 config so a downstream project can `find_package(cryptocogs)` +
 `target_link_libraries(app cryptocogs::kraken)` — and inherit the C++17
@@ -222,87 +224,121 @@ prefix is cryptocogs-only in any config (no need for `-DCRYPTOCOGS_BUILD_TESTS=O
 See [plan 012](docs/plans/012-install-and-package-config.md) and
 [plan 017](docs/plans/017-cmake-install-nits.md).
 
+### Build trees
+
+A CMake build tree belongs to one OS and one architecture: it records the absolute path of its source, the
+compiler, the target and the flags. One checkout is built on the Mac and in a Linux container that mounts it, so each
+platform and each kind of build gets a tree of its own, named `<kind>-<os>-<arch>` and kept under `build/`
+([plan 028](docs/plans/028-platform-build-dirs.md)). Below, `<tree>` stands for one of them:
+`build/release-macos-arm64`, `build/debug-linux-arm64`, `build/release-linux-x86_64`, …
+
+| Part | Values |
+|---|---|
+| `<kind>` | one lower-case word. `release` and `debug` have presets; `bench`, `ubsan`, `asan`, `tsan` and the like are made by hand, and any word is allowed |
+| `<os>` | `macos` or `linux` |
+| `<arch>` | `arm64` or `x86_64` (`aarch64` is spelled `arm64`, `amd64` is spelled `x86_64`) |
+
+- **Presets.** `CMakePresets.json` spells out the six trees that have presets (`release-` and `debug-` for
+  `macos-arm64`, `linux-arm64` and `linux-x86_64`). `cmake --list-presets` shows the ones for this host; each has a
+  build preset and a test preset of the same name. A kind preset sets `CMAKE_BUILD_TYPE` (`Release`, `Debug`) and
+  nothing else: CI adds its own flags on its command line. `test_presets` pins the file.
+- **The guard.** The top of `CMakeLists.txt` refuses a configure that would make a tree lie: a directory named for a
+  platform that is not this host's (`cmake -B build/release-linux-x86_64` on an arm64 machine), and any tree that was
+  first configured on another platform, whatever it is called. The error names the tree to use. It examines the OS and
+  the architecture in the name, not the kind, and not other names (`build`, `scratch`). Only the top-level project is
+  examined, so a consumer's tree never is. A refused configure into an existing tree leaves its settings alone, but
+  CMake saves its cache as it stood at the failure; the next valid configure restores it and rebuilds nothing.
+- **Hand-made trees.** `cmake -S . -B build/bench-macos-arm64 -DCMAKE_BUILD_TYPE=RelWithDebInfo
+  -DCRYPTOCOGS_BUILD_BENCHMARKS=ON` is a tree like any other; the guard checks only its platform.
+- **Floor.** Presets need CMake 3.21; the project's floor stays 3.15, and an older CMake ignores
+  `CMakePresets.json`. `README.md`'s quick start is for a user with one platform: a free-form name such as `build` is
+  allowed.
+- **Names** are compared in lower case, since a bind-mounted checkout is case-insensitive. `.gitignore` already
+  ignores `build*`, which is why the checks live in `tests/tree_checks/` and not `tests/build_checks/`.
+
 ### Common build commands
 
 ```bash
 # Install system deps (Debian/Ubuntu)
-sudo apt install libssl-dev libcurl4-openssl-dev
+sudo apt install libssl-dev libcurl4-openssl-dev zlib1g-dev
 
-# Configure + build (debug, tests enabled by default)
-cmake -B build
-cmake --build build
+# Configure, build and test a tree through its preset (cmake --list-presets lists this host's)
+cmake --preset release-macos-arm64
+cmake --build --preset release-macos-arm64
+ctest --preset release-macos-arm64
 
-# Release build
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+# A debug tree; the same on Linux
+cmake --preset debug-macos-arm64 && cmake --build --preset debug-macos-arm64
+cmake --preset release-linux-arm64          # release-linux-x86_64 on an x86_64 host
 
-# Skip tests and examples
-cmake -B build -DCRYPTOCOGS_BUILD_TESTS=OFF
-cmake --build build
+# Skip tests and examples (a hand-made tree: any kind word)
+cmake -S . -B build/release-macos-arm64 -DCMAKE_BUILD_TYPE=Release -DCRYPTOCOGS_BUILD_TESTS=OFF
+cmake --build build/release-macos-arm64
 ```
 
 ### Build outputs
 
 | Path | Description |
 |---|---|
-| `build/src/libexchange_common.a` | Generic `ExchangeWsClient` impl — always built; every adapter links it (`PUBLIC`) |
-| `build/src/libexchange_http.a` | Shared `CurlHttpClient` libcurl transport — always built; every REST adapter links it (`PUBLIC`) |
-| `build/src/libkraken.a` | Kraken adapter static library — link this for Kraken (transitively pulls `exchange_common`) |
-| `build/src/libbinance.a` | Binance adapter static library — link this for Binance (transitively pulls `exchange_common`) |
-| `build/src/libcoinbase.a` | Coinbase adapter static library — link this for Coinbase (transitively pulls `exchange_common`) |
-| `build/src/libcryptocom.a` | Crypto.com adapter static library — link this for Crypto.com (transitively pulls `exchange_common`) |
-| `build/bin/public_rest` | Public REST demo |
-| `build/bin/private_rest` | Private REST demo |
-| `build/bin/public_ws` | Public WebSocket demo (low-level) |
-| `build/bin/private_ws` | Private WebSocket demo |
-| `build/bin/ws_client_example` | `KrakenWsClient` — all 5 public channels + connection reuse demo |
-| `build/bin/rest_client_example` | CLI11 demo of every public REST endpoint via `KrakenRestClient` |
-| `build/bin/kraken_example` | Combined REST + WebSocket demo |
-| `build/bin/binance_rest_client_example` | CLI11 demo of every public Binance REST endpoint via `BinanceRestClient` |
-| `build/bin/binance_ws_client_example` | `BinanceStreamClient` — all 8 market-data streams + connection reuse |
-| `build/bin/binance_ws_api_example` | `BinanceWsApiClient` — trading WS API `ping` (live-verified) |
-| `build/bin/coinbase_rest_client_example` | CLI11 demo of every public Coinbase REST endpoint via `CoinbaseRestClient` |
-| `build/bin/coinbase_ws_client_example` | `CoinbaseStreamClient` — ticker/level2/matches/heartbeat + connection-reuse demo |
-| `build/bin/cryptocom_rest_client_example` | CLI11 demo of every public Crypto.com REST endpoint via `CryptoComRestClient` |
-| `build/bin/cryptocom_ws_client_example` | `CryptoComMarketClient` — ticker/trade/book/candlestick + connection-reuse demo (heartbeat answered automatically) |
+| `<tree>/src/libexchange_common.a` | Generic `ExchangeWsClient` impl — always built; every adapter links it (`PUBLIC`) |
+| `<tree>/src/libexchange_http.a` | Shared `CurlHttpClient` libcurl transport — always built; every REST adapter links it (`PUBLIC`) |
+| `<tree>/src/libkraken.a` | Kraken adapter static library — link this for Kraken (transitively pulls `exchange_common`) |
+| `<tree>/src/libbinance.a` | Binance adapter static library — link this for Binance (transitively pulls `exchange_common`) |
+| `<tree>/src/libcoinbase.a` | Coinbase adapter static library — link this for Coinbase (transitively pulls `exchange_common`) |
+| `<tree>/src/libcryptocom.a` | Crypto.com adapter static library — link this for Crypto.com (transitively pulls `exchange_common`) |
+| `<tree>/bin/public_rest` | Public REST demo |
+| `<tree>/bin/private_rest` | Private REST demo |
+| `<tree>/bin/public_ws` | Public WebSocket demo (low-level) |
+| `<tree>/bin/private_ws` | Private WebSocket demo |
+| `<tree>/bin/ws_client_example` | `KrakenWsClient` — all 5 public channels + connection reuse demo |
+| `<tree>/bin/rest_client_example` | CLI11 demo of every public REST endpoint via `KrakenRestClient` |
+| `<tree>/bin/kraken_example` | Combined REST + WebSocket demo |
+| `<tree>/bin/binance_rest_client_example` | CLI11 demo of every public Binance REST endpoint via `BinanceRestClient` |
+| `<tree>/bin/binance_ws_client_example` | `BinanceStreamClient` — all 8 market-data streams + connection reuse |
+| `<tree>/bin/binance_ws_api_example` | `BinanceWsApiClient` — trading WS API `ping` (live-verified) |
+| `<tree>/bin/coinbase_rest_client_example` | CLI11 demo of every public Coinbase REST endpoint via `CoinbaseRestClient` |
+| `<tree>/bin/coinbase_ws_client_example` | `CoinbaseStreamClient` — ticker/level2/matches/heartbeat + connection-reuse demo |
+| `<tree>/bin/cryptocom_rest_client_example` | CLI11 demo of every public Crypto.com REST endpoint via `CryptoComRestClient` |
+| `<tree>/bin/cryptocom_ws_client_example` | `CryptoComMarketClient` — ticker/trade/book/candlestick + connection-reuse demo (heartbeat answered automatically) |
 
 ---
 
 ## Running tests
 
 ```bash
-cd build && ctest --output-on-failure
+ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure
 ```
 
-There are twenty-five test executables (487 tests total) — seven Kraken/common, six Binance, six Coinbase, six Crypto.com:
+There are twenty-five test executables (496 tests, plus the three build-tree checks of plan 028: `test_platform_name`,
+`test_tree_name` and `test_presets`, 499 in ctest) — seven Kraken/common, six Binance, six Coinbase, six Crypto.com:
 
 | Binary | Source | What it tests |
 |---|---|---|
-| `build/bin/kraken_unit_tests` | `test_signature/rest_requests/rest_responses/client/kraken_auth.cpp` | REST request building, response parsing, signature, HTTP mock |
-| `build/bin/test_ws_client` | `test_ws_client.cpp` | `ExchangeWsClient` (as `KrakenWsClient`) lifecycle with `MockWsConnection` |
-| `build/bin/test_ws_responses` | `test_ws_responses.cpp` | `identify_message` + `from_json` against captured WS fixtures |
-| `build/bin/test_tick_price` | `test_tick_price.cpp` | `TickPrice::from`/`str` exact-decimal round-tripping |
-| `build/bin/test_credentials_file` | `test_credentials_file.cpp` | `read_toml_credentials` — TOML parse, `$HOME`/explicit path resolution, and every error branch |
-| `build/bin/test_order_type` | `test_order_type.cpp` | Generic (`exchange::to_string`) vs. Kraken (`kraken_order_type_to_string`) wire formats |
-| `build/bin/test_ws_reconnect_session` | `test_ws_reconnect_session.cpp` | `WsReconnectSession` start/stop/backoff/reconnect — deterministic, no real sleeps |
-| `build/bin/test_binance_auth` | `test_binance_auth.cpp` | `BinanceAuth` HMAC-SHA256 signing + header injection |
-| `build/bin/test_binance_types` | `test_binance_types.cpp` | Binance enum converters (incl. canonical FOK time-in-force) |
-| `build/bin/test_binance_rest_requests` | `test_binance_rest_requests.cpp` | Each Binance REST request builds the correct path/query/body |
-| `build/bin/test_binance_rest_responses` | `test_binance_rest_responses.cpp` | `from_json` + `parse_binance_response` against captured fixtures |
-| `build/bin/test_binance_client` | `test_binance_client.cpp` | `BinanceRestClient::execute()` signed round-trip via mock performer |
-| `build/bin/test_binance_ws_client` | `test_binance_ws_client.cpp` | Binance stream + trading-WS-API lifecycle with `MockWsConnection` |
-| `build/bin/test_coinbase_auth` | `test_coinbase_auth.cpp` | `CoinbaseAuth` base64/HMAC-SHA256 (RFC 4231 vector) + CB-ACCESS-* header injection |
-| `build/bin/test_coinbase_types` | `test_coinbase_types.cpp` | Coinbase enum converters + `parse_coinbase_response` status mapping |
-| `build/bin/test_coinbase_rest_requests` | `test_coinbase_rest_requests.cpp` | Each Coinbase REST request builds the correct path/query/JSON body |
-| `build/bin/test_coinbase_rest_responses` | `test_coinbase_rest_responses.cpp` | `from_json` field assertions (public live + private synthetic fixtures) |
-| `build/bin/test_coinbase_client` | `test_coinbase_client.cpp` | `CoinbaseRestClient::execute()` signed round-trip + User-Agent via mock performer |
-| `build/bin/test_coinbase_ws_client` | `test_coinbase_ws_client.cpp` | `CoinbaseStreamClient` optimistic subscribe / type-keyed dispatch with `MockWsConnection` |
-| `build/bin/test_cryptocom_auth` | `test_cryptocom_auth.cpp` | `params_to_str` matrix + HMAC-SHA256/hex + `CryptoComCredentials::sign()` digest |
-| `build/bin/test_cryptocom_types` | `test_cryptocom_types.cpp` | Crypto.com UPPERCASE enum converters + `parse_cryptocom_response` `code` mapping |
-| `build/bin/test_cryptocom_rest_requests` | `test_cryptocom_rest_requests.cpp` | Each Crypto.com REST request builds the right path/query (public) or signed envelope (private) |
-| `build/bin/test_cryptocom_rest_responses` | `test_cryptocom_rest_responses.cpp` | `from_json` field assertions (market live + private synthetic fixtures) |
-| `build/bin/test_cryptocom_client` | `test_cryptocom_client.cpp` | `CryptoComRestClient::execute()` signed-envelope round-trip via mock performer |
-| `build/bin/test_cryptocom_ws_client` | `test_cryptocom_ws_client.cpp` | `HeartbeatResponder` auto-reply + id-correlated subscribe/ack/push lifecycle with `MockWsConnection` |
+| `<tree>/bin/kraken_unit_tests` | `test_signature/rest_requests/rest_responses/client/kraken_auth.cpp` | REST request building, response parsing, signature, HTTP mock |
+| `<tree>/bin/test_ws_client` | `test_ws_client.cpp` | `ExchangeWsClient` (as `KrakenWsClient`) lifecycle with `MockWsConnection` |
+| `<tree>/bin/test_ws_responses` | `test_ws_responses.cpp` | `identify_message` + `from_json` against captured WS fixtures |
+| `<tree>/bin/test_tick_price` | `test_tick_price.cpp` | `TickPrice::from`/`str` exact-decimal round-tripping |
+| `<tree>/bin/test_credentials_file` | `test_credentials_file.cpp` | `read_toml_credentials` — TOML parse, `$HOME`/explicit path resolution, and every error branch |
+| `<tree>/bin/test_order_type` | `test_order_type.cpp` | Generic (`exchange::to_string`) vs. Kraken (`kraken_order_type_to_string`) wire formats |
+| `<tree>/bin/test_ws_reconnect_session` | `test_ws_reconnect_session.cpp` | `WsReconnectSession` start/stop/backoff/reconnect — deterministic, no real sleeps |
+| `<tree>/bin/test_binance_auth` | `test_binance_auth.cpp` | `BinanceAuth` HMAC-SHA256 signing + header injection |
+| `<tree>/bin/test_binance_types` | `test_binance_types.cpp` | Binance enum converters (incl. canonical FOK time-in-force) |
+| `<tree>/bin/test_binance_rest_requests` | `test_binance_rest_requests.cpp` | Each Binance REST request builds the correct path/query/body |
+| `<tree>/bin/test_binance_rest_responses` | `test_binance_rest_responses.cpp` | `from_json` + `parse_binance_response` against captured fixtures |
+| `<tree>/bin/test_binance_client` | `test_binance_client.cpp` | `BinanceRestClient::execute()` signed round-trip via mock performer |
+| `<tree>/bin/test_binance_ws_client` | `test_binance_ws_client.cpp` | Binance stream + trading-WS-API lifecycle with `MockWsConnection` |
+| `<tree>/bin/test_coinbase_auth` | `test_coinbase_auth.cpp` | `CoinbaseAuth` base64/HMAC-SHA256 (RFC 4231 vector) + CB-ACCESS-* header injection |
+| `<tree>/bin/test_coinbase_types` | `test_coinbase_types.cpp` | Coinbase enum converters + `parse_coinbase_response` status mapping |
+| `<tree>/bin/test_coinbase_rest_requests` | `test_coinbase_rest_requests.cpp` | Each Coinbase REST request builds the correct path/query/JSON body |
+| `<tree>/bin/test_coinbase_rest_responses` | `test_coinbase_rest_responses.cpp` | `from_json` field assertions (public live + private synthetic fixtures) |
+| `<tree>/bin/test_coinbase_client` | `test_coinbase_client.cpp` | `CoinbaseRestClient::execute()` signed round-trip + User-Agent via mock performer |
+| `<tree>/bin/test_coinbase_ws_client` | `test_coinbase_ws_client.cpp` | `CoinbaseStreamClient` optimistic subscribe / type-keyed dispatch with `MockWsConnection` |
+| `<tree>/bin/test_cryptocom_auth` | `test_cryptocom_auth.cpp` | `params_to_str` matrix + HMAC-SHA256/hex + `CryptoComCredentials::sign()` digest |
+| `<tree>/bin/test_cryptocom_types` | `test_cryptocom_types.cpp` | Crypto.com UPPERCASE enum converters + `parse_cryptocom_response` `code` mapping |
+| `<tree>/bin/test_cryptocom_rest_requests` | `test_cryptocom_rest_requests.cpp` | Each Crypto.com REST request builds the right path/query (public) or signed envelope (private) |
+| `<tree>/bin/test_cryptocom_rest_responses` | `test_cryptocom_rest_responses.cpp` | `from_json` field assertions (market live + private synthetic fixtures) |
+| `<tree>/bin/test_cryptocom_client` | `test_cryptocom_client.cpp` | `CryptoComRestClient::execute()` signed-envelope round-trip via mock performer |
+| `<tree>/bin/test_cryptocom_ws_client` | `test_cryptocom_ws_client.cpp` | `HeartbeatResponder` auto-reply + id-correlated subscribe/ack/push lifecycle with `MockWsConnection` |
 
 Tests do **not** require network access or credentials — all I/O is mocked.
 The flag matrix splits cleanly: each exchange flag drops its own suite. A
@@ -1288,30 +1324,30 @@ Place the banner before `#pragma once` (for headers) or before the first `#inclu
 
 ```bash
 # Public (no credentials needed)
-./build/bin/public_rest
-./build/bin/public_ws BTC/EUR
-./build/bin/ws_client_example BTC/USD     # KrakenWsClient subscription + connection reuse
-./build/bin/rest_client_example time      # CLI11 demo — try `--help` for every public-endpoint subcommand
+./<tree>/bin/public_rest
+./<tree>/bin/public_ws BTC/EUR
+./<tree>/bin/ws_client_example BTC/USD     # KrakenWsClient subscription + connection reuse
+./<tree>/bin/rest_client_example time      # CLI11 demo — try `--help` for every public-endpoint subcommand
 
 # Private (requires ~/.kraken/default)
-./build/bin/private_rest
-./build/bin/private_ws
+./<tree>/bin/private_rest
+./<tree>/bin/private_ws
 
 # Combined REST + WS demo
-./build/bin/kraken_example
+./<tree>/bin/kraken_example
 
 # Binance (all public — no credentials)
-./build/bin/binance_rest_client_example ticker --symbol BTCUSDT   # --help lists every endpoint
-./build/bin/binance_ws_client_example aggtrade BTCUSDT            # one of 8 stream subcommands
-./build/bin/binance_ws_api_example ping                          # trading WS API heartbeat
+./<tree>/bin/binance_rest_client_example ticker --symbol BTCUSDT   # --help lists every endpoint
+./<tree>/bin/binance_ws_client_example aggtrade BTCUSDT            # one of 8 stream subcommands
+./<tree>/bin/binance_ws_api_example ping                          # trading WS API heartbeat
 
 # Coinbase (all public — no credentials)
-./build/bin/coinbase_rest_client_example ticker BTC-USD          # --help lists every endpoint
-./build/bin/coinbase_ws_client_example ticker BTC-USD            # one of 5 channel subcommands
+./<tree>/bin/coinbase_rest_client_example ticker BTC-USD          # --help lists every endpoint
+./<tree>/bin/coinbase_ws_client_example ticker BTC-USD            # one of 5 channel subcommands
 
 # Crypto.com (all public — no credentials)
-./build/bin/cryptocom_rest_client_example tickers BTC_USD        # --help lists every endpoint
-./build/bin/cryptocom_ws_client_example ticker BTC_USD --seconds 35   # one of 5 channel subcommands
+./<tree>/bin/cryptocom_rest_client_example tickers BTC_USD        # --help lists every endpoint
+./<tree>/bin/cryptocom_ws_client_example ticker BTC_USD --seconds 35   # one of 5 channel subcommands
 ```
 
 Callers that embed a REST client must call `curl_global_init(CURL_GLOBAL_ALL)` before constructing `KrakenRestClient` / `BinanceRestClient` / `CryptoComRestClient` and `curl_global_cleanup()` on teardown.

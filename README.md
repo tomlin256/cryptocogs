@@ -35,6 +35,11 @@ cmake -B build && cmake --build build
 
 All other dependencies (IXWebSocket, nlohmann/json, spdlog, Google Test) are fetched automatically by CMake.
 
+`build/` above is the tree this snippet makes, and the examples below run from it. A checkout that is built on more
+than one platform, as the maintainers' is, keeps one tree per kind of build and platform under `build/` instead
+(`build/release-macos-arm64`, `build/debug-linux-arm64`), named by `CMakePresets.json`: `cmake --list-presets` lists
+them for your host, and `CLAUDE.md`'s "Build trees" says what the names mean.
+
 ---
 
 ## Examples
@@ -566,7 +571,8 @@ Private channels need a token obtained via `GetWebSocketsTokenRequest` over REST
 ## Running the tests
 
 ```bash
-cd build && ctest --output-on-failure
+ctest --preset release-macos-arm64                     # a tree made with the presets; `cmake --list-presets` lists yours
+ctest --test-dir build --output-on-failure                # the tree the quick start made
 ```
 
 Tests require no network access or credentials — all I/O is mocked. **312 tests**
