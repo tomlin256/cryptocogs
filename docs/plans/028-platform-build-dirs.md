@@ -513,7 +513,7 @@ Commit: `docs(plan): results for 028 — one build tree per platform (step 8/8)`
 
 **Deviations from the plan as approved**: the directory name above; the Install step's third package; the Step 4 criterion that the refused tree's cache be byte-identical, replaced by what was found; and Step 1's "no CMake warning", which the dependencies' deprecations prevent.
 
-**Left for later**: the stale trees (the old tree's files in `build/`, 874 MB, and `build-bench`, `build-compat`, `build-ubsan` and `build2`, 1.9 GB between them; delete when convenient); a macOS CI leg and a sanitizer option, each its own issue; and the README's test paragraph, which still says 312 tests.
+**Left for later**: the stale trees (the old tree's files in `build/`, 874 MB, and `build-bench`, `build-compat`, `build-ubsan` and `build2`, 1.9 GB between them; delete when convenient); a macOS CI leg ([#29](https://github.com/tomlin256/cryptocogs/issues/29)) and a sanitizer option with presets ([#30](https://github.com/tomlin256/cryptocogs/issues/30)); and the README's test paragraph, which still says 312 tests ([#31](https://github.com/tomlin256/cryptocogs/issues/31)).
 
 ## Progress
 
