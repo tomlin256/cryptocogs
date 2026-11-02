@@ -157,3 +157,15 @@ add_test(NAME test_tree_name
                  -DNLOHMANN_JSON_SRC=${nlohmann_json_SOURCE_DIR}
                  -DTOMLPLUSPLUS_SRC=${tomlplusplus_SOURCE_DIR}
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/tree_checks/check_tree_name.cmake)
+
+# CMakePresets.json names one tree per kind and platform and says only what makes each name true. It
+# reads the file with string(JSON) and asks CMake what it lists for this host, which needs CMake 3.21;
+# an older CMake ignores the file, so the test is registered only where it can run. Top level only: a
+# project that fetches this library does not run this repo's checks.
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.21 AND CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_test(NAME test_presets
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -DHOST_SYSTEM_NAME=${CMAKE_HOST_SYSTEM_NAME}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/tree_checks/check_presets.cmake)
+endif()
