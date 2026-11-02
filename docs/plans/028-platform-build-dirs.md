@@ -326,8 +326,12 @@ runs: `cmake --preset release-linux-arm64`, `cmake --build --preset release-linu
 2. **The architecture in the name, from an x86_64 host.** In a throwaway `--platform linux/amd64` container (an
    `ubuntu:24.04` image with `build-essential`, `cmake`, `git`, `libcurl4-openssl-dev`, `libssl-dev` and `zlib1g-dev`, removed
    afterwards; `ubuntu-dev` is not touched), on the same checkout:
-   - `cmake --preset release-linux-arm64` is refused by the guard, naming both platforms, and the arm64 tree's
-     `CMakeCache.txt` is byte-identical afterwards;
+   - `cmake --preset release-linux-arm64` is refused by the guard, naming both platforms, and the arm64 tree is
+     intact afterwards: its settings are unchanged, and the next valid configure restores its cache and rebuilds
+     nothing. (The design source has the cache byte-identical; that holds only while the command line adds no `-D`.
+     A preset puts `-DCMAKE_BUILD_TYPE` on it, and CMake saves the cache as it stood at the failure, so
+     `CMAKE_BUILD_TYPE` becomes an untyped command-line entry and the entries made later in the configure are
+     dropped until the next valid one. Found on 2026-11-02.)
    - `cmake --preset release-linux-x86_64` configures and writes `build/release-linux-x86_64` beside
      `build/release-linux-arm64`;
    - `test_tick_price` builds in it and passes under `ctest --preset release-linux-x86_64 -R TickPrice`, and
@@ -344,7 +348,7 @@ runs: `cmake --preset release-linux-arm64`, `cmake --build --preset release-linu
    `bug`-labelled issue per finding, reported, and this plan carries on.
 
 **Done when:** `ctest --preset release-linux-arm64` and `ctest --preset debug-linux-arm64` pass in full (Step 1's Linux
-count plus 3), the three checks in 1 hold, every line of 2 holds, and the outcomes in 3 are recorded as a pass, as
+count plus 3), the three checks in 1 hold, every line of 2 holds (the first bullet as amended above), and the outcomes in 3 are recorded as a pass, as
 issues, or as "cannot run, and why".
 
 ### Step 5 — CI
@@ -357,7 +361,8 @@ as "in a 'build' subdirectory"):
 - Build: `cmake --build --preset release-linux-x86_64`.
 - Test: `ctest --preset release-linux-x86_64`, with no `working-directory`; the test preset carries
   `--output-on-failure`.
-- `actions/checkout@v4` becomes `@v6` (D4), and every `uses:` is audited.
+- `actions/checkout@v4` becomes `@v6` (D4), and every `uses:` is audited. The Install step names `libcurl4-openssl-dev`,
+  `libssl-dev` and `zlib1g-dev`: the first only suggests the other two on Ubuntu, and the runner image has them today.
 
 It is its own commit because a workflow can be proven only by running it, and a red run should be the workflow's and
 not the docs'.
@@ -492,7 +497,7 @@ Commit: `docs(plan): results for 028 — one build tree per platform (step 8/8)`
 | 1 — Start from green | Done (2026-11-02) | Mac and container: 496 of 496, Release, GCC 13.3.0 / Apple Clang 21 / CMake 3.28.3 / 4.2.3. Mac: configure 29 s, build 20 s (`--parallel 8`), ctest 2.6 s. Container: configure, build and ctest 46 s (`--parallel 8`), ctest 1.4 s. Not warning-free, none of it this repo's own files: CMake deprecation warnings from backward-cpp (and CLI11 on 4.2) and `-Wunused-parameter` from ixwebsocket ([#26](https://github.com/tomlin256/cryptocogs/issues/26)), `-Wunused-result` on Apple Clang ([#24](https://github.com/tomlin256/cryptocogs/issues/24)). The container also needed `zlib1g-dev`, which D8 had not named: `libcurl4-openssl-dev` only suggests it. A tree nested in the old `build/` configures and builds on its own. |
 | 2 — Platform tag and guard | Done (2026-11-02) | 498 of 498 on the Mac and in the container; `cmake --build` of the Step 1 tree reconfigured through the guard and compiled nothing. Both tests were seen red first; 17 hand-made changes (the 16 rows, `kind required` and `remembered` each checked in both tests) fail as stated. |
 | 3 — Presets and their test | Done (2026-11-02) | 499 of 499 through `ctest --preset release-macos-arm64`; the Step 1 tree was reused and nothing rebuilt; `debug-macos-arm64` configures with `CMAKE_BUILD_TYPE` `Debug`. `cmake --list-presets=all` on the Mac lists only the two Mac presets, so a visible preset does inherit its host's `condition` (CMake 4.2.3). Seen red against a tree with no file; the 14 hand-made changes fail on the rule named. Floor probe, Ubuntu 20.04 / CMake 3.16.3 / GCC 9.4 (arm64 container): the file is ignored (`cmake --preset` is an unknown option there), the guard accepts `release-linux-arm64`, refuses `release-linux-x86_64` with the right text, and accepts a free-form name; 3.15 itself was not available. |
-| 4 — Linux, through the presets | | |
+| 4 — Linux, through the presets | Done (2026-11-02) | Container, GCC 13.3.0, CMake 3.28.3, `--parallel 8`: `release-linux-arm64` 499 of 499 (configure, build and ctest from nothing: 31 s) and `debug-linux-arm64` 499 of 499 (55 s). Side by side: the Mac tree's cache has the same SHA-1 after the Linux run, the Linux tree's after the Mac run, and each rebuilt nothing after the other's run; `git status` shows no tree. Emulated `linux/amd64` container (Ubuntu 24.04, GCC 13.3.0): `cmake --preset release-linux-arm64` is refused naming both platforms; `release-linux-x86_64` configures (56 s) beside it, `test_tick_price` builds (13 s) and its 11 tests pass; `readelf` says x86-64 for it and AArch64 for the arm64 tree's. The refusal rewrote the arm64 tree's cache (see above: not byte-identical); the next valid configure restored it, 0 compiles, 499 of 499. Sanitizers (hand-made `asan` and `tsan` kinds, `RelWithDebInfo`): ASan + UBSan + LeakSanitizer 499 of 499, no report (configure 40 s, build 133 s, ctest 8 s); TSan: 497 of 499, two reports, both races in the tests and not the library: [#27](https://github.com/tomlin256/cryptocogs/issues/27) (`Execute.BlocksUntilResponse`) and [#28](https://github.com/tomlin256/cryptocogs/issues/28) (`WsReconnectSession.BackoffResetsAfterSuccessfulReconnect`). |
 | 5 — CI | | |
 | 6 — Documentation | | |
 | 7 — Release v0.6.0 | | |

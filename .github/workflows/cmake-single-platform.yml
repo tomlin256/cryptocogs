@@ -9,34 +9,32 @@ on:
     branches: [ "main" ]
 
 env:
-  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
-  BUILD_TYPE: Release
+  # CI's platform is Linux on x86_64, built as Release. The preset (CMakePresets.json) names the tree,
+  # build/release-linux-x86_64, and sets its build type; a runner of another architecture fails at the
+  # Configure step, and the build-tree guard in CMakeLists.txt says which preset to use (plan 028).
+  PRESET: release-linux-x86_64
 
 jobs:
   build:
-    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
-    # You can convert this to a matrix build if you need cross-platform coverage.
+    # The configure, build and test commands are the same on any platform, through the presets.
+    # You can convert this to a matrix build if you need cross-platform coverage: one preset per leg.
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
+    # libcurl4-openssl-dev only suggests the other two on Ubuntu, so all three are named.
     - name: Install dependencies
-      run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+      run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libssl-dev zlib1g-dev
 
     - name: Configure CMake
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+      run: cmake --preset ${{env.PRESET}}
 
     - name: Build
-      # Build your program with the given configuration
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+      run: cmake --build --preset ${{env.PRESET}}
 
     - name: Test
-      working-directory: ${{github.workspace}}/build
-      # Execute tests defined by the CMake configuration.
+      # The test preset carries --output-on-failure, and fails a run that finds no tests.
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-      run: ctest -C ${{env.BUILD_TYPE}}
-
+      run: ctest --preset ${{env.PRESET}}
