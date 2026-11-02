@@ -3,8 +3,9 @@
 **Status:** Approved (2026-11-02) — Rob approved the plan as written, so D1 to D8 stand at the defaults below.
 **Design source:** flywheel-dag's [platform_build_dirs_plan.md](https://github.com/tomlin256/flywheel-dag/blob/main/docs/plans/platform_build_dirs_plan.md)
 ([flywheel-dag#46](https://github.com/tomlin256/flywheel-dag/issues/46)). This plan applies that design here and restates
-only what differs. It differs in one deliberate way: the tree is `build/<kind>-<os>-<arch>`, where the design source
-as written says `build-<os>-<arch>` (D1). The design source is to be brought in line before either plan is approved.
+only what differs. The design source names the tree `build/<kind>-<os>-<arch>` too (D1): it had `build-<os>-<arch>`
+before Rob's refinement of 2026-11-02 and was brought in line the same day, and it is released as flywheel-dag v0.3.0,
+whose Outcome records what its steps found.
 **Closes:** [GitHub issue #25](https://github.com/tomlin256/cryptocogs/issues/25) — "One build tree per platform:
 build/&lt;kind&gt;-&lt;os&gt;-&lt;arch&gt;, presets, a guard, and a Linux proof"
 
@@ -108,36 +109,38 @@ Four parts, as in the design source.
    `docs/agent-add-exchange.md`. Then a release.
 
 **What I checked, and what I did not.** The CMake facts the design rests on (the platform answers before `project()`;
-`${presetName}` in an inherited `binaryDir`; `condition`; `noTestsAction`; a refused configure leaves the cache
-byte-identical; an older CMake ignores the file) were checked by the design source on CMake 3.18.4, 3.28.3 and 4.2.3.
-I have not re-run them here. Steps 2 and 3 re-prove them as tests, on this repo's CMake: 4.2 on the Mac, 3.28 in the
-container, and the runners'. Two things are new to this layout and are assumptions until those tests run: that a
-visible preset inherits its host's `condition` through `inherits`, and that a tree nested in the old `build/` tree
-configures and builds independently of it. This repo's floor is 3.15, below the 3.18.4 the design source used (see the
-self-review).
+`${presetName}` in an inherited `binaryDir`; `condition`; `noTestsAction`; an older CMake ignores the file) were
+checked by the design source on CMake 3.18.4, 3.28.3 and 4.2.3. A fact it listed as well, that a refused configure
+leaves the cache byte-identical, holds only for a project of one directory; Step 4 says what it does instead. I have
+not re-run the others here. Steps 2 and 3 re-prove them as tests, on this repo's CMake: 4.2 on the Mac, 3.28 in the
+container, and the runners'. Two things were new to this layout, and the design source has checked both since
+(2026-11-02, CMake 4.2.3 and 3.28.3), as Steps 1 and 3 did here: that a visible preset inherits its host's `condition`
+through `inherits`, and that a tree nested in the old `build/` tree configures and builds independently of it. This
+repo's floor is 3.15, below the 3.18.4 the design source used (see the self-review).
 
 ## Decisions to confirm
 
 My defaults, each one a place to edit before approving.
 
-- **D1. The layout is `build/<kind>-<os>-<arch>`.** Rob's refinement (2026-11-02), which replaces the design source's
-  `build-<os>-<arch>`. The kind is one lower-case word: `release` and `debug` have presets, and any other (`bench`,
+- **D1. The layout is `build/<kind>-<os>-<arch>`.** Rob's refinement (2026-11-02), which the design source adopted the
+  same day; its first version had `build-<os>-<arch>`. The kind is one lower-case word: `release` and `debug` have presets, and any other (`bench`,
   `ubsan`, `asan`) is made by hand. `build/` as the parent keeps every tree under one ignored directory, so
   `.gitignore`, an `rsync --exclude build` and an editor's excludes keep working, `rm -rf build` clears them all, and CI
   caches have one root. The costs are longer names (`cmake --preset release-macos-arm64`) and that today's tree stays
   inside the new parent as stale content. The rest of the design stands: presets name the trees, both halves of the
-  guard, `.clangd` points at the editing host's tree. The alternative is the design source as written.
+  guard, `.clangd` points at the editing host's tree. The alternative is the design's first version, `build-<os>-<arch>`.
 - **D2. The presets make the kind true; the guard does not check it.** Because the kind is in the name, each kind
-  preset sets `CMAKE_BUILD_TYPE` (`release` is `Release`, `debug` is `Debug`). That ends the design source's "presets set
-  no build type" for the build type; they still set no warning flag and no `CRYPTOCOGS_BUILD_*` option, and CI keeps its
+  preset sets `CMAKE_BUILD_TYPE` (`release` is `Release`, `debug` is `Debug`). The design source sets the build type from the kind too
+  (its D4); the presets still set no warning flag and no `CRYPTOCOGS_BUILD_*` option, and CI keeps its
   own flags on its command line. `test_presets` pins kind to build type. The guard examines the operating system and the
   architecture only, because only those fail hard (an `Exec format error`, a link error); a kind that lies on a
   hand-made tree is its maker's. The alternative is for the guard to compare the kind with `CMAKE_BUILD_TYPE` as well:
   more code, and the build type is often unset when a hand-made tree is configured.
 - **D3. The module is a copy, not shared.** `cmake/cryptocogs_platform.cmake` is flywheel-dag's module with the prefix
-  changed, and its test tables are copies (with a few extra boundary rows). This library depends on nothing of
+  changed, and its test tables are copies (the boundary rows this plan added are in the design source's table now). This library
+  depends on nothing of
   flywheel-dag's and must not start to: the guard runs before `project()`, before anything could be fetched, and a
-  fourth repo for forty lines costs more than the drift it removes. When a table changes in one repo, change the
+  shared repo for forty lines costs more than the drift it removes. When a table changes in one repo, change the
   other; each module's header comment says so.
 - **D4. CI stays one Linux job.** `ubuntu-latest` (x86_64), `Release`, preset `release-linux-x86_64`; the preset
   carries the build type, so the workflow stops passing `-DCMAKE_BUILD_TYPE`. No macOS leg here: it is a new job
@@ -282,8 +285,8 @@ New: `CMakePresets.json`, `tests/tree_checks/check_presets.cmake`, and a `test_p
 | R6 | each has a build preset and a test preset of the same name, which name it as `configurePreset` and carry its host's condition; each test preset sets `execution.noTestsAction` to `error` and `output.outputOnFailure` to true |
 | R7 | `cmake -S <dir> --list-presets=all` lists, for the configure, build and test presets, exactly the presets in the file that are for `HOST_SYSTEM_NAME`'s OS: two of each on Darwin, four on Linux, none elsewhere |
 
-R7 is the end-to-end check that CMake agrees with the file's text, and it is where the assumption that a visible
-preset inherits its host's `condition` is tested.
+R7 is the end-to-end check that CMake agrees with the file's text, and it is where a visible preset's inheritance of
+its host's `condition` is tested here (the design source checked it on CMake 4.2.3 and 3.28.3).
 
 The test is written first and shown red against a tree with no `CMakePresets.json`. Then the presets are added. Each
 hand-made change below is made to a scratch copy and passed with `-DPRESETS_DIR`, and must fail on the rule named:
@@ -328,7 +331,8 @@ runs: `cmake --preset release-linux-arm64`, `cmake --build --preset release-linu
    afterwards; `ubuntu-dev` is not touched), on the same checkout:
    - `cmake --preset release-linux-arm64` is refused by the guard, naming both platforms, and the arm64 tree is
      intact afterwards: its settings are unchanged, and the next valid configure restores its cache and rebuilds
-     nothing. (The design source has the cache byte-identical; that holds only while the command line adds no `-D`.
+     nothing. (The design source's plan had the cache byte-identical, from a scratch project of one directory, and corrected itself
+     after its own Step 4 found the same; that holds only while the command line adds no `-D`.
      A preset puts `-DCMAKE_BUILD_TYPE` on it, and CMake saves the cache as it stood at the failure, so
      `CMAKE_BUILD_TYPE` becomes an untyped command-line entry and the entries made later in the configure are
      dropped until the next valid one. Found on 2026-11-02.)
@@ -445,8 +449,8 @@ Commit: `docs(plan): results for 028 — one build tree per platform (step 8/8)`
 ## Self-review — risks and assumptions
 
 - **The container cannot configure this repo yet** (D8). Step 1 waits for the packages.
-- **The design source still says `build-<os>-<arch>`** until it is edited. Until then this plan departs from it, and
-  the two modules' tables and the three repos' error texts must be kept the same by hand (D3).
+- **The two modules are copies.** The design source says `build/<kind>-<os>-<arch>` too (flywheel-dag v0.3.0), so the
+  plans agree; the modules' tables and error texts must be kept the same by hand (D3).
 - **Step 1 may find that the suite does not pass on Linux/aarch64.** It has never run there. Plain `char` is unsigned
   on Linux/aarch64 and signed on x86_64 and on Apple's arm64, and the signing, base64 and hex code is where a
   difference would show (the file #23's undefined behaviour was in). A failure is a finding, not a snag: stop and ask.
@@ -471,8 +475,9 @@ Commit: `docs(plan): results for 028 — one build tree per platform (step 8/8)`
   `build2` are not platform trees), which is why the release is a minor one. Running under Rosetta on an Apple Silicon
   Mac is a different platform (`x86_64`) from the native one, and the guard treats it as one. A consumer's tree is
   never examined.
-- **A visible preset inherits its host's `condition`** is an assumption about CMake, tested end to end by R7; if CMake
-  does not inherit it, each visible preset repeats the condition and R5 says so.
+- **A visible preset inherits its host's `condition`** is a fact about CMake that the design source checked (4.2.3 and
+  3.28.3, 2026-11-02) and R7 tests end to end here; if a CMake did not inherit it, each visible preset would repeat
+  the condition and R5 says so.
 - **The floor is CMake 3.15, below the 3.18.4 the design source checked.** The module uses only commands 3.15 has, and
   CMake reads `CMakePresets.json` only for `--preset` or `--list-presets` (3.19 and later), so an older CMake ignores
   it. Step 3's probe on 3.16.3 tests that; 3.15 itself is not available to me.
