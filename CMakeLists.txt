@@ -27,7 +27,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
         "The platform this build tree was first configured on (plan 028)")
 endif()
 
-project(CRYPTOCOGS VERSION 0.5.6 LANGUAGES CXX)
+project(CRYPTOCOGS VERSION 0.6.0 LANGUAGES CXX)
 
 # Allow fetched dependencies that declare cmake_minimum_required < 3.5
 # (CMake 4.x removed compatibility below 3.5)
