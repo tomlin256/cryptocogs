@@ -33,10 +33,11 @@ Linux alone. Linux/aarch64 is also a third ABI: plain `char` is unsigned there, 
 arm64, which is the kind of difference the byte-level code in this library (signing, base64, hex) should meet before
 a user does.
 
-**A prerequisite outside this repo.** The `ubuntu-dev` image has no libcurl or OpenSSL development packages (checked
-2026-11-01: `/usr/include/curl/curl.h` and `/usr/include/openssl/ssl.h` are absent), and the root `CMakeLists.txt`
-has `find_package(CURL REQUIRED)` and `find_package(OpenSSL REQUIRED)`. Nothing builds here in the container until
-they are installed (D8).
+**A prerequisite outside this repo.** The `ubuntu-dev` image has no libcurl, OpenSSL or zlib development packages
+(checked 2026-11-01: `curl.h` and `openssl/ssl.h` are absent), and the root `CMakeLists.txt` has
+`find_package(CURL REQUIRED)` and `find_package(OpenSSL REQUIRED)`; the ixwebsocket it fetches for the tests needs
+zlib. `libcurl4-openssl-dev` only suggests the other two on Ubuntu 24.04, so all three are named. Nothing builds here
+in the container until they are installed (D8).
 
 ## What names the tree
 
@@ -159,9 +160,10 @@ My defaults, each one a place to edit before approving.
 - **D7. Pushes.** Each step's commit is pushed to `main` once it passes locally, and CI's result on the pushed commit
   is part of that step's "done". The release step also pushes the tag. Approving the plan approves those pushes. This
   repo is public: code, docs, commits and issues added here describe this library and name no project that uses it.
-- **D8. The container gets libcurl and OpenSSL development packages before Step 1.** Default: add
-  `libcurl4-openssl-dev` and `libssl-dev` to the container image (its own repo and its own plan) and recreate the
-  container; meanwhile `sudo apt-get install -y libcurl4-openssl-dev libssl-dev` in the running one makes Step 1
+- **D8. The container gets libcurl, OpenSSL and zlib development packages before Step 1.** Default: add
+  `libcurl4-openssl-dev`, `libssl-dev` and `zlib1g-dev` to the container image (its own repo and its own plan) and
+  recreate the container; meanwhile `sudo apt-get install -y libcurl4-openssl-dev libssl-dev zlib1g-dev` in the
+  running one makes Step 1
   possible, and is lost when it is recreated. The alternative is the one-off alone. Nothing in this repo changes either way.
 
 ## Steps
@@ -200,9 +202,10 @@ ask. A failure here is not this plan's to work around.
 
 ### Step 2 — The platform tag and the guard
 
-New: `cmake/cryptocogs_platform.cmake`, `tests/build_checks/check_platform.cmake` and
-`tests/build_checks/check_tree_name.cmake`; edited: `CMakeLists.txt` and `tests/CMakeLists.txt` (the two `add_test`s
-sit beside the unit tests, under `CRYPTOCOGS_BUILD_TESTS`). ctest goes from 496 tests to 498.
+New: `cmake/cryptocogs_platform.cmake`, `tests/tree_checks/check_platform.cmake` and
+`tests/tree_checks/check_tree_name.cmake`; edited: `CMakeLists.txt` and `tests/CMakeLists.txt` (the two `add_test`s
+sit beside the unit tests, under `CRYPTOCOGS_BUILD_TESTS`). ctest goes from 496 tests to 498. The directory is
+`tests/tree_checks/` and not `tests/build_checks/`, which the repo's `.gitignore` (`build*`) would ignore.
 
 **`test_platform_name`** (`check_platform.cmake`, run with `cmake -DSOURCE_DIR=… -P`) holds a fixed table, so it does
 not depend on the host it runs on. Each name is a tree's own name, not a path:
@@ -263,7 +266,7 @@ Commit: `build: refuse a build tree named for another platform (step 2/8)`.
 
 ### Step 3 — The presets, and the test that pins them
 
-New: `CMakePresets.json`, `tests/build_checks/check_presets.cmake`, and a `test_presets` entry in
+New: `CMakePresets.json`, `tests/tree_checks/check_presets.cmake`, and a `test_presets` entry in
 `tests/CMakeLists.txt` (for the top level and CMake 3.21 or later). ctest goes from 498 tests to 499.
 
 `check_presets.cmake` runs as `cmake -DSOURCE_DIR=<repo> -DHOST_SYSTEM_NAME=<name> [-DPRESETS_DIR=<dir>] -P`. It reads
@@ -321,7 +324,7 @@ runs: `cmake --preset release-linux-arm64`, `cmake --build --preset release-linu
    after the other platform's run is unchanged; a build of each tree after the other's run rebuilds nothing;
    `git status` is clean, so no tree is tracked.
 2. **The architecture in the name, from an x86_64 host.** In a throwaway `--platform linux/amd64` container (an
-   `ubuntu:24.04` image with `build-essential`, `cmake`, `git`, `libcurl4-openssl-dev` and `libssl-dev`, removed
+   `ubuntu:24.04` image with `build-essential`, `cmake`, `git`, `libcurl4-openssl-dev`, `libssl-dev` and `zlib1g-dev`, removed
    afterwards; `ubuntu-dev` is not touched), on the same checkout:
    - `cmake --preset release-linux-arm64` is refused by the guard, naming both platforms, and the arm64 tree's
      `CMakeCache.txt` is byte-identical afterwards;
@@ -486,8 +489,8 @@ Commit: `docs(plan): results for 028 — one build tree per platform (step 8/8)`
 | Step | Status | Notes |
 |---|---|---|
 | 0 — Approval | Done | Approved as written, 2026-11-02 |
-| 1 — Start from green | | |
-| 2 — Platform tag and guard | | |
+| 1 — Start from green | Done (2026-11-02) | Mac and container: 496 of 496, Release, GCC 13.3.0 / Apple Clang 21 / CMake 3.28.3 / 4.2.3. Mac: configure 29 s, build 20 s (`--parallel 8`), ctest 2.6 s. Container: configure, build and ctest 46 s (`--parallel 8`), ctest 1.4 s. Not warning-free, none of it this repo's own files: CMake deprecation warnings from backward-cpp (and CLI11 on 4.2) and `-Wunused-parameter` from ixwebsocket ([#26](https://github.com/tomlin256/cryptocogs/issues/26)), `-Wunused-result` on Apple Clang ([#24](https://github.com/tomlin256/cryptocogs/issues/24)). The container also needed `zlib1g-dev`, which D8 had not named: `libcurl4-openssl-dev` only suggests it. A tree nested in the old `build/` configures and builds on its own. |
+| 2 — Platform tag and guard | Done (2026-11-02) | 498 of 498 on the Mac and in the container; `cmake --build` of the Step 1 tree reconfigured through the guard and compiled nothing. Both tests were seen red first; 17 hand-made changes (the 16 rows, `kind required` and `remembered` each checked in both tests) fail as stated. |
 | 3 — Presets and their test | | |
 | 4 — Linux, through the presets | | |
 | 5 — CI | | |

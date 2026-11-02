@@ -136,3 +136,24 @@ endif()
 #-------------------------------------------------------------------------------
 
 add_subdirectory(unit)
+
+#-------------------------------------------------------------------------------
+# Build-tree naming (plan 028): plain cmake -P scripts, so they run in every tree
+#-------------------------------------------------------------------------------
+
+# The platform tag and the name check in cmake/cryptocogs_platform.cmake, against a fixed table.
+add_test(NAME test_platform_name
+         COMMAND ${CMAKE_COMMAND}
+                 -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/tree_checks/check_platform.cmake)
+
+# The guard in the root CMakeLists.txt: it configures the real project, with the tests off and the
+# two dependencies it still needs taken from the sources this build fetched, so it needs no network
+# and compiles nothing.
+add_test(NAME test_tree_name
+         COMMAND ${CMAKE_COMMAND}
+                 -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                 -DSCRATCH_ROOT=${CMAKE_CURRENT_BINARY_DIR}/tree_checks
+                 -DNLOHMANN_JSON_SRC=${nlohmann_json_SOURCE_DIR}
+                 -DTOMLPLUSPLUS_SRC=${tomlplusplus_SOURCE_DIR}
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/tree_checks/check_tree_name.cmake)
