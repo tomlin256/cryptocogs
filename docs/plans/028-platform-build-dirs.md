@@ -1,6 +1,6 @@
 # Plan 028 — One build tree per platform
 
-**Status:** Proposed (2026-11-02) — awaiting approval. D1 to D8 are the places to edit.
+**Status:** Approved (2026-11-02) — Rob approved the plan as written, so D1 to D8 stand at the defaults below.
 **Design source:** flywheel-dag's [platform_build_dirs_plan.md](https://github.com/tomlin256/flywheel-dag/blob/main/docs/plans/platform_build_dirs_plan.md)
 ([flywheel-dag#46](https://github.com/tomlin256/flywheel-dag/issues/46)). This plan applies that design here and restates
 only what differs. It differs in one deliberate way: the tree is `build/<kind>-<os>-<arch>`, where the design source
@@ -485,7 +485,7 @@ Commit: `docs(plan): results for 028 — one build tree per platform (step 8/8)`
 
 | Step | Status | Notes |
 |---|---|---|
-| 0 — Approval | Proposed | |
+| 0 — Approval | Done | Approved as written, 2026-11-02 |
 | 1 — Start from green | | |
 | 2 — Platform tag and guard | | |
 | 3 — Presets and their test | | |
