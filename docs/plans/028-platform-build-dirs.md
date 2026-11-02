@@ -1,6 +1,6 @@
 # Plan 028 — One build tree per platform
 
-**Status:** Approved (2026-11-02) — Rob approved the plan as written, so D1 to D8 stand at the defaults below.
+**Status:** Done (2026-11-02). Rob approved the plan as written, so D1 to D8 stood at the defaults below; the Outcome says what the steps found.
 **Design source:** flywheel-dag's [platform_build_dirs_plan.md](https://github.com/tomlin256/flywheel-dag/blob/main/docs/plans/platform_build_dirs_plan.md)
 ([flywheel-dag#46](https://github.com/tomlin256/flywheel-dag/issues/46)). This plan applies that design here and restates
 only what differs. The design source names the tree `build/<kind>-<os>-<arch>` too (D1): it had `build-<os>-<arch>`
@@ -494,6 +494,27 @@ Commit: `docs(plan): results for 028 — one build tree per platform (step 8/8)`
 - **`.clangd` is wrong on another host** until its one line is edited.
 - **This repo is public.** The plan, the docs and the commit bodies describe this library only.
 
+## Outcome
+
+**Released as v0.6.0** (annotated tag on `3c9b6a8`, 2026-11-02). It carries only this plan's commits: no header, source or installed file changed since v0.5.6.
+
+**Tests.** ctest went from 496 to 499: `test_platform_name` (a fixed table, milliseconds), `test_tree_name` (about 2 s: eight configures of the real project, offline) and `test_presets` (rules R1 to R7). Each was seen red first. Seventeen hand-made changes to a scratch copy of the module and the wiring, and fourteen to a copy of the presets file, each fail the case or rule that names them. They pass on the Mac (Apple Clang 21, CMake 4.2.3), in the Linux/aarch64 container (GCC 13.3.0, CMake 3.28.3) and on CI (x86_64, GCC, `ubuntu-latest`), where a run takes 7 to 9 minutes.
+
+**Wall times** (`--parallel 8`). Mac, from nothing: configure 29 s, build 20 s, ctest 2.6 s. Container, from nothing, through the presets: `release-linux-arm64` 31 s and `debug-linux-arm64` 55 s, configure, build and test together; the suite itself is 1.4 to 2.8 s. The sanitizer probes: AddressSanitizer with UndefinedBehaviorSanitizer and LeakSanitizer 40 s configure, 133 s build, 8 s test; ThreadSanitizer 31 s, 64 s and 8 s. The emulated x86_64 container took 56 s to configure and 13 s to build `test_tick_price`.
+
+**What the steps found**
+
+- Step 1 was not warning-free, and none of it is this repo's own files: CMake deprecation warnings from backward-cpp and CLI11, and `-Wunused-parameter` from ixwebsocket ([#26](https://github.com/tomlin256/cryptocogs/issues/26)), and the known `-Wunused-result` on Apple Clang ([#24](https://github.com/tomlin256/cryptocogs/issues/24)).
+- The container needed `zlib1g-dev` as well as the two packages D8 named: Ubuntu's `libcurl4-openssl-dev` only suggests `libssl-dev` and `zlib1g-dev`, and ixwebsocket's configure stops without zlib. The CI Install step now names all three. The packages were installed by hand and are lost if the container is recreated (docker-ubuntu#3).
+- A refused configure does not leave the other platform's cache byte-identical once the command line carries a `-D`, as a preset's `CMAKE_BUILD_TYPE` does: CMake saves the cache as it stood at the failure, so the entry loses its type and later entries are dropped. No value changes, and the next valid configure restores the file and rebuilds nothing. The design source's plan had it byte-identical, from a scratch project of one directory, and corrected itself after its own Step 4 found the same.
+- ThreadSanitizer found two data races in the unit tests, not the library: [#27](https://github.com/tomlin256/cryptocogs/issues/27) (`Execute.BlocksUntilResponse` reads the mock's `sent_messages` from another thread, ordered by a `sleep_for`) and [#28](https://github.com/tomlin256/cryptocogs/issues/28) (`WsReconnectSession.BackoffResetsAfterSuccessfulReconnect` shares a plain `int`). AddressSanitizer, UndefinedBehaviorSanitizer and LeakSanitizer found nothing. The first run of the suite on Linux/aarch64 passed.
+- `.gitignore` has `build*`, which ignores a directory called `tests/build_checks/`; the checks live in `tests/tree_checks/`.
+- The floor probe ran on CMake 3.16.3 (Ubuntu 20.04, GCC 9.4): the presets file is ignored, the guard accepts and refuses correctly. 3.15 itself was not available.
+
+**Deviations from the plan as approved**: the directory name above; the Install step's third package; the Step 4 criterion that the refused tree's cache be byte-identical, replaced by what was found; and Step 1's "no CMake warning", which the dependencies' deprecations prevent.
+
+**Left for later**: the stale trees (the old tree's files in `build/`, 874 MB, and `build-bench`, `build-compat`, `build-ubsan` and `build2`, 1.9 GB between them; delete when convenient); a macOS CI leg and a sanitizer option, each its own issue; and the README's test paragraph, which still says 312 tests.
+
 ## Progress
 
 | Step | Status | Notes |
@@ -505,5 +526,5 @@ Commit: `docs(plan): results for 028 — one build tree per platform (step 8/8)`
 | 4 — Linux, through the presets | Done (2026-11-02) | Container, GCC 13.3.0, CMake 3.28.3, `--parallel 8`: `release-linux-arm64` 499 of 499 (configure, build and ctest from nothing: 31 s) and `debug-linux-arm64` 499 of 499 (55 s). Side by side: the Mac tree's cache has the same SHA-1 after the Linux run, the Linux tree's after the Mac run, and each rebuilt nothing after the other's run; `git status` shows no tree. Emulated `linux/amd64` container (Ubuntu 24.04, GCC 13.3.0): `cmake --preset release-linux-arm64` is refused naming both platforms; `release-linux-x86_64` configures (56 s) beside it, `test_tick_price` builds (13 s) and its 11 tests pass; `readelf` says x86-64 for it and AArch64 for the arm64 tree's. The refusal rewrote the arm64 tree's cache (see above: not byte-identical); the next valid configure restored it, 0 compiles, 499 of 499. Sanitizers (hand-made `asan` and `tsan` kinds, `RelWithDebInfo`): ASan + UBSan + LeakSanitizer 499 of 499, no report (configure 40 s, build 133 s, ctest 8 s); TSan: 497 of 499, two reports, both races in the tests and not the library: [#27](https://github.com/tomlin256/cryptocogs/issues/27) (`Execute.BlocksUntilResponse`) and [#28](https://github.com/tomlin256/cryptocogs/issues/28) (`WsReconnectSession.BackoffResetsAfterSuccessfulReconnect`). |
 | 5 — CI | Done (2026-11-02) | `cmake-single-platform.yml` configures, builds and tests through `release-linux-x86_64`; `checkout@v4` (node20) became `@v6` (node24), the only action in the file. CI green with 499 tests. The run's annotations hold one notice, that the `ubuntu-latest` label is migrating to Ubuntu 26, and no deprecation. |
 | 6 — Documentation | Done (2026-11-02) | `.clangd` reads `build/debug-macos-arm64` (clangd loaded its `compile_commands.json`); `CLAUDE.md` has a "Build trees" subsection, preset commands, `<tree>` in its 59 path lines, the zlib dependency and the corrected test count; `docs/agent-add-exchange.md` and the README's tests command moved to the presets. The leftover check returns only the README's quick start, usage examples, install snippet and link line (D5). |
-| 7 — Release v0.6.0 | | |
-| 8 — Close the plan | | |
+| 7 — Release v0.6.0 | Done (2026-11-02) | `chore: bump version to 0.6.0` (`3c9b6a8`), annotated tag `v0.6.0`, `main` and the tag pushed. CI run [41469120890](https://github.com/tomlin256/cryptocogs/actions/runs/41469120890) green with 499 tests; the installed `cryptocogsConfigVersion.cmake` reports 0.6.0; `git diff v0.5.6..v0.6.0 --stat -- include src` is empty. #25 closed. |
+| 8 — Close the plan | Done (2026-11-02) | The Outcome above. |
