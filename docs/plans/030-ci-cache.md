@@ -1,8 +1,8 @@
 # Plan 030 — CI: cache the build
 
 **Status:** Approved as written (2026-11-04), so D1 to D5 stand at the defaults below. Rob approved pushing this plan's
-commits to `main` and linking the plan from #37. Step 1 is done and measured (the Outcome has the numbers); Steps 2 to 4
-are not.
+commits to `main` and linking the plan from #37. Steps 1 and 2 are done and measured (the Outcome has the numbers); Steps 3
+and 4 are not.
 **Design source:** flywheel's `docs/plans/ci_build_cost_reduction_plan.md` and its
 `.github/workflows/cmake-single-platform.yml` (a private repository). This plan applies that design and restates only
 what differs. The main difference: flywheel's `_deps` cache does not work here as written (measured below).
@@ -263,8 +263,24 @@ may not skip its clones either. No issue is opened for it.
 |---|---|---:|---:|---:|---:|
 | Baseline, `e9ad24f` | 41852041317 | 457 s | 25 s | 408 s | 9 s |
 | Step 1, `-j $(nproc)`, `464768b` | 41875534338 | 299 s | 50 s | **221 s** | 11 s |
+| Step 2, ccache, run A: cold, `772235a` | 41877531957 | 327 s | 41 s | 258 s | 14 s |
+| Step 2, ccache, run B: dispatch, same tree | 41878860746 | **66.5 s** | 25 s | **11 s** | 10 s |
+
+The first three rows are read from the API's step timings. The two ccache runs are read from their job logs (first to last
+line, and the gaps between step headers), because GitHub's displayed status of both stayed `queued` long after their logs
+ended, and still does: an Actions incident that day (16:05 to 17:01 UTC) had warned of "delayed status updates for their jobs".
+Run A was never waiting for a runner: its log starts 3 s after the run was created, and its cache entry was saved 5.5 minutes
+later.
 
 **Step 1 — kept.** The run printed `runner cores: 4`, and Build went from 408 s to 221 s: 46% less, 1.85x on 4 cores. That is
 below the fastest of the six serial runs measured before (314 s), so the noise (314 to 586 s) does not explain it. The run
 was green, with ctest at 503 of 503 and no compiler warning in its log, so the parallel build exposed no missing dependency. Configure
 took 50 s against 24 to 35 s in those six runs: the step did not change, and it is the seven clones.
+
+**Step 2 — kept.** Run A, cold, missed 124 of the 125 compiles (the 125th was identical to another and hit). Its Build took
+258 s, 17% more than Step 1's 221 s, which the noise allows and the cost of hashing and storing explains; it saved a snapshot
+of 12,368,582 bytes (11.79 MiB) in under a second. Run B, a dispatch on the same commit, restored that snapshot by the
+primary key and hit **125 of 125**, all direct: Build 11 s, and the job 66.5 s against 457 s at the baseline, 85% less.
+ccache's directory is `/home/runner/.cache/ccache`, as the cache path assumes, and `max_size` read 500.0 MB. **D5:** the
+snapshot is 2.6% of the cap, so 500M stays as a ceiling and there is nothing to tune. What is left of B's 66.5 s is apt 17 s,
+Configure 25 s (the seven clones) and the tests 10 s; Step 3 goes after the 25 s.

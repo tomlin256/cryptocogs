@@ -228,3 +228,18 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR AND CRYPTOCOGS_INSTALL)
                      -DPROJECT_VERSION=${PROJECT_VERSION}
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake_checks/check_package_version.cmake)
 endif()
+
+#-------------------------------------------------------------------------------
+# What CI caches (plan 030): a plain cmake -P script
+#-------------------------------------------------------------------------------
+
+# The workflow restores the fetched dependencies under a key that hashes the files pinning them, and on a hit it
+# trusts the restored sources completely, so a pin bumped in a file that the key does not hash builds the old version
+# in a green run. This holds the key to the checkout: every CMakeLists.txt, *.cmake and *.cmake.in that declares a
+# dependency is in it, and every file in it exists. Top level only, where the checkout it reads is this project's own.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_test(NAME test_ci_cache_key
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/ci_checks/check_cache_key.cmake)
+endif()

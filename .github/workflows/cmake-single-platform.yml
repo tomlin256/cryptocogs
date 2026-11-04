@@ -45,6 +45,32 @@ jobs:
         c++ --version | head -1
         echo "id=$(c++ -dumpfullversion)-$(cmake --version | head -1 | tr ' ' '_')" >> "$GITHUB_OUTPUT"
 
+    # Cache the FetchContent trees: build/release-linux-x86_64/_deps holds the cloned sources and the dependencies' build
+    # outputs. A hit removes the seven git clones, which are most of Configure (nlohmann_json's full history alone takes
+    # 15 of its 25 s), and the dependencies' compiles.
+    #
+    # It differs from flywheel's version of this step in two ways (plan 030):
+    #  - Under CMake 4 (CMP0168 is NEW) FetchContent keeps its "already cloned" stamps in <tree>/CMakeFiles/fc-stamp and
+    #    fc-tmp, not in _deps, so restoring _deps alone still clones all seven. A hit therefore configures with
+    #    FETCHCONTENT_FULLY_DISCONNECTED=ON (below): nothing is downloaded or updated, and the restored sources are trusted.
+    #  - The .git directories are left out. They are 436 of the 473 MB, and nothing reads them on a hit.
+    #
+    # Because the restored sources are trusted, the key covers everything that can change what is in them: the toolchain
+    # (the build outputs are in the tree too), and every file that pins a dependency. There are two, CMakeLists.txt and
+    # tests/CMakeLists.txt. test_ci_cache_key fails when a file that declares a dependency is missing from the list, and
+    # reads the key from its one line, so keep it on one line ending in hashFiles(...).
+    #
+    # Deliberately no restore-keys: a partial match would restore the sources of other pins. Assumes the fixed workspace
+    # path of the ccache step.
+    - name: Cache third-party dependencies
+      id: deps
+      uses: actions/cache@v6
+      with:
+        path: |
+          ${{github.workspace}}/build/${{env.PRESET}}/_deps
+          !${{github.workspace}}/build/${{env.PRESET}}/_deps/*-src/.git
+        key: deps-${{runner.os}}-${{runner.arch}}-${{env.PRESET}}-${{steps.toolchain.outputs.id}}-${{hashFiles('CMakeLists.txt', 'tests/CMakeLists.txt')}}
+
     # ccache covers what costs: 98% of the build is compiling (plan 030). Its entries are content-addressed over the
     # compiler, its flags and the preprocessed source, so a stale or foreign entry just misses and cannot be wrong; that is
     # why restore-keys is safe here. The commit in the key makes every run save its own snapshot, and the restore-keys pick
@@ -64,9 +90,11 @@ jobs:
 
     - name: Configure CMake
       # Through the preset, which names the tree and sets CMAKE_BUILD_TYPE and nothing else, so the launcher is CI's own.
+      # On a hit of the dependency cache it also stops FetchContent from downloading anything (see that step).
       run: >
         cmake --preset ${{env.PRESET}}
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        ${{ steps.deps.outputs.cache-hit == 'true' && '-DFETCHCONTENT_FULLY_DISCONNECTED=ON' || '' }}
 
     - name: Build
       # -j: the build is compile-bound. In run 41852041317, 401 of the 408 s were compiles and 6.5 s were links, and
