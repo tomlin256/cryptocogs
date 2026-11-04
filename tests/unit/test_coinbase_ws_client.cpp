@@ -51,13 +51,13 @@ TEST(CoinbaseWsClient, PreOpenSubscribeIsQueuedThenFlushed) {
     auto client = make_coinbase_stream_client(conn);
 
     auto h = client->subscribe_ticker({"BTC-USD"}, [](CoinbaseTickerEvent) {});
-    EXPECT_TRUE(conn->sent_messages.empty());  // queued until open
+    EXPECT_TRUE(conn->sent().empty());  // queued until open
     EXPECT_TRUE(h.is_active());
 
     conn->fire_open();
 
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
-    auto sub = json::parse(conn->sent_messages[0]);
+    ASSERT_EQ(conn->sent().size(), 1u);
+    auto sub = json::parse(conn->sent()[0]);
     EXPECT_EQ(sub.at("type"), "subscribe");
     EXPECT_EQ(sub.at("channels"), json::array({"ticker"}));
     EXPECT_EQ(sub.at("product_ids"), json::array({"BTC-USD"}));
@@ -116,8 +116,8 @@ TEST(CoinbaseWsClient, Level2BatchSubscribeFrameUsesLevel2BatchChannel) {
                                    [](CoinbaseL2Snapshot) {}, [](CoinbaseL2Update) {});
     conn->fire_open();
 
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
-    auto sub = json::parse(conn->sent_messages[0]);
+    ASSERT_EQ(conn->sent().size(), 1u);
+    auto sub = json::parse(conn->sent()[0]);
     EXPECT_EQ(sub.at("type"), "subscribe");
     EXPECT_EQ(sub.at("channels"), json::array({"level2_batch"}));
     EXPECT_EQ(sub.at("product_ids"), json::array({"BTC-USD", "ETH-USD"}));
@@ -231,8 +231,8 @@ TEST(CoinbaseWsClient, UserChannelSubscribeFrameIsSigned) {
     client->subscribe_user(creds, {"BTC-USD"}, [](CoinbaseLifecycleEvent) {});
     conn->fire_open();
 
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
-    auto frame = json::parse(conn->sent_messages[0]);
+    ASSERT_EQ(conn->sent().size(), 1u);
+    auto frame = json::parse(conn->sent()[0]);
     EXPECT_EQ(frame.at("type"), "subscribe");
     EXPECT_EQ(frame.at("channels"), json::array({"user"}));
     EXPECT_EQ(frame.at("key"), "my-key");
@@ -284,8 +284,8 @@ TEST(CoinbaseWsClient, CancelRemovesCallbackSendsUnsubscribeAndIsIdempotent) {
     EXPECT_EQ(count, 1);
 
     h.cancel();
-    ASSERT_EQ(conn->sent_messages.size(), 2u);  // subscribe + unsubscribe
-    auto unsub = json::parse(conn->sent_messages[1]);
+    ASSERT_EQ(conn->sent().size(), 2u);  // subscribe + unsubscribe
+    auto unsub = json::parse(conn->sent()[1]);
     EXPECT_EQ(unsub.at("type"), "unsubscribe");
     EXPECT_EQ(unsub.at("channels"), json::array({"ticker"}));
     EXPECT_FALSE(h.is_active());
@@ -294,5 +294,5 @@ TEST(CoinbaseWsClient, CancelRemovesCallbackSendsUnsubscribeAndIsIdempotent) {
     EXPECT_EQ(count, 1);
 
     h.cancel();                              // idempotent — no extra unsubscribe
-    EXPECT_EQ(conn->sent_messages.size(), 2u);
+    EXPECT_EQ(conn->sent().size(), 2u);
 }

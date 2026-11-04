@@ -155,6 +155,7 @@ cryptocogs/
         ├── test_ws_reconnect_session.cpp # WsReconnectSession lifecycle — deterministic, no sleeps
         ├── ws_client_example_json.hpp
         ├── mock_ws_connection.hpp        # Shared MockWsConnection (Kraken + Binance + Coinbase + Crypto.com WS tests)
+        ├── test_mock_ws_connection.cpp   # MockWsConnection's locked outbound log: sent(), wait_for_sent(), release_waiters() (exchange-agnostic)
         ├── test_binance_auth.cpp         # BinanceAuth HMAC-SHA256 signing
         ├── test_binance_types.cpp        # Binance enum converters
         ├── test_binance_rest_requests.cpp / test_binance_rest_responses.cpp
@@ -300,9 +301,10 @@ adds `detect_leaks=1`, which macOS cannot do; `TSAN_OPTIONS=halt_on_error=1:seco
   deterministic: it reports a race only when it sees both accesses, so a clean TSan run proves less than a clean ASan run.
 - **Hand-made trees** with `-DCMAKE_CXX_FLAGS=-fsanitize=…` remain possible and unguarded; the presets are the supported way.
 - **CI** runs the Linux trees nightly: see [CI](#ci).
-- **What the first pass found** (2026-11-04, Apple clang 21.0.0 on the Mac, GCC 15.2.0 in CI): `asan` is clean on both (510 of 510,
-  no report); `tsan` fails two tests on both, the two races in the tests that [#27](https://github.com/tomlin256/cryptocogs/issues/27)
-  and [#28](https://github.com/tomlin256/cryptocogs/issues/28) record, and nothing else.
+- **What the first pass found** (2026-11-04, Apple clang 21.0.0 on the Mac, GCC 15.2.0 in CI): `asan` was clean on both (510 of 510,
+  no report); `tsan` failed two tests on both, the two races in the tests that [#27](https://github.com/tomlin256/cryptocogs/issues/27)
+  and [#28](https://github.com/tomlin256/cryptocogs/issues/28) record, and nothing else. Both are fixed ([plan 033](docs/plans/033-tsan-races-in-the-tests.md)):
+  the Mac's `tsan` tree passes 514 of 514.
 
 ### Common build commands
 
@@ -383,9 +385,9 @@ green, and it has no caches.
 
 - **When.** Nightly at 03:41 UTC, **`asan` alone**, and on demand: `gh workflow run sanitizers.yml --ref main -f which=<asan|tsan|both>`
   (the default is `both`; dispatch one `which` at a time, because a newer dispatch of the same `which` cancels the one in flight).
-  `tsan` is dispatch-only until #27 and #28 are fixed and five consecutive `tsan` dispatch runs are green: it fails today on exactly
-  `Execute.BlocksUntilResponse` and `WsReconnectSession.BackoffResetsAfterSuccessfulReconnect` and nothing else, and one green TSan
-  run proves little.
+  `tsan` is dispatch-only until five consecutive `tsan` dispatch runs are green ([plan 033](docs/plans/033-tsan-races-in-the-tests.md);
+  its first run, before #27 and #28 were fixed, failed exactly `Execute.BlocksUntilResponse` and
+  `WsReconnectSession.BackoffResetsAfterSuccessfulReconnect` and nothing else), because one green TSan run proves little.
 - **What.** One matrix job per mode on `ubuntu-latest`, `fail-fast` off: `cmake --preset <mode>-linux-x86_64`, the build preset with
   `-j $(nproc)`, and `ctest --preset <mode>-linux-x86_64` with the runtime options in the job's `env` (`ASAN_OPTIONS` with
   `detect_leaks=1`, `UBSAN_OPTIONS`, `TSAN_OPTIONS` with `halt_on_error=1`). The canaries and `test_sanitizer_coverage` run with the
@@ -406,8 +408,8 @@ green, and it has no caches.
 ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure and a 120 s timeout per test
 ```
 
-There are twenty-five test executables (496 tests, plus eleven `cmake -P` checks that are listed after the table — 507 in
-ctest) — seven Kraken/common, six Binance, six Coinbase, six Crypto.com:
+There are twenty-six test executables (501 tests, plus eleven `cmake -P` checks that are listed after the table — 512 in
+ctest) — eight Kraken/common, six Binance, six Coinbase, six Crypto.com:
 
 | Binary | Source | What it tests |
 |---|---|---|
@@ -418,6 +420,7 @@ ctest) — seven Kraken/common, six Binance, six Coinbase, six Crypto.com:
 | `<tree>/bin/test_credentials_file` | `test_credentials_file.cpp` | `read_toml_credentials` — TOML parse, `$HOME`/explicit path resolution, and every error branch |
 | `<tree>/bin/test_order_type` | `test_order_type.cpp` | Generic (`exchange::to_string`) vs. Kraken (`kraken_order_type_to_string`) wire formats |
 | `<tree>/bin/test_ws_reconnect_session` | `test_ws_reconnect_session.cpp` | `WsReconnectSession` start/stop/backoff/reconnect — deterministic, no real sleeps |
+| `<tree>/bin/test_mock_ws_connection` | `test_mock_ws_connection.cpp` | `MockWsConnection`'s locked outbound log — `sent()` is an ordered copy, `wait_for_sent` and `release_waiters` wake in either thread order, concurrent sends are all kept (exchange-agnostic; [plan 033](docs/plans/033-tsan-races-in-the-tests.md)) |
 | `<tree>/bin/test_binance_auth` | `test_binance_auth.cpp` | `BinanceAuth` HMAC-SHA256 signing + header injection |
 | `<tree>/bin/test_binance_types` | `test_binance_types.cpp` | Binance enum converters (incl. canonical FOK time-in-force) |
 | `<tree>/bin/test_binance_rest_requests` | `test_binance_rest_requests.cpp` | Each Binance REST request builds the correct path/query/body |
@@ -459,9 +462,9 @@ A tree configured with `CRYPTOCOGS_SANITIZE` adds the tests that prove its optio
 Tests do **not** require network access or credentials — all I/O is mocked.
 The flag matrix splits cleanly: each exchange flag drops its own suite. A
 Crypto.com-only tree (`-DCRYPTOCOGS_BUILD_KRAKEN=OFF -DCRYPTOCOGS_BUILD_BINANCE=OFF
--DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 104 gtests — the 85-test Crypto.com suite plus the
-exchange-agnostic 11 `TickPrice` and 8 `read_toml_credentials` tests, which build
-in any tree — and the eleven `cmake -P` checks.
+-DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 112 gtests — the 88-test Crypto.com suite plus the
+exchange-agnostic 11 `TickPrice`, 8 `read_toml_credentials` and 5 `MockWsConnection` tests, which build
+in any tree — and the eleven `cmake -P` checks: 123 in ctest.
 
 ### Test suite breakdown
 
@@ -476,6 +479,7 @@ in any tree — and the eleven `cmake -P` checks.
 | `test_order_type.cpp` | Generic vs. Kraken `OrderType` converters round-trip and produce the *correct, distinct* wire strings (underscore vs. hyphen) |
 | `test_tick_price.cpp` | `TickPrice::str()` produces exact decimals — including the floating-point-noise repro case |
 | `test_ws_reconnect_session.cpp` | `WsReconnectSession` start/stop/backoff/reconnect callbacks, driven by synchronous step injection (no `sleep_for`) |
+| `test_mock_ws_connection.cpp` | `MockWsConnection`'s outbound log is safe from a second thread: `sent()` copies in order, `wait_for_sent` returns when satisfied whichever thread gets there first, `release_waiters` frees a waiter, 400 concurrent sends are all kept in per-thread order — no sleeps |
 
 ---
 
@@ -1348,7 +1352,7 @@ This factory is declared `inline` in `exchange/kraken/rest_client.hpp` and frien
 
 ### WebSocket (MockWsConnection)
 
-Unit tests create a `MockWsConnection` (defined in `test_ws_client.cpp`) and inject it via `make_kraken_ws_client(conn)`:
+Unit tests create a `MockWsConnection` (defined in `tests/unit/mock_ws_connection.hpp`) and inject it via `make_kraken_ws_client(conn)`:
 
 ```cpp
 auto conn   = std::make_shared<MockWsConnection>();
@@ -1356,10 +1360,16 @@ auto client = exchange::kraken::ws::make_kraken_ws_client(
                   std::static_pointer_cast<exchange::ws::IWsConnection>(conn));
 
 conn->fire_open();            // simulate connection open
-conn->sent_messages;          // inspect outbound messages (std::vector<std::string>)
+conn->sent();                 // a copy of the outbound messages (std::vector<std::string>), taken under a lock
 conn->inject_message(raw);    // inject inbound server frame
 conn->fire_close();           // simulate disconnect
 ```
+
+The outbound log is safe to use from a second thread ([#27](https://github.com/tomlin256/cryptocogs/issues/27), [plan 033](docs/plans/033-tsan-races-in-the-tests.md)): `send()`
+appends under a lock, and a test that injects the reply from another thread waits with `conn->wait_for_sent(n)`, which blocks on a
+condition variable until `n` messages have been sent (no sleep, no polling), and frees itself with `conn->release_waiters()` when
+nothing will be sent. The log is private, so an unlocked read from another thread cannot be written; `Execute.BlocksUntilResponse`
+is the example.
 
 `MockWsConnection::connect()` does **not** auto-fire `on_open` — tests call `fire_open()` explicitly, enabling precise control over the pre-connection outbound queue.
 

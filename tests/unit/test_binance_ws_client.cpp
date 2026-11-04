@@ -311,8 +311,8 @@ TEST(BinanceStreamLifecycle, Subscribe_Lifecycle) {
         req, [&](BinanceAggTradeEvent e) { received.push_back(std::move(e)); });
 
     // Phase 2 — SUBSCRIBE frame sent with the auto-assigned id.
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
-    auto sub_frame = json::parse(conn->sent_messages[0]);
+    ASSERT_EQ(conn->sent().size(), 1u);
+    auto sub_frame = json::parse(conn->sent()[0]);
     EXPECT_EQ(sub_frame.at("method"), "SUBSCRIBE");
     EXPECT_EQ(sub_frame.at("params"), json::array({"bnbbtc@aggTrade"}));
     const auto id = sub_frame.at("id").get<int64_t>();
@@ -334,15 +334,15 @@ TEST(BinanceStreamLifecycle, Subscribe_Lifecycle) {
 
     // Cancel — UNSUBSCRIBE sent once; idempotent on second call.
     handle.cancel();
-    ASSERT_EQ(conn->sent_messages.size(), 2u);
-    auto unsub_frame = json::parse(conn->sent_messages[1]);
+    ASSERT_EQ(conn->sent().size(), 2u);
+    auto unsub_frame = json::parse(conn->sent()[1]);
     EXPECT_EQ(unsub_frame.at("method"), "UNSUBSCRIBE");
     EXPECT_EQ(unsub_frame.at("params"), json::array({"bnbbtc@aggTrade"}));
     EXPECT_EQ(unsub_frame.at("id").get<int64_t>(), id);
     EXPECT_FALSE(handle.is_active());
 
     handle.cancel();
-    EXPECT_EQ(conn->sent_messages.size(), 2u);
+    EXPECT_EQ(conn->sent().size(), 2u);
 
     // After cancel the push callback is gone.
     conn->inject_message(wrap("bnbbtc@aggTrade", fixtures::kAggTradeJson));
@@ -360,7 +360,7 @@ TEST(BinanceStreamLifecycle, Subscribe_ErrorAck_NoCallbackInstalled) {
     auto fut = client->subscribe_async(
         req, [&](const BinanceAggTradeEvent&) { ++callback_count; });
 
-    const auto id = sent_id(conn->sent_messages.at(0));
+    const auto id = sent_id(conn->sent().at(0));
     conn->inject_message(
         json{{"error", {{"code", 2}, {"msg", "Invalid request"}}}, {"id", id}}.dump());
 
@@ -383,14 +383,14 @@ TEST(BinanceStreamLifecycle, Subscribe_BeforeOpen_QueuedAndFlushed) {
     req.stream = trade_stream("BNBBTC");
 
     auto fut = client->subscribe_async(req, [](const BinanceTradeEvent&) {});
-    EXPECT_TRUE(conn->sent_messages.empty());
+    EXPECT_TRUE(conn->sent().empty());
 
     conn->fire_open();
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
-    EXPECT_EQ(json::parse(conn->sent_messages[0]).at("method"), "SUBSCRIBE");
+    ASSERT_EQ(conn->sent().size(), 1u);
+    EXPECT_EQ(json::parse(conn->sent()[0]).at("method"), "SUBSCRIBE");
 
     // Complete the handshake so the pending future doesn't dangle.
-    conn->inject_message(make_ack(sent_id(conn->sent_messages[0])));
+    conn->inject_message(make_ack(sent_id(conn->sent()[0])));
     auto [ack, handle] = fut.get();
     EXPECT_TRUE(ack.ok);
     EXPECT_TRUE(handle.is_active());
@@ -418,9 +418,9 @@ TEST(BinanceStreamLifecycle, TwoStreamsOneConnection) {
             EXPECT_EQ(e.symbol, "BNBUSDT");
         });
 
-    ASSERT_EQ(conn->sent_messages.size(), 2u);
-    conn->inject_message(make_ack(sent_id(conn->sent_messages[0])));
-    conn->inject_message(make_ack(sent_id(conn->sent_messages[1])));
+    ASSERT_EQ(conn->sent().size(), 2u);
+    conn->inject_message(make_ack(sent_id(conn->sent()[0])));
+    conn->inject_message(make_ack(sent_id(conn->sent()[1])));
 
     auto [agg_ack, agg_handle] = agg_fut.get();
     auto [bt_ack, bt_handle]   = bt_fut.get();
@@ -806,8 +806,8 @@ TEST(BinanceWsApiLifecycle, PingRoundTrip) {
     conn->fire_open();
 
     auto fut = client->execute_async(BinanceWsPingRequest{});
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
-    const auto sent = json::parse(conn->sent_messages[0]);
+    ASSERT_EQ(conn->sent().size(), 1u);
+    const auto sent = json::parse(conn->sent()[0]);
     EXPECT_EQ(sent.at("method"), "ping");
     const auto id = sent.at("id").get<int64_t>();
 
@@ -833,8 +833,8 @@ TEST(BinanceWsApiLifecycle, OrderPlaceRoundTrip) {
     req.price    = "0.10";
 
     auto fut = client->execute_async(req);
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
-    const auto sent = json::parse(conn->sent_messages[0]);
+    ASSERT_EQ(conn->sent().size(), 1u);
+    const auto sent = json::parse(conn->sent()[0]);
     EXPECT_EQ(sent.at("method"), "order.place");
     const auto id = sent.at("id").get<int64_t>();
 
@@ -861,7 +861,7 @@ TEST(BinanceWsApiLifecycle, OrderPlaceError) {
     req.price    = "0.10";
 
     auto fut = client->execute_async(req);
-    const auto id = json::parse(conn->sent_messages.at(0)).at("id").get<int64_t>();
+    const auto id = json::parse(conn->sent().at(0)).at("id").get<int64_t>();
 
     auto reply = json::parse(fixtures::kWsApiOrderPlaceErrorJson);
     reply["id"] = id;
@@ -878,11 +878,11 @@ TEST(BinanceWsApiLifecycle, BeforeOpen_QueuedAndFlushed) {
     // No fire_open() — the ping must queue, not send.
 
     auto fut = client->execute_async(BinanceWsPingRequest{});
-    EXPECT_TRUE(conn->sent_messages.empty());
+    EXPECT_TRUE(conn->sent().empty());
 
     conn->fire_open();
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
-    const auto sent = json::parse(conn->sent_messages[0]);
+    ASSERT_EQ(conn->sent().size(), 1u);
+    const auto sent = json::parse(conn->sent()[0]);
     EXPECT_EQ(sent.at("method"), "ping");
 
     // Complete the round-trip so the pending future doesn't dangle.
@@ -912,13 +912,13 @@ TEST(BinanceWsApiLifecycle, BeforeOpen_FlushesInFifoOrder) {
     client->execute_async(BinanceWsPingRequest{});  // futures discarded; the
     client->execute_async(BinanceWsPingRequest{});  // promises live in pending_,
     client->execute_async(BinanceWsPingRequest{});  // the frames queue in order.
-    EXPECT_TRUE(conn->sent_messages.empty());
+    EXPECT_TRUE(conn->sent().empty());
 
     conn->fire_open();
-    ASSERT_EQ(conn->sent_messages.size(), 3u);
-    const auto id0 = json::parse(conn->sent_messages[0]).at("id").get<int64_t>();
-    const auto id1 = json::parse(conn->sent_messages[1]).at("id").get<int64_t>();
-    const auto id2 = json::parse(conn->sent_messages[2]).at("id").get<int64_t>();
+    ASSERT_EQ(conn->sent().size(), 3u);
+    const auto id0 = json::parse(conn->sent()[0]).at("id").get<int64_t>();
+    const auto id1 = json::parse(conn->sent()[1]).at("id").get<int64_t>();
+    const auto id2 = json::parse(conn->sent()[2]).at("id").get<int64_t>();
     EXPECT_LT(id0, id1);
     EXPECT_LT(id1, id2);
 }

@@ -9,7 +9,7 @@
 //
 // Unit tests for KrakenWsClient using a MockWsConnection that avoids
 // any real network I/O.  The mock lets tests:
-//   - Inspect outbound messages (conn->sent_messages)
+//   - Inspect outbound messages (conn->sent())
 //   - Inject inbound server frames (conn->inject_message(...))
 //   - Simulate connection open/close (conn->fire_open() / fire_close())
 
@@ -166,8 +166,8 @@ TEST(ExecuteAsync, SendsRequestWithInjectedReqId) {
 
     auto fut = client->execute_async(req);
 
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
-    auto j = json::parse(conn->sent_messages[0]);
+    ASSERT_EQ(conn->sent().size(), 1u);
+    auto j = json::parse(conn->sent()[0]);
     EXPECT_TRUE(j.contains("req_id"));
     EXPECT_EQ(j["method"], "add_order");
 
@@ -188,7 +188,7 @@ TEST(ExecuteAsync, ResolvesOnMatchingSuccessResponse) {
     req.token       = "tok";
 
     auto fut = client->execute_async(req);
-    int64_t id = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
+    int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
 
     conn->inject_message(make_add_order_response(id, true, "ORDER-XYZ"));
 
@@ -210,7 +210,7 @@ TEST(ExecuteAsync, ResolvesOnErrorResponse) {
     req.limit_price = exchange::kraken::TickPrice::from(1.0, 1);
 
     auto fut = client->execute_async(req);
-    int64_t id = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
+    int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
 
     conn->inject_message(make_add_order_response(id, false, "", "EOrder:Insufficient funds"));
 
@@ -237,9 +237,9 @@ TEST(ExecuteAsync, TwoRequestsInFlightResolvedInReverseOrder) {
     auto fut1 = client->execute_async(req1);
     auto fut2 = client->execute_async(req2);
 
-    ASSERT_EQ(conn->sent_messages.size(), 2u);
-    int64_t id1 = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
-    int64_t id2 = json::parse(conn->sent_messages[1])["req_id"].get<int64_t>();
+    ASSERT_EQ(conn->sent().size(), 2u);
+    int64_t id1 = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
+    int64_t id2 = json::parse(conn->sent()[1])["req_id"].get<int64_t>();
     EXPECT_NE(id1, id2);
 
     // Inject responses in reverse order.
@@ -269,14 +269,17 @@ TEST(Execute, BlocksUntilResponse) {
     req.token       = "tok";
     req.limit_price  = exchange::kraken::TickPrice::from(30000.0, 1);
 
-    // Inject the response from a separate thread after a short delay.
+    // Inject the response from a separate thread, once the client has sent the request. wait_for_sent() returns when
+    // the request is in the mock's log, so there is no sleep and no guess at how long the client takes, and the read of
+    // the log is under the mock's lock (#27).
     std::thread injector([&] {
-        std::this_thread::sleep_for(50ms);
-        int64_t id = json::parse(conn_ref->sent_messages[0])["req_id"].get<int64_t>();
+        if (!conn_ref->wait_for_sent(1)) return;     // released: the request never came
+        const int64_t id = json::parse(conn_ref->sent()[0])["req_id"].get<int64_t>();
         conn_ref->inject_message(make_add_order_response(id, true, "ORDER-SYNC"));
     });
 
     auto resp = client->execute(req, 2000ms);
+    conn_ref->release_waiters();                     // so that a run in which nothing was sent cannot hang in join()
     injector.join();
 
     EXPECT_TRUE(resp.ok);
@@ -323,7 +326,7 @@ TEST(Subscribe, PushCallbackNotFiredBeforeAck) {
     EXPECT_EQ(push_count.load(), 0);
 
     // Now send the ack.
-    int64_t id = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
+    int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_subscribe_ack(id));
     auto [ack, handle] = fut.get();
 
@@ -348,7 +351,7 @@ TEST(Subscribe, SuccessfulAckThenPushData) {
         }
     );
 
-    int64_t id = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
+    int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_subscribe_ack(id));
     auto [ack, handle] = fut.get();
 
@@ -377,7 +380,7 @@ TEST(Subscribe, FailedAckPushCallbackNeverFires) {
         [&](const exchange::kraken::ws::TickerMessage&) { ++push_count; }
     );
 
-    int64_t id = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
+    int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_subscribe_ack(id, false, "ticker", "Permission denied"));
     auto [ack, handle] = fut.get();
 
@@ -398,7 +401,7 @@ TEST(Subscribe, HandleIsInactiveAfterFailedAck) {
         sub_req, [](const exchange::kraken::ws::TickerMessage&) {}
     );
 
-    int64_t id = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
+    int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_subscribe_ack(id, false, "ticker", "Unauthorized"));
     auto [ack, handle] = fut.get();
 
@@ -414,7 +417,7 @@ TEST(Subscribe, HandleIsActiveAfterSuccessfulAck) {
         sub_req, [](const exchange::kraken::ws::TickerMessage&) {}
     );
 
-    int64_t id = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
+    int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_subscribe_ack(id));
     auto [ack, handle] = fut.get();
 
@@ -437,7 +440,7 @@ TEST(Cancel, RemovesPushCallback) {
         [&](const exchange::kraken::ws::TickerMessage&) { ++push_count; }
     );
 
-    int64_t id = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
+    int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_subscribe_ack(id));
     auto [ack, handle] = fut.get();
     ASSERT_TRUE(ack.ok);
@@ -464,16 +467,16 @@ TEST(Cancel, SendsUnsubscribeRequest) {
         sub_req, [](const exchange::kraken::ws::TickerMessage&) {}
     );
 
-    int64_t id = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
+    int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_subscribe_ack(id));
     auto [ack, handle] = fut.get();
     ASSERT_TRUE(ack.ok);
 
-    const size_t msg_count_before = conn->sent_messages.size();
+    const size_t msg_count_before = conn->sent().size();
     handle.cancel();
 
-    ASSERT_GT(conn->sent_messages.size(), msg_count_before);
-    auto unsub_j = json::parse(conn->sent_messages.back());
+    ASSERT_GT(conn->sent().size(), msg_count_before);
+    auto unsub_j = json::parse(conn->sent().back());
     EXPECT_EQ(unsub_j["method"], "unsubscribe");
     EXPECT_EQ(unsub_j["params"]["channel"], "ticker");
 }
@@ -487,17 +490,17 @@ TEST(Cancel, IsIdempotent) {
         sub_req, [](const exchange::kraken::ws::TickerMessage&) {}
     );
 
-    int64_t id = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
+    int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_subscribe_ack(id));
     auto [ack, handle] = fut.get();
 
-    const size_t before = conn->sent_messages.size();
+    const size_t before = conn->sent().size();
     handle.cancel();
     handle.cancel();  // second call should be a no-op
     handle.cancel();
 
     // Only one unsubscribe should have been sent.
-    EXPECT_EQ(conn->sent_messages.size(), before + 1);
+    EXPECT_EQ(conn->sent().size(), before + 1);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -520,14 +523,14 @@ TEST(PreConnectionQueue, MessagesQueuedBeforeOpen) {
     auto fut = client->execute_async(req);
 
     // Nothing should have been sent yet.
-    EXPECT_TRUE(conn->sent_messages.empty());
+    EXPECT_TRUE(conn->sent().empty());
 
     // Simulate connection opening → queue flushed.
     conn->fire_open();
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
+    ASSERT_EQ(conn->sent().size(), 1u);
 
     // Satisfy future.
-    int64_t id = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
+    int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_add_order_response(id));
     fut.get();
 }
@@ -550,14 +553,14 @@ TEST(PreConnectionQueue, FlushedInOrder) {
     auto fut1 = client->execute_async(req1);
     auto fut2 = client->execute_async(req2);
 
-    ASSERT_TRUE(conn->sent_messages.empty());
+    ASSERT_TRUE(conn->sent().empty());
 
     conn->fire_open();
 
-    ASSERT_EQ(conn->sent_messages.size(), 2u);
+    ASSERT_EQ(conn->sent().size(), 2u);
 
-    auto j1 = json::parse(conn->sent_messages[0]);
-    auto j2 = json::parse(conn->sent_messages[1]);
+    auto j1 = json::parse(conn->sent()[0]);
+    auto j2 = json::parse(conn->sent()[1]);
 
     // Both are add_order requests.
     EXPECT_EQ(j1["method"], "add_order");
@@ -588,9 +591,9 @@ TEST(PreConnectionQueue, DirectSendWhenAlreadyConnected) {
     auto fut = client->execute_async(req);
 
     // Should have sent immediately (no need for fire_open).
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
+    ASSERT_EQ(conn->sent().size(), 1u);
 
-    int64_t id = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
+    int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_add_order_response(id));
     fut.get();
 }
@@ -704,7 +707,7 @@ TEST(WsErrorHandler, NotInvokedOnValidPushFrame) {
     exchange::kraken::ws::TickerSubscribeRequest sub_req;
     sub_req.symbols = std::vector<std::string>{"BTC/USD"};
     auto fut = client->subscribe_async(sub_req, [](const exchange::kraken::ws::TickerMessage&) {});
-    int64_t id = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
+    int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_subscribe_ack(id));
     fut.get();
 
@@ -933,8 +936,8 @@ TEST(WsErrorIsolation, MethodFromJsonThrowResolvesErrorNoCrash) {
     conn->fire_open();
 
     auto fut = client->execute_async(BoomRequest{});
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
-    const auto id = json::parse(conn->sent_messages.back()).at("id").get<int64_t>();
+    ASSERT_EQ(conn->sent().size(), 1u);
+    const auto id = json::parse(conn->sent().back()).at("id").get<int64_t>();
 
     // from_json throws inside the dispatched handler — injecting the reply must
     // not propagate, and the future resolves ok=false (not broken_promise).
@@ -961,7 +964,7 @@ TEST(WsErrorIsolation, ThrowingPushCallbackIsContained) {
             throw std::runtime_error("push callback boom");
         });
 
-    const int64_t id = json::parse(conn->sent_messages[0])["req_id"].get<int64_t>();
+    const int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_subscribe_ack(id));
     auto [ack, handle] = fut.get();
     ASSERT_TRUE(ack.ok);

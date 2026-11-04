@@ -109,7 +109,7 @@ void BM_OnRawMessage_AggTradePush(benchmark::State& state) {
         sub_req,
         [&](const BinanceAggTradeEvent&) { ++push_count; });
 
-    const int64_t id = json::parse(conn->sent_messages[0]).at("id").get<int64_t>();
+    const int64_t id = json::parse(conn->sent()[0]).at("id").get<int64_t>();
     conn->inject_message(make_ack(id));
     fut.get();
 

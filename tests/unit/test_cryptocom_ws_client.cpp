@@ -233,8 +233,8 @@ TEST(CryptoComHeartbeat, AnswersAndSwallows) {
 
     // A heartbeat is answered via the inner connection and NOT forwarded.
     inner->inject_message(std::string(fx::HEARTBEAT));
-    ASSERT_EQ(inner->sent_messages.size(), 1u);
-    auto reply = json::parse(inner->sent_messages[0]);
+    ASSERT_EQ(inner->sent().size(), 1u);
+    auto reply = json::parse(inner->sent()[0]);
     EXPECT_EQ(reply.at("method"), "public/respond-heartbeat");
     EXPECT_EQ(reply.at("id").get<int64_t>(), 1782032467342);
     EXPECT_TRUE(forwarded.empty());
@@ -243,7 +243,7 @@ TEST(CryptoComHeartbeat, AnswersAndSwallows) {
     inner->inject_message(std::string(fx::TICKER_PUSH));
     ASSERT_EQ(forwarded.size(), 1u);
     EXPECT_EQ(forwarded[0], std::string(fx::TICKER_PUSH));
-    EXPECT_EQ(inner->sent_messages.size(), 1u);  // no extra reply
+    EXPECT_EQ(inner->sent().size(), 1u);  // no extra reply
 }
 
 TEST(CryptoComHeartbeat, ForwardsTransportMethods) {
@@ -253,8 +253,8 @@ TEST(CryptoComHeartbeat, ForwardsTransportMethods) {
     hb.connect();
     EXPECT_TRUE(hb.is_connected());
     hb.send("hello");
-    ASSERT_EQ(inner->sent_messages.size(), 1u);
-    EXPECT_EQ(inner->sent_messages[0], "hello");
+    ASSERT_EQ(inner->sent().size(), 1u);
+    EXPECT_EQ(inner->sent()[0], "hello");
     hb.disconnect();
     EXPECT_FALSE(hb.is_connected());
 }
@@ -276,8 +276,8 @@ TEST(CryptoComWsLifecycle, Subscribe_Ack_Push_Cancel) {
         req, [&](CryptoComTickerEvent e) { received.push_back(std::move(e)); });
 
     // Phase 2 — SUBSCRIBE frame sent with the auto-assigned id.
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
-    auto sub = json::parse(conn->sent_messages[0]);
+    ASSERT_EQ(conn->sent().size(), 1u);
+    auto sub = json::parse(conn->sent()[0]);
     EXPECT_EQ(sub.at("method"), "subscribe");
     EXPECT_EQ(sub.at("params").at("channels"), json::array({"ticker.BTC_USD"}));
     const auto id = sub.at("id").get<int64_t>();
@@ -297,19 +297,19 @@ TEST(CryptoComWsLifecycle, Subscribe_Ack_Push_Cancel) {
     // A heartbeat arriving mid-stream is answered, not delivered as a push.
     conn->inject_message(std::string(fx::HEARTBEAT));
     EXPECT_EQ(received.size(), 1u);
-    ASSERT_EQ(conn->sent_messages.size(), 2u);
-    EXPECT_EQ(json::parse(conn->sent_messages[1]).at("method"), "public/respond-heartbeat");
+    ASSERT_EQ(conn->sent().size(), 2u);
+    EXPECT_EQ(json::parse(conn->sent()[1]).at("method"), "public/respond-heartbeat");
 
     // Cancel — UNSUBSCRIBE sent once; idempotent; callback removed.
     handle.cancel();
-    ASSERT_EQ(conn->sent_messages.size(), 3u);
-    auto unsub = json::parse(conn->sent_messages[2]);
+    ASSERT_EQ(conn->sent().size(), 3u);
+    auto unsub = json::parse(conn->sent()[2]);
     EXPECT_EQ(unsub.at("method"), "unsubscribe");
     EXPECT_EQ(unsub.at("params").at("channels"), json::array({"ticker.BTC_USD"}));
     EXPECT_FALSE(handle.is_active());
 
     handle.cancel();
-    EXPECT_EQ(conn->sent_messages.size(), 3u);
+    EXPECT_EQ(conn->sent().size(), 3u);
 
     conn->inject_message(push_from(fx::TICKER_PUSH));
     EXPECT_EQ(received.size(), 1u);  // no callback after cancel
@@ -323,13 +323,13 @@ TEST(CryptoComWsLifecycle, Subscribe_BeforeOpen_QueuedAndFlushed) {
     CryptoComTradeSubscribe req;
     req.channel = trade_channel("BTC_USD");
     auto fut = client->subscribe_async(req, [](const CryptoComTradeEvent&) {});
-    EXPECT_TRUE(conn->sent_messages.empty());
+    EXPECT_TRUE(conn->sent().empty());
 
     conn->fire_open();
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
-    EXPECT_EQ(json::parse(conn->sent_messages[0]).at("method"), "subscribe");
+    ASSERT_EQ(conn->sent().size(), 1u);
+    EXPECT_EQ(json::parse(conn->sent()[0]).at("method"), "subscribe");
 
-    conn->inject_message(make_ack(sent_id(conn->sent_messages[0]), "trade.BTC_USD", "trade"));
+    conn->inject_message(make_ack(sent_id(conn->sent()[0]), "trade.BTC_USD", "trade"));
     auto [ack, handle] = fut.get();
     EXPECT_TRUE(ack.ok);
     EXPECT_TRUE(handle.is_active());
@@ -345,7 +345,7 @@ TEST(CryptoComWsLifecycle, Subscribe_ErrorAck_NoCallback) {
     int calls = 0;
     auto fut = client->subscribe_async(req, [&](const CryptoComTickerEvent&) { ++calls; });
 
-    const auto id = sent_id(conn->sent_messages.at(0));
+    const auto id = sent_id(conn->sent().at(0));
     conn->inject_message(
         json{{"id", id}, {"method", "subscribe"}, {"code", 40003}}.dump());
 
@@ -366,8 +366,8 @@ TEST(CryptoComWsLifecycle, UserFeed_AuthThenSubscribe) {
     CryptoComAuthRequest auth;
     auth.creds = {"my-key", "my-secret"};
     auto auth_fut = client->execute_async(auth);
-    ASSERT_EQ(conn->sent_messages.size(), 1u);
-    auto auth_frame = json::parse(conn->sent_messages[0]);
+    ASSERT_EQ(conn->sent().size(), 1u);
+    auto auth_frame = json::parse(conn->sent()[0]);
     EXPECT_EQ(auth_frame.at("method"), "public/auth");
     const auto auth_id = auth_frame.at("id").get<int64_t>();
     conn->inject_message(
@@ -379,7 +379,7 @@ TEST(CryptoComWsLifecycle, UserFeed_AuthThenSubscribe) {
     req.channel = user_order_channel("BTC_USD");
     std::vector<CryptoComUserOrderEvent> got;
     auto fut = client->subscribe_async(req, [&](CryptoComUserOrderEvent e) { got.push_back(std::move(e)); });
-    const auto sub_id = sent_id(conn->sent_messages.at(1));
+    const auto sub_id = sent_id(conn->sent().at(1));
     conn->inject_message(make_ack(sub_id, "user.order.BTC_USD", "user.order"));
     auto [ack, handle] = fut.get();
     EXPECT_TRUE(ack.ok);

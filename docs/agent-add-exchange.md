@@ -273,7 +273,7 @@ pattern from (and a commit for the non-obvious ones). `<name>` is your slug.
   factory; assert `http.path`/`method`/`body` on the way out and feed canned
   JSON back. See `test_binance_client.cpp` (`8b63fa9`).
 - **WS**: drive `MockWsConnection` (`tests/unit/mock_ws_connection.hpp`, shared):
-  `fire_open()`, inspect `sent_messages`, `inject_message(raw)`, `fire_close()`.
+  `fire_open()`, inspect `sent()` (a copy of the outbound messages, taken under a lock), `inject_message(raw)`, `fire_close()`.
   See `test_binance_ws_client.cpp` (`b833587`, `d9592c7`).
 - **Signing**: if no official signature vector exists, recompute the expectation
   with the same primitives and pin the *construction* (the `test_binance_client`

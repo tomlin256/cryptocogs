@@ -16,6 +16,12 @@ add_executable(test_credentials_file test_credentials_file.cpp)
 target_link_libraries(test_credentials_file exchange_common GTest::gtest_main)
 gtest_discover_tests(test_credentials_file)
 
+# The shared MockWsConnection test double (mock_ws_connection.hpp). Its outbound log is read from a second thread by
+# Execute.BlocksUntilResponse, so what it promises about threads is tested here (plan 033, #27). Header-only; exchange-agnostic.
+add_executable(test_mock_ws_connection test_mock_ws_connection.cpp)
+target_link_libraries(test_mock_ws_connection exchange_common GTest::gtest_main)
+gtest_discover_tests(test_mock_ws_connection)
+
 #-------------------------------------------------------------------------------
 # Kraken unit tests
 #-------------------------------------------------------------------------------

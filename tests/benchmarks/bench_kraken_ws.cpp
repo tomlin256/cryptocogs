@@ -114,7 +114,7 @@ void BM_OnRawMessage_TickerPush(benchmark::State& state) {
         [&](const exchange::kraken::ws::TickerMessage&) { ++push_count; });
 
     const int64_t id =
-        json::parse(conn->sent_messages[0]).at("req_id").get<int64_t>();
+        json::parse(conn->sent()[0]).at("req_id").get<int64_t>();
     json ack;
     ack["method"]             = "subscribe";
     ack["req_id"]             = id;
