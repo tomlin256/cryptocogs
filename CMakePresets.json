@@ -8,12 +8,20 @@
     {"name": "linux-x86_64", "hidden": true, "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}},
     {"name": "release", "hidden": true, "cacheVariables": {"CMAKE_BUILD_TYPE": "Release"}},
     {"name": "debug", "hidden": true, "cacheVariables": {"CMAKE_BUILD_TYPE": "Debug"}},
+    {"name": "asan", "hidden": true, "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo", "CRYPTOCOGS_SANITIZE": "asan"}},
+    {"name": "tsan", "hidden": true, "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo", "CRYPTOCOGS_SANITIZE": "tsan"}},
     {"name": "release-macos-arm64", "inherits": ["base", "release", "macos-arm64"]},
     {"name": "release-linux-arm64", "inherits": ["base", "release", "linux-arm64"]},
     {"name": "release-linux-x86_64", "inherits": ["base", "release", "linux-x86_64"]},
     {"name": "debug-macos-arm64", "inherits": ["base", "debug", "macos-arm64"]},
     {"name": "debug-linux-arm64", "inherits": ["base", "debug", "linux-arm64"]},
-    {"name": "debug-linux-x86_64", "inherits": ["base", "debug", "linux-x86_64"]}
+    {"name": "debug-linux-x86_64", "inherits": ["base", "debug", "linux-x86_64"]},
+    {"name": "asan-macos-arm64", "inherits": ["base", "asan", "macos-arm64"]},
+    {"name": "asan-linux-arm64", "inherits": ["base", "asan", "linux-arm64"]},
+    {"name": "asan-linux-x86_64", "inherits": ["base", "asan", "linux-x86_64"]},
+    {"name": "tsan-macos-arm64", "inherits": ["base", "tsan", "macos-arm64"]},
+    {"name": "tsan-linux-arm64", "inherits": ["base", "tsan", "linux-arm64"]},
+    {"name": "tsan-linux-x86_64", "inherits": ["base", "tsan", "linux-x86_64"]}
   ],
   "buildPresets": [
     {"name": "release-macos-arm64", "configurePreset": "release-macos-arm64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"}},
@@ -21,7 +29,13 @@
     {"name": "release-linux-x86_64", "configurePreset": "release-linux-x86_64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}},
     {"name": "debug-macos-arm64", "configurePreset": "debug-macos-arm64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"}},
     {"name": "debug-linux-arm64", "configurePreset": "debug-linux-arm64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}},
-    {"name": "debug-linux-x86_64", "configurePreset": "debug-linux-x86_64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}}
+    {"name": "debug-linux-x86_64", "configurePreset": "debug-linux-x86_64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}},
+    {"name": "asan-macos-arm64", "configurePreset": "asan-macos-arm64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"}},
+    {"name": "asan-linux-arm64", "configurePreset": "asan-linux-arm64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}},
+    {"name": "asan-linux-x86_64", "configurePreset": "asan-linux-x86_64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}},
+    {"name": "tsan-macos-arm64", "configurePreset": "tsan-macos-arm64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"}},
+    {"name": "tsan-linux-arm64", "configurePreset": "tsan-linux-arm64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}},
+    {"name": "tsan-linux-x86_64", "configurePreset": "tsan-linux-x86_64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}}
   ],
   "testPresets": [
     {"name": "release-macos-arm64", "configurePreset": "release-macos-arm64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"}, "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}},
@@ -29,6 +43,12 @@
     {"name": "release-linux-x86_64", "configurePreset": "release-linux-x86_64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}, "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}},
     {"name": "debug-macos-arm64", "configurePreset": "debug-macos-arm64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"}, "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}},
     {"name": "debug-linux-arm64", "configurePreset": "debug-linux-arm64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}, "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}},
-    {"name": "debug-linux-x86_64", "configurePreset": "debug-linux-x86_64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}, "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}}
+    {"name": "debug-linux-x86_64", "configurePreset": "debug-linux-x86_64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}, "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}},
+    {"name": "asan-macos-arm64", "configurePreset": "asan-macos-arm64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"}, "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}},
+    {"name": "asan-linux-arm64", "configurePreset": "asan-linux-arm64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}, "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}},
+    {"name": "asan-linux-x86_64", "configurePreset": "asan-linux-x86_64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}, "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}},
+    {"name": "tsan-macos-arm64", "configurePreset": "tsan-macos-arm64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"}, "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}},
+    {"name": "tsan-linux-arm64", "configurePreset": "tsan-linux-arm64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}, "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}},
+    {"name": "tsan-linux-x86_64", "configurePreset": "tsan-linux-x86_64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}, "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}}
   ]
 }

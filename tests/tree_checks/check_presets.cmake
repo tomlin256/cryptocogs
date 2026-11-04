@@ -1,5 +1,5 @@
 # check_presets.cmake — test_presets: CMakePresets.json names one build tree per kind and platform, and
-# says only what makes each name true (plan 028).
+# says only what makes each name true (plans 028 and 032).
 #
 # Run by ctest as
 #   cmake -DSOURCE_DIR=<repo> -DHOST_SYSTEM_NAME=<name> [-DPRESETS_DIR=<dir>] -P check_presets.cmake
@@ -12,7 +12,9 @@
 #   R3  there is one hidden host preset per known host, named <os>-<arch> in the module's own spelling,
 #       whose condition is ${hostSystemName} equal to that OS's CMake name (Darwin, Linux).
 #   R4  there is one hidden kind preset per kind, and it sets CMAKE_BUILD_TYPE: release to Release,
-#       debug to Debug.
+#       debug to Debug; a sanitizer kind (asan, tsan) sets RelWithDebInfo and CRYPTOCOGS_SANITIZE to its
+#       own mode, which cmake/cryptocogs_sanitize.cmake must accept; no other kind sets
+#       CRYPTOCOGS_SANITIZE.
 #   R5  the visible configure presets are exactly the pairs of a kind and a host, each named
 #       <kind>-<os>-<arch> and inheriting base, that kind and that host; none appears twice.
 #   R6  each has a build preset and a test preset of the same name, which name it as configurePreset
@@ -20,9 +22,9 @@
 #       test preset that points at a tree with no tests cannot report a green run, and
 #       output.outputOnFailure to true.
 #   R7  `cmake -S <dir> --list-presets=all` lists, for the configure, build and test presets, exactly
-#       the presets in the file that are for HOST_SYSTEM_NAME's OS: two of each on Darwin, four on
-#       Linux, none elsewhere. This is the end-to-end check that CMake agrees with the text of R3,
-#       including that a visible preset inherits its host's condition.
+#       the presets in the file that are for HOST_SYSTEM_NAME's OS: one per kind on Darwin, two per
+#       kind on Linux, none elsewhere. This is the end-to-end check that CMake agrees with the text of
+#       R3, including that a visible preset inherits its host's condition.
 #
 # CMake rejects a field it does not know ("$comment" is an error), so the JSON cannot carry its own
 # rationale: it is here, in the plan, and in CLAUDE.md. A hand-made change to a scratch copy is passed
@@ -40,6 +42,7 @@ if(NOT DEFINED PRESETS_DIR)
     set(PRESETS_DIR "${SOURCE_DIR}")
 endif()
 include("${SOURCE_DIR}/cmake/cryptocogs_platform.cmake")
+include("${SOURCE_DIR}/cmake/cryptocogs_sanitize.cmake")
 
 set(file "${PRESETS_DIR}/CMakePresets.json")
 if(NOT EXISTS "${file}")
@@ -48,9 +51,13 @@ endif()
 file(READ "${file}" json)
 
 # What the file must say. A host is <os>:<CMake system name>:<machine as the OS reports it>; a kind is
-# <name>:<CMAKE_BUILD_TYPE>.
+# <name>:<CMAKE_BUILD_TYPE>:<CRYPTOCOGS_SANITIZE, or empty>.
 set(hosts "Darwin:arm64" "Linux:aarch64" "Linux:x86_64")
-set(kinds "release:Release" "debug:Debug")
+set(kinds
+    "release:Release:"
+    "debug:Debug:"
+    "asan:RelWithDebInfo:asan"
+    "tsan:RelWithDebInfo:tsan")
 
 set(failures "")
 
@@ -190,13 +197,15 @@ endforeach()
 
 set(expected_kinds "")
 foreach(kind IN LISTS kinds)
-    string(REGEX MATCH "^([^:]+):(.+)$" ignored "${kind}")
+    string(REGEX MATCH "^([^:]+):([^:]+):([^:]*)$" ignored "${kind}")
     set(kind_name "${CMAKE_MATCH_1}")
     set(build_type "${CMAKE_MATCH_2}")
+    set(mode "${CMAKE_MATCH_3}")
     list(APPEND expected_kinds "${kind_name}")
     find_preset(preset "${json}" configurePresets "${kind_name}")
     json_member(hidden "${preset}" hidden)
     json_member(got_type "${preset}" cacheVariables CMAKE_BUILD_TYPE)
+    json_member(got_mode "${preset}" cacheVariables CRYPTOCOGS_SANITIZE)
     if(preset STREQUAL "")
         string(APPEND failures "\n  R4: there is no kind preset '${kind_name}'")
     else()
@@ -207,6 +216,14 @@ foreach(kind IN LISTS kinds)
             string(APPEND failures
                 "\n  R4: kind preset '${kind_name}' sets CMAKE_BUILD_TYPE to '${got_type}', want '${build_type}'")
         endif()
+        if(NOT got_mode STREQUAL mode)
+            string(APPEND failures
+                "\n  R4: kind preset '${kind_name}' sets CRYPTOCOGS_SANITIZE to '${got_mode}', want '${mode}'")
+        endif()
+    endif()
+    if(NOT mode STREQUAL "")
+        # The module must accept the mode the table names; an unknown one is a FATAL_ERROR there.
+        cryptocogs_sanitizer_flags("${mode}" ignored_compile ignored_link)
     endif()
 endforeach()
 
