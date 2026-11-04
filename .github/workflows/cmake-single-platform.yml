@@ -28,6 +28,13 @@ jobs:
     - name: Install dependencies
       run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libssl-dev zlib1g-dev
 
+    # Which CMake and which compiler the runner has. The floor (CMake 4.0) and the standard (C++23) of plan 029 are only
+    # as good as the image, so the log says what ran before Configure, which stops on either.
+    - name: Tool versions
+      run: |
+        cmake --version | head -1
+        c++ --version | head -1
+
     - name: Configure CMake
       run: cmake --preset ${{env.PRESET}}
 
