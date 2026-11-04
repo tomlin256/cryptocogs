@@ -345,12 +345,14 @@ Binance-only tree, and vice versa.
 include(FetchContent)
 FetchContent_Declare(cryptocogs
     GIT_REPOSITORY https://github.com/tomlin256/cryptocogs.git
-    GIT_TAG        main
+    GIT_TAG        v1.0.0
 )
 FetchContent_MakeAvailable(cryptocogs)
 
 target_link_libraries(my_app PRIVATE cryptocogs::kraken)   # and/or cryptocogs::binance
 ```
+
+v1.0.0 is the first release that is C++23 and needs CMake 4.0; v0.6.0 and the tags before it are C++17 and CMake 3.15.
 
 The library is C++23. Linking a `cryptocogs::` target asks CMake for `cxx_std_23`, so your target is compiled as C++23
 (a higher standard of your own is left alone), and a header included below C++23 stops with `cryptocogs requires C++23`;
@@ -369,9 +371,12 @@ This installs the four static libraries, the public headers, and a CMake package
 config. A downstream project then just:
 
 ```cmake
-find_package(cryptocogs REQUIRED)        # add -DCMAKE_PREFIX_PATH=/your/prefix
+find_package(cryptocogs 1 REQUIRED)      # add -DCMAKE_PREFIX_PATH=/your/prefix
 target_link_libraries(my_app PRIVATE cryptocogs::kraken)   # and/or cryptocogs::binance
 ```
+
+`find_package(cryptocogs 1)` accepts any 1.y.z release and nothing older or newer (`SameMajorVersion`), so a project
+that still asks for 0.6 is refused rather than handed a library that needs C++23.
 
 The install is **self-contained**: OpenSSL and libcurl are resolved via
 `find_dependency`, and the header-only `nlohmann_json` is vendored into the
@@ -381,6 +386,10 @@ own, note that the bundled copy sits on cryptocogs's include path). `IxWsConnect
 is not part of the installed package. The install rules are gated by
 `CRYPTOCOGS_INSTALL` (on for a top-level build, off when cryptocogs is pulled in via
 `FetchContent`).
+
+An installed package does not need CMake 4: it asks for `cxx_std_23` and nothing newer, and CMake 3.31.12 configured,
+built and ran a consumer against one (compiling it as `-std=gnu++2b`, CMake 3's spelling of C++23). `cxx_std_23` needs
+CMake 3.20 or later, and a release that knows your compiler's C++23 flag: CMake 3.20.6 does not know Apple Clang 21's.
 
 ### Linker flags (manual)
 
