@@ -1,7 +1,7 @@
 # Plan 031 — CI: do not build on documentation-only changes
 
-**Status:** Approved as written (2026-11-04), so D1 to D4 stand at the defaults below. Rob approved pushing this plan's
-commits to `main` and linking the plan from #40. Nothing below is implemented yet.
+**Status:** Done (2026-11-04). Rob approved the plan as written, so D1 to D4 stood at the defaults below, and approved pushing
+its commits to `main` and linking it from #40.
 **Design source:** flywheel's `.github/workflows/cmake-single-platform.yml` (its `paths:` filter) and
 `docs/plans/ci_path_filter_debounce_plan.md` (a private repository). This plan differs from it in one choice, D1.
 **Closes:** [GitHub issue #40](https://github.com/tomlin256/cryptocogs/issues/40) — "Build will trigger on doc updates
@@ -138,4 +138,37 @@ and `timeout-minutes`, as in plan 030. The files of D2 that are not documentatio
 
 ## Outcome
 
-Not started.
+**Step 1.** `test_ci_paths` was red against the workflow of plan 030 ("found no paths-ignore list under the push trigger") and
+green once `paths-ignore` was added. It reports two entries, `docs/**` and `CLAUDE.md`, covering 42 files, none of which a
+check reads or the build compiles, and 8 files that the checks read. Hand-made changes in a scratch copy of the working tree
+each failed naming the culprit:
+
+| Change | Result |
+|---|---|
+| `README.md` added to both lists | `README.md` covers `README.md`, which `tests/cmake_checks/check_cmake_floor.cmake` reads |
+| `'**/*.md'` added to both | refused: neither a file name nor `<dir>/**` |
+| `include/**` added to both | covers 44 CMake or C++ source files that the build reads, such as `include/exchange/binance/auth.hpp` |
+| `CLAUDE.md` misspelt in both | `CLAUDE.mdd` matches no file in the checkout |
+| `CLAUDE.md` dropped from `pull_request` only | the lists differ |
+| `paths-ignore` removed from `pull_request` | found no `paths-ignore` list under the `pull_request` trigger |
+
+Three extra cases behaved as they should: `.vscode/**` passed (so a dot directory is enumerated), `LICENSE` passed (nothing
+reads it), and a `!docs/keep.md` entry was refused. My first attempt at four of these cases edited the workflow with a perl
+one-liner whose quoting broke on `*` and `!`, so those copies were unchanged and the check passed them; the table is from the
+second attempt, with an `awk` helper, and each of its cases was checked to have changed the file.
+
+**The pushes.** Push `8860993` changed the workflow and the tests, so it was not ignored: run 41883029251 was created 148 s
+after the commit (committed 17:59:54Z, created 18:02:22Z) and was green, with ctest at 505 of 505 in CI, the two new checks
+included. Push `c334d88`, plan 030's results, changed only `CLAUDE.md` and a plan, and **started no run**:
+`gh api …/actions/runs?head_sha=c334d88…` found none for 300 s after the push, and the newest run overall stayed run
+41883029251 of `8860993`. A window of 300 s is about twice the worst creation lag measured that afternoon, which was 148 s
+(105 s for `8b629bd`, and 4 s for `b3af7d9` before the lag began), because Actions was still catching up after its incident.
+So it was asked again at 18:11:36Z, 6 min 23 s after the push: the query's `total_count` was still 0. That is the
+Done-when, in both directions.
+
+**Not exercised:** `pull_request`. No pull request was opened, because commits go straight to `main`. It carries the same list
+and `test_ci_paths` holds the two lists equal, and GitHub's rule for it is the one quoted under "What I measured".
+
+**The words** landed with plan 030's Step 4, which created the CI notes in CLAUDE.md: its CI subsection ends with a bullet on
+what is skipped and why `README.md` is not. CLAUDE.md's count of `cmake -P` checks and tests moved with Step 1 (nine, and 505
+in ctest) and has the `test_ci_paths` row.
