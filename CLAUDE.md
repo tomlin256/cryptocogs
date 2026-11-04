@@ -314,7 +314,7 @@ cmake --build build/release-macos-arm64
 ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure
 ```
 
-There are twenty-five test executables (496 tests, plus eight `cmake -P` checks that are listed after the table — 504 in
+There are twenty-five test executables (496 tests, plus nine `cmake -P` checks that are listed after the table — 505 in
 ctest) — seven Kraken/common, six Binance, six Coinbase, six Crypto.com:
 
 | Binary | Source | What it tests |
@@ -345,7 +345,7 @@ ctest) — seven Kraken/common, six Binance, six Coinbase, six Crypto.com:
 | `<tree>/bin/test_cryptocom_client` | `test_cryptocom_client.cpp` | `CryptoComRestClient::execute()` signed-envelope round-trip via mock performer |
 | `<tree>/bin/test_cryptocom_ws_client` | `test_cryptocom_ws_client.cpp` | `HeartbeatResponder` auto-reply + id-correlated subscribe/ack/push lifecycle with `MockWsConnection` |
 
-The eight `cmake -P` checks need no build and finish in seconds; they are registered at the top level, in every tree:
+The nine `cmake -P` checks need no build and finish in seconds; they are registered at the top level, in every tree:
 
 | Test | Script | What it holds |
 |---|---|---|
@@ -357,13 +357,14 @@ The eight `cmake -P` checks need no build and finish in seconds; they are regist
 | `test_standard_guard` | `tests/cmake_checks/check_standard_guard.cmake` | every `include/exchange/*/*.hpp` refuses to preprocess at `-std=c++17` and `-std=c++20` with "requires C++23"; GCC and Clang only (plan 029) |
 | `test_package_version` | `tests/cmake_checks/check_package_version.cmake` | which `find_package(cryptocogs <version>)` requests `cryptocogsConfigVersion.cmake` accepts — `SameMajorVersion` — derived from the project's own version (plan 029) |
 | `test_ci_cache_key` | `tests/ci_checks/check_cache_key.cmake` | the CI cache of the fetched dependencies is keyed over every file that declares one: each `CMakeLists.txt`, `*.cmake` and `*.cmake.in` with a `FetchContent_Declare` call is in the `hashFiles(...)` list of the `deps-` key in `.github/workflows/cmake-single-platform.yml`, and each listed file exists (plan 030) |
+| `test_ci_paths` | `tests/ci_checks/check_paths.cmake` | the `paths-ignore` lists under the workflow's `push` and `pull_request` triggers are equal, each entry names an existing file or `<dir>/**`, and no entry covers a file that a check reads or a CMake or C++ source (plan 031) |
 
 Tests do **not** require network access or credentials — all I/O is mocked.
 The flag matrix splits cleanly: each exchange flag drops its own suite. A
 Crypto.com-only tree (`-DCRYPTOCOGS_BUILD_KRAKEN=OFF -DCRYPTOCOGS_BUILD_BINANCE=OFF
 -DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 104 gtests — the 85-test Crypto.com suite plus the
 exchange-agnostic 11 `TickPrice` and 8 `read_toml_credentials` tests, which build
-in any tree — and the eight `cmake -P` checks.
+in any tree — and the nine `cmake -P` checks.
 
 ### Test suite breakdown
 

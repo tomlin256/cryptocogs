@@ -243,3 +243,17 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
                      -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/ci_checks/check_cache_key.cmake)
 endif()
+
+#-------------------------------------------------------------------------------
+# What starts CI (plan 031): a plain cmake -P script
+#-------------------------------------------------------------------------------
+
+# The workflow does not run for a push or a pull request that changes only the paths in its paths-ignore lists. Those
+# must be documentation: an ignored file that a build or a check reads can break in a change that no run looked at.
+# This holds the lists to the checkout. Top level only, where the checkout it reads is this project's own.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_test(NAME test_ci_paths
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/ci_checks/check_paths.cmake)
+endif()

@@ -5,8 +5,17 @@ name: CMake on a single platform
 on:
   push:
     branches: [ "main" ]
+    # Documentation builds nothing and tests nothing, so a change to only these paths does not run CI (plan 031, #40). A run
+    # starts unless every changed path matches, so a path that is not named here runs CI. README.md is not named on purpose:
+    # test_cmake_floor reads it. test_ci_paths holds this list, which must be the same under pull_request.
+    paths-ignore:
+      - 'docs/**'
+      - 'CLAUDE.md'
   pull_request:
     branches: [ "main" ]
+    paths-ignore:
+      - 'docs/**'
+      - 'CLAUDE.md'
   # Manual trigger: a cache can only be measured by a second run on an unchanged tree, and that should not cost a
   # junk commit (plan 030).
   workflow_dispatch:
