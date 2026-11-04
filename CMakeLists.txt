@@ -1,4 +1,8 @@
-cmake_minimum_required(VERSION 3.15...4.2)
+# 4.0 is the floor: this project is CMake 4 (plan 029, cryptocogs#32). It is a plain minimum, not a
+# <min>...<max> range: a range lets an older CMake run the project, and sets every policy up to <max> to NEW,
+# which needs its own audit. The 3.15...4.2 range that stood here generated the same files as a plain 4.0
+# (plan 029). test_cmake_floor holds every other minimum in the tree, and the README, to this one.
+cmake_minimum_required(VERSION 4.0)
 
 #-------------------------------------------------------------------------------
 # One build tree per platform (plan 028)
@@ -29,8 +33,9 @@ endif()
 
 project(CRYPTOCOGS VERSION 0.6.0 LANGUAGES CXX)
 
-# Allow fetched dependencies that declare cmake_minimum_required < 3.5
-# (CMake 4.x removed compatibility below 3.5)
+# Allow fetched dependencies that ask for less than CMake 3.5: CMake 4 removed compatibility below it and
+# stops on them. backward-cpp v1.6 says 3.0 and ixwebsocket v12.0.0 says 3.4.1...3.17.2 (plan 029). This stays
+# with the floor at 4.0: the floor is this project's, not theirs.
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 include(FetchContent)

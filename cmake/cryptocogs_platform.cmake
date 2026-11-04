@@ -22,8 +22,7 @@
 #       empty, or the text of the first problem found.
 #
 # The same table is in flywheel-dag's cmake/flywheel_dag_platform.cmake and in flywheel's
-# cmake/FlywheelPlatform.cmake: change all three together. Only commands CMake 3.15 has are used
-# (this project's floor): no cmake_path().
+# cmake/FlywheelPlatform.cmake: change all three together.
 
 function(cryptocogs_platform out system_name machine)
     string(TOLOWER "${system_name}" os)

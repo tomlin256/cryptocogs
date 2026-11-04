@@ -28,7 +28,7 @@
 # rationale: it is here, in the plan, and in CLAUDE.md. A hand-made change to a scratch copy is passed
 # in with PRESETS_DIR and must fail on the rule it breaks.
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 4.0)
 
 foreach(required IN ITEMS SOURCE_DIR HOST_SYSTEM_NAME)
     if(NOT DEFINED ${required})

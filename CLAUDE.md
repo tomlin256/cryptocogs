@@ -178,7 +178,7 @@ cryptocogs/
 
 ## Build system
 
-- **CMake 3.15+**, **C++17** required.
+- **CMake 4.0+**, **C++17** required.
 - **System dependencies** (must be installed before configuring):
   - OpenSSL (`libssl-dev`)
   - libcurl (`libcurl4-openssl-dev`)
@@ -250,9 +250,13 @@ platform and each kind of build gets a tree of its own, named `<kind>-<os>-<arch
   CMake saves its cache as it stood at the failure; the next valid configure restores it and rebuilds nothing.
 - **Hand-made trees.** `cmake -S . -B build/bench-macos-arm64 -DCMAKE_BUILD_TYPE=RelWithDebInfo
   -DCRYPTOCOGS_BUILD_BENCHMARKS=ON` is a tree like any other; the guard checks only its platform.
-- **Floor.** Presets need CMake 3.21; the project's floor stays 3.15, and an older CMake ignores
-  `CMakePresets.json`. `README.md`'s quick start is for a user with one platform: a free-form name such as `build` is
-  allowed.
+- **Floor.** The project's floor is CMake 4.0 ([plan 029](docs/plans/029-cmake4-cxx23.md)): a plain
+  `cmake_minimum_required`, not a range, and `test_cmake_floor` holds every other minimum in the checkout, and the
+  README, to it. `CMAKE_POLICY_VERSION_MINIMUM 3.5` stays for two fetched dependencies that ask for less (backward-cpp
+  v1.6, ixwebsocket v12.0.0). `CMakePresets.json` stays at `cmakeMinimumRequired` 3.21 on purpose: it says which CMake
+  can read the file, not what the project needs, and a higher number turns CMake 3's clear `CMake 4.0 or higher is
+  required` into "major version 4 must be less than 3". `README.md`'s quick start is for a user with one platform: a
+  free-form name such as `build` is allowed.
 - **Names** are compared in lower case, since a bind-mounted checkout is case-insensitive. `.gitignore` already
   ignores `build*`, which is why the checks live in `tests/tree_checks/` and not `tests/build_checks/`.
 

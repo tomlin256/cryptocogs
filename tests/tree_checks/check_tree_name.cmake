@@ -12,7 +12,7 @@
 # on every host. SOURCE_DIR is a parameter so that a hand-made change can be made to a scratch copy of
 # the repo and must fail here.
 
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 4.0)
 
 foreach(required IN ITEMS SOURCE_DIR SCRATCH_ROOT NLOHMANN_JSON_SRC TOMLPLUSPLUS_SRC)
     if(NOT DEFINED ${required})
@@ -140,7 +140,7 @@ expect_refused("release-${host_os}" g "release-${host_os}")
 # ── a subproject is never examined ─────────────────────────────────────────────
 file(MAKE_DIRECTORY "${scratch}/parent")
 file(WRITE "${scratch}/parent/CMakeLists.txt"
-    "cmake_minimum_required(VERSION 3.15)\n"
+    "cmake_minimum_required(VERSION 4.0)\n"
     "project(parent LANGUAGES NONE)\n"
     "add_subdirectory(\"${SOURCE_DIR}\" cryptocogs)\n")
 set(base "${scratch}/parent_build")

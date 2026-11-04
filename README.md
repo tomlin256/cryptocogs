@@ -34,6 +34,7 @@ cmake -B build && cmake --build build
 ```
 
 All other dependencies (IXWebSocket, nlohmann/json, spdlog, Google Test) are fetched automatically by CMake.
+Building needs CMake 4.0 or later.
 
 `build/` above is the tree this snippet makes, and the examples below run from it. A checkout that is built on more
 than one platform, as the maintainers' is, keeps one tree per kind of build and platform under `build/` instead

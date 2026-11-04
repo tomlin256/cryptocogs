@@ -11,7 +11,7 @@
 #
 # A name is a tree's own name (the last component of its path), as the guard passes it.
 
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 4.0)
 
 if(NOT DEFINED SOURCE_DIR)
     message(FATAL_ERROR "usage: cmake -DSOURCE_DIR=<repo> -P check_platform.cmake")
