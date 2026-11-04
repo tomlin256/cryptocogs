@@ -216,3 +216,15 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR AND CMAKE_CXX_COMPILER_ID MATCHE
                      -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/standard_guard
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake_checks/check_standard_guard.cmake)
 endif()
+
+# Which find_package(cryptocogs <version>) requests the package accepts: SameMajorVersion, so that from 1.0.0 a
+# consumer that asks for 0.6 is refused rather than handed a library that needs C++23 and CMake 4.0. It reads
+# the version file that CMakeLists.txt writes for the install, so nothing is built or installed, and it exists
+# only when CRYPTOCOGS_INSTALL is on. The table is derived from the project's own version.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR AND CRYPTOCOGS_INSTALL)
+    add_test(NAME test_package_version
+             COMMAND ${CMAKE_COMMAND}
+                     -DVERSION_FILE=${PROJECT_BINARY_DIR}/cryptocogsConfigVersion.cmake
+                     -DPROJECT_VERSION=${PROJECT_VERSION}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake_checks/check_package_version.cmake)
+endif()
