@@ -191,7 +191,7 @@ cryptocogs/
   | nlohmann/json | v3.12.0 | All JSON parsing |
   | toml++ | v3.4.0 | `read_toml_credentials` (`from_file` loaders) — build-only, in `exchange_common` |
   | spdlog | v1.17.0 | Examples and tests |
-  | Google Test | v1.16.0 | Unit tests |
+  | Google Test | v1.18.0 | Unit tests |
 
 ### Build options
 

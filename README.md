@@ -601,7 +601,7 @@ the 176 Kraken/common tests.
 | [IXWebSocket](https://github.com/machinezone/IXWebSocket) | v11.4.6 | Yes |
 | [nlohmann/json](https://github.com/nlohmann/json) | v3.12.0 | Yes |
 | [spdlog](https://github.com/gabime/spdlog) | v1.17.0 | Yes |
-| [Google Test](https://github.com/google/googletest) | v1.16.0 | Yes |
+| [Google Test](https://github.com/google/googletest) | v1.18.0 | Yes |
 | OpenSSL | system | No — `sudo apt install libssl-dev` |
 | libcurl | system | No — `sudo apt install libcurl4-openssl-dev` |
 
