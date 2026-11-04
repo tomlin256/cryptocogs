@@ -383,19 +383,20 @@ The second workflow, `.github/workflows/sanitizers.yml` ([plan 032](docs/plans/0
 and `tsan` trees of [Sanitizers](#sanitizers). It is separate, so that a red sanitizer run cannot mask whether the normal gate is
 green, and it has no caches.
 
-- **When.** Nightly at 03:41 UTC, **`asan` alone**, and on demand: `gh workflow run sanitizers.yml --ref main -f which=<asan|tsan|both>`
+- **When.** Nightly at 03:41 UTC, **both modes**, and on demand: `gh workflow run sanitizers.yml --ref main -f which=<asan|tsan|both>`
   (the default is `both`; dispatch one `which` at a time, because a newer dispatch of the same `which` cancels the one in flight).
-  `tsan` is dispatch-only until five consecutive `tsan` dispatch runs are green ([plan 033](docs/plans/033-tsan-races-in-the-tests.md);
-  its first run, before #27 and #28 were fixed, failed exactly `Execute.BlocksUntilResponse` and
+  `tsan` joined the nightly after five consecutive green `tsan` dispatch runs ([plan 033](docs/plans/033-tsan-races-in-the-tests.md);
+  its first run, before #27 and #28 were fixed, had failed exactly `Execute.BlocksUntilResponse` and
   `WsReconnectSession.BackoffResetsAfterSuccessfulReconnect` and nothing else), because one green TSan run proves little.
 - **What.** One matrix job per mode on `ubuntu-latest`, `fail-fast` off: `cmake --preset <mode>-linux-x86_64`, the build preset with
   `-j $(nproc)`, and `ctest --preset <mode>-linux-x86_64` with the runtime options in the job's `env` (`ASAN_OPTIONS` with
   `detect_leaks=1`, `UBSAN_OPTIONS`, `TSAN_OPTIONS` with `halt_on_error=1`). The canaries and `test_sanitizer_coverage` run with the
   rest.
 - **Cost.** A cold run on the 4-core runner (GCC 15.2.0, CMake 4.4.4) took 7 min 43 s for `asan` the first time and 8 min 46 s the
-  second (configure about 30 s, build 6 min 16 s to 6 min 33 s, test 19 s to 31 s, and an apt step that varies) and 6 min 21 s for
-  `tsan`; `timeout-minutes` is 20. There are no caches: a run is a few minutes of free time on a public repository, and a dependency
-  tree restored from the wrong mode would be partial instrumentation with no error to say so.
+  second (configure about 30 s, build 6 min 16 s to 6 min 33 s, test 19 s to 31 s, and an apt step that varies), and 4 min 19 s to
+  7 min 6 s for `tsan` over six runs; `timeout-minutes` is 20, about 2.3 times the slowest. There are no caches: a run is a few
+  minutes of free time on a public repository, and a dependency tree restored from the wrong mode would be partial instrumentation
+  with no error to say so.
 - **TSan's mapping.** The tsan job logs the runner's `vm.mmap_rnd_bits` and lowers it to 28 only if it is higher, because a kernel
   that randomises `mmap` beyond that can stop ThreadSanitizer at start-up. The kernel of 2026-11-04 (7.0.0-1017-azure) has no such
   sysctl, so the step did nothing there.
