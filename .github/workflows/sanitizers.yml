@@ -1,0 +1,118 @@
+# Sanitizer builds of the whole suite: AddressSanitizer + UndefinedBehaviorSanitizer ("asan") and ThreadSanitizer
+# ("tsan"). See docs/plans/032-sanitizer-option-and-presets.md (#30).
+#
+# Why it exists. Plan 028 built both trees by hand and found two data races in the tests (#27, #28) that nothing
+# had ever looked for. Nothing ran a sanitizer in CI, so a bug of that kind shows itself only when a toolchain
+# change happens to expose it, or when someone builds the tree by hand again.
+#
+# A separate workflow from cmake-single-platform.yml, so a red sanitizer run cannot mask whether the normal gate is
+# green. It has no caches on purpose (plan 032, D7): a run is a few minutes of free time on a public repository, and a
+# dependency tree restored from the wrong mode would be partial instrumentation with no error to say so.
+#
+# When it runs. On demand (Actions > Sanitizers > Run workflow; `which` picks one job or both). The nightly schedule
+# comes with the first green dispatch of the asan job, and runs asan alone until tsan is green: tsan is dispatch-only
+# until #27 and #28 are fixed and five consecutive tsan dispatch runs are green, because ThreadSanitizer reports a race
+# only when it sees both accesses and a single green run proves little (plan 032, D7).
+#
+# The same build locally, one tree per kind (the preset names it, build/asan-linux-x86_64, and sets
+# CRYPTOCOGS_SANITIZE; on the Mac it is asan-macos-arm64, and cmake --list-presets shows the host's):
+#   cmake --preset asan-linux-x86_64 && cmake --build --preset asan-linux-x86_64 -j
+#   cmake --preset tsan-linux-x86_64 && cmake --build --preset tsan-linux-x86_64 -j
+name: Sanitizers
+
+on:
+  workflow_dispatch:
+    inputs:
+      which:
+        description: Which sanitizer job to run
+        type: choice
+        options: [both, asan, tsan]
+        default: both
+
+permissions:
+  contents: read
+
+# A newer dispatch of the same job set cancels the one in flight.
+concurrency:
+  group: sanitizers-${{ github.ref }}-${{ inputs.which || 'scheduled' }}
+  cancel-in-progress: true
+
+jobs:
+  sanitize:
+    name: ${{ matrix.kind }}
+    runs-on: ubuntu-latest
+
+    env:
+      # The preset (CMakePresets.json) names the tree, build/asan-linux-x86_64, and sets its build type, RelWithDebInfo
+      # (-O2 -g: speed, and the line numbers a sanitizer report needs), and CRYPTOCOGS_SANITIZE. The matrix key is the
+      # kind, asan or tsan. A runner of another architecture fails at the Configure step, and the build-tree guard in
+      # CMakeLists.txt says which preset to use.
+      PRESET: ${{ matrix.kind }}-linux-x86_64
+
+    # Hard ceiling, so that a hung test (a TSan deadlock, say) cannot hold a runner for the default six hours. It is
+    # set from the first cold runs, which are all there are: there is no cache to make a run warm.
+    timeout-minutes: 45
+
+    strategy:
+      # One mode red must not hide the other.
+      fail-fast: false
+      matrix:
+        # A dispatch's `which` picks the modes (its default is both). A run with no `which`, the nightly once it exists,
+        # falls through to asan alone.
+        kind: ${{ fromJSON(inputs.which == 'tsan' && '["tsan"]' || inputs.which == 'both' && '["asan","tsan"]' || '["asan"]') }}
+
+    steps:
+    - uses: actions/checkout@v6
+
+    # libcurl4-openssl-dev only suggests the other two on Ubuntu, so all three are named, as in the main workflow.
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libssl-dev zlib1g-dev
+
+    # What the runner is, in the log, because the sanitizers' runtimes come with the compiler. And the one thing
+    # ThreadSanitizer needs of the kernel: it maps its shadow memory at fixed addresses, and a kernel that randomises
+    # mmap beyond 28 bits can place something in the way, so that the process dies at start-up with "FATAL:
+    # ThreadSanitizer: unexpected memory mapping" before a single test runs. Recent Ubuntu images raise the default (32
+    # on 6.x kernels), so this lowers it for the tsan job only when it is higher. The value before and after goes in the
+    # log, so that the image's behaviour is recorded and not assumed.
+    - name: Runner facts and the mmap entropy ThreadSanitizer needs
+      run: |
+        echo "kernel: $(uname -r)"
+        echo "c++:    $(c++ --version | head -1)"
+        echo "cmake:  $(cmake --version | head -1)"
+        echo "cores:  $(nproc)"
+        before="$(sysctl -n vm.mmap_rnd_bits 2>/dev/null || echo none)"
+        echo "vm.mmap_rnd_bits before: ${before}"
+        if [ "${{ matrix.kind }}" = "tsan" ] && [ "${before}" != "none" ] && [ "${before}" -gt 28 ]; then
+          sudo sysctl -w vm.mmap_rnd_bits=28
+          echo "vm.mmap_rnd_bits after:  $(sysctl -n vm.mmap_rnd_bits)"
+        fi
+
+    - name: Configure CMake
+      run: cmake --preset ${{env.PRESET}}
+
+    - name: Build
+      run: |
+        echo "runner cores: $(nproc)"
+        cmake --build --preset ${{env.PRESET}} -j $(nproc)
+
+    # The runtime options live here, and are repeated in CLAUDE.md for local runs (a local macOS run's differ on
+    # purpose: LeakSanitizer is Linux-only).
+    #
+    # ASAN: detect_stack_use_after_return and strict_string_checks widen what ASan sees; detect_leaks gates the job, since
+    # plan 028's Linux run was clean.
+    #
+    # UBSAN: the build is -fno-sanitize-recover=undefined, so the first report aborts the test; print_stacktrace says where.
+    #
+    # TSAN: halt_on_error stops at the first race. ThreadSanitizer finds a race only when it sees both accesses, so a clean
+    # run proves less than a clean ASan run does. There is no suppression file (plan 032, D6): one would need Rob's OK and
+    # a comment naming its cause.
+    #
+    # The test preset carries --output-on-failure and fails a run that finds no tests. The sanitizer canaries run here:
+    # sanitizer_canary_* prove the options are live and test_sanitizer_coverage proves every compile unit and executable
+    # carries them.
+    - name: Test
+      env:
+        ASAN_OPTIONS: detect_stack_use_after_return=1:strict_string_checks=1:detect_leaks=1
+        UBSAN_OPTIONS: print_stacktrace=1
+        TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+      run: ctest --preset ${{env.PRESET}}
