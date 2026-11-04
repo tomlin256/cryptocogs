@@ -289,8 +289,9 @@ adds `detect_leaks=1`, which macOS cannot do; `TSAN_OPTIONS=halt_on_error=1:seco
   `test_sanitizer_coverage` (every compile unit in `compile_commands.json` and every executable's link line carries the
   mode's options, the fetched dependencies' included); `test_sanitize_flags` and `test_sanitize_option` run in every tree.
   A canary that goes red means the options no longer reach the compiler, or the optimiser deleted the violation: GCC drops
-  an unused sum's UBSan check with the sum, so `canary_ubsan` stores it to a volatile. A tree built with the block of
-  options below an `add_subdirectory` leaves the canaries green and turns only `test_sanitizer_coverage` red.
+  an unused sum's UBSan check with the sum, so `canary_ubsan` stores it to a volatile. Options set below an
+  `add_subdirectory` leave the canaries green, and the link half of the coverage test too: it is the compile half of
+  `test_sanitizer_coverage` (and `test_sanitize_option`, for the project's own libraries) that goes red.
 - **UBSan aborts** (`-fno-sanitize-recover=undefined`): the first report fails the test. Without it a report prints and the
   run is green.
 - **The guard** refuses an `asan-…` or `tsan-…` tree that is not configured for that mode, so the name and the options
@@ -298,6 +299,10 @@ adds `detect_leaks=1`, which macOS cannot do; `TSAN_OPTIONS=halt_on_error=1:seco
 - **macOS** has no LeakSanitizer (Apple's runtime on arm64), so leaks show only on Linux. ThreadSanitizer is not
   deterministic: it reports a race only when it sees both accesses, so a clean TSan run proves less than a clean ASan run.
 - **Hand-made trees** with `-DCMAKE_CXX_FLAGS=-fsanitize=…` remain possible and unguarded; the presets are the supported way.
+- **CI** runs the Linux trees nightly: see [CI](#ci).
+- **What the first pass found** (2026-11-04, Apple clang 21.0.0 on the Mac, GCC 15.2.0 in CI): `asan` is clean on both (510 of 510,
+  no report); `tsan` fails two tests on both, the two races in the tests that [#27](https://github.com/tomlin256/cryptocogs/issues/27)
+  and [#28](https://github.com/tomlin256/cryptocogs/issues/28) record, and nothing else.
 
 ### Common build commands
 
@@ -371,6 +376,27 @@ compiler and CMake versions, and `ubuntu-latest` hands out more than one CMake a
   and `CLAUDE.md` under both `push` and `pull_request`. A run starts unless every changed path matches, so a path that nobody
   named runs CI. `README.md` is not named, because `test_cmake_floor` reads it. `test_ci_paths` fails when the two lists differ,
   when an entry names no file, and when an entry covers a file that a check reads or a CMake or C++ source.
+
+The second workflow, `.github/workflows/sanitizers.yml` ([plan 032](docs/plans/032-sanitizer-option-and-presets.md)), runs the `asan`
+and `tsan` trees of [Sanitizers](#sanitizers). It is separate, so that a red sanitizer run cannot mask whether the normal gate is
+green, and it has no caches.
+
+- **When.** Nightly at 03:41 UTC, **`asan` alone**, and on demand: `gh workflow run sanitizers.yml --ref main -f which=<asan|tsan|both>`
+  (the default is `both`; dispatch one `which` at a time, because a newer dispatch of the same `which` cancels the one in flight).
+  `tsan` is dispatch-only until #27 and #28 are fixed and five consecutive `tsan` dispatch runs are green: it fails today on exactly
+  `Execute.BlocksUntilResponse` and `WsReconnectSession.BackoffResetsAfterSuccessfulReconnect` and nothing else, and one green TSan
+  run proves little.
+- **What.** One matrix job per mode on `ubuntu-latest`, `fail-fast` off: `cmake --preset <mode>-linux-x86_64`, the build preset with
+  `-j $(nproc)`, and `ctest --preset <mode>-linux-x86_64` with the runtime options in the job's `env` (`ASAN_OPTIONS` with
+  `detect_leaks=1`, `UBSAN_OPTIONS`, `TSAN_OPTIONS` with `halt_on_error=1`). The canaries and `test_sanitizer_coverage` run with the
+  rest.
+- **Cost.** A cold run on the 4-core runner (GCC 15.2.0, CMake 4.4.4) took 7 min 43 s for `asan` the first time and 8 min 46 s the
+  second (configure about 30 s, build 6 min 16 s to 6 min 33 s, test 19 s to 31 s, and an apt step that varies) and 6 min 21 s for
+  `tsan`; `timeout-minutes` is 20. There are no caches: a run is a few minutes of free time on a public repository, and a dependency
+  tree restored from the wrong mode would be partial instrumentation with no error to say so.
+- **TSan's mapping.** The tsan job logs the runner's `vm.mmap_rnd_bits` and lowers it to 28 only if it is higher, because a kernel
+  that randomises `mmap` beyond that can stop ThreadSanitizer at start-up. The kernel of 2026-11-04 (7.0.0-1017-azure) has no such
+  sysctl, so the step did nothing there.
 
 ---
 

@@ -1,8 +1,9 @@
 # Plan 032 — A sanitizer option and presets: `asan` and `tsan` trees, and a nightly that runs them
 
-**Status:** Approved (2026-11-04). Rob approved the plan as written, so D1 to D8 stand at the defaults below, and asked for one
-addition: an issue in flywheel proposing the compile-side coverage check (D4) for its own sanitizer tests. Step 0 is done;
-nothing else is implemented.
+**Status:** In progress (2026-11-04). Rob approved the plan as written, so D1 to D8 stood at the defaults below, and asked for one
+addition: an issue in flywheel proposing the compile-side coverage check (D4) for its own sanitizer tests, which is
+[flywheel#209](https://github.com/tomlin256/flywheel/issues/209). Steps 0 to 8 are done and pushed. Step 9 (`tsan` joins the nightly,
+and #30 closes) waits for #27 and #28, whose fix is proposed in [plan 033](033-tsan-races-in-the-tests.md).
 
 Closes [#30](https://github.com/tomlin256/cryptocogs/issues/30) — "A sanitizer option and presets: asan and tsan trees are
 hand-made today".
@@ -364,4 +365,103 @@ A check of the workflow file beyond what `test_presets` already pins.
 
 ## Outcome
 
-Not started.
+Steps 1 to 8 are done and pushed. Step 9 waits for [#27](https://github.com/tomlin256/cryptocogs/issues/27) and
+[#28](https://github.com/tomlin256/cryptocogs/issues/28), whose fix is proposed in [plan 033](033-tsan-races-in-the-tests.md).
+Measured on the Mac (Apple clang 21.0.0, CMake 4.4.5, Unix Makefiles, 12 cores) and on `ubuntu-latest` (GCC 15.2.0, CMake 4.4.4,
+4 cores, kernel 7.0.0-1017-azure).
+
+**Baseline.** `debug-macos-arm64` before any change: 505 of 505 in 14.9 s. It was not warning-free, as the plan assumed it would be:
+six `-Wunused-result` in `tests/unit/test_ws_client.cpp` ([#24](https://github.com/tomlin256/cryptocogs/issues/24)) and two CMake
+deprecation warnings, from backward-cpp and CLI11 ([#26](https://github.com/tomlin256/cryptocogs/issues/26)). Every checkpoint below
+means "no warning beyond these".
+
+**Step 1** (`7e3af8d`). `test_sanitize_flags` was red (`include could not find requested file`) and green once the module existed.
+Six hand-made changes to the module, in a scratch copy, each failed it for the right reason: `-fno-sanitize-recover=undefined`
+dropped (the asan options differ), `thread` accepted, the modes missing from the message, the error turned into a warning (`address`
+accepted), tsan's options reordered (the order counts), and `off` accepted. ctest 506 of 506; CI run 41891917990 green.
+
+**Step 2** (`463f59e`). `test_sanitize_option` was red (the cache lacked `CRYPTOCOGS_SANITIZE:STRING=OFF`, and there was no status
+line) and green after the block. Five hand-made changes to the working tree, in a scratch copy:
+
+| Change | Result |
+|---|---|
+| the two `add_*_options` calls removed | asan: 29 of 29 units miss an option |
+| the status line removed | asan: the output lacks the status line |
+| the default changed from `OFF` to `asan` | no option: the status line is there, so is `-fsanitize`, and the cache is not `OFF` |
+| the mode ignored (`OFF` passed to the function) | asan: no status line |
+| the block moved below `add_subdirectory(src)` | asan: 29 of 29 units miss an option |
+
+My first version counted missing options and not units, and said "87 of 29 units"; it counts units now. ctest 507 of 507; CI run
+41892709701 green.
+
+**Step 3** (`9836143`). The hand-made trees `build/asan-macos-arm64` and `build/tsan-macos-arm64`, canaries built only: asan 5 of 5,
+tsan 4 of 4. The coverage test scanned 127 compile units and 42 executable link lines in the asan tree and 126 and 41 in the tsan
+tree, in 0.07 s. The canaries stop with `AddressSanitizer: heap-use-after-free`, `runtime error: signed integer overflow` and
+`ThreadSanitizer: data race`. Five hand-made changes in a scratch copy, each configured and built for real from the fetched sources:
+
+| # | Change | flags | option | canaries | coverage |
+|---|---|---|---|---|---|
+| A1 | the root stops applying the options (asan) | pass | **fails** | both **fail** | **fails**: 169 findings, 127 units and 42 executables |
+| A2 | the same (tsan) | pass | **fails** | **fails** | **fails**: 167 findings, 126 units and 41 executables |
+| B | `-fno-sanitize-recover=undefined` dropped (asan) | **fails** | pass | the UBSan canary **fails**, the ASan canary passes | pass |
+| C | the block moved below `add_subdirectory(src)` (asan) | pass | **fails** | **both pass** | **fails**: 29 findings, every one a compile unit under `src/`; the link half is green |
+| D | the link options alone dropped (asan) | pass | pass | not built: the build fails at link, `Undefined symbols for architecture arm64` | **fails**: 42 executables named |
+
+C is the case [flywheel#209](https://github.com/tomlin256/flywheel/issues/209) is about: the canaries and the link half stay green
+while 29 library units are uninstrumented, and only the compile-side half sees it. The plan wrote C as "`add_subdirectory(src)` moved
+above the block"; `src` needs the dependency targets that the block precedes, so it is the block that moves. ctest 507 of 507, and
+`ctest -N` lists no canary; CI run 41893861242 green.
+
+**Step 4** (`1a4cef5`). `test_platform_name` and `test_tree_name` were red ("accepted", and "the configure succeeded, want it
+refused") and green after rule 2. The refusal reads: *cryptocogs: the build directory "asan-macos-arm64" is named for the asan
+sanitizer, but CRYPTOCOGS_SANITIZE is OFF. A sanitizer tree is configured for the mode in its name: use -DCRYPTOCOGS_SANITIZE=asan
+(cmake --preset asan-macos-arm64), or name the tree for what it is.* The hand-made trees of Step 3 still reconfigure. Three changes in
+a scratch copy each failed both tests: rule 2 disabled, the kind matched without its dash (so `asanx-` was refused), and the message
+hiding the value. ctest 507 of 507; CI run 41894693656 green.
+
+**Step 5** (`8b1231d`). `test_presets` was red (no kind preset `asan` or `tsan`, no visible preset) and green after the JSON;
+`cmake --list-presets` on the Mac shows `release`, `debug`, `asan` and `tsan`. Six changes to the file each failed it naming the rule:
+`tsan` setting `asan` (R4), `asan` setting `Release` (R4), `release` setting a mode (R4), `asan-linux-arm64` inheriting `tsan` (R5), a
+missing build preset (R6), and a test preset with `noTestsAction` `ignore` (R6). `cmake --preset`, `cmake --build --preset` and
+`ctest --preset` for the two presets drove the trees of Step 3 and changed no cache value. My first loop passed two targets as one
+word (zsh does not split `$tg`), so the asan build step "failed" with `No rule to make target`; with the targets spelled out it exited
+0. ctest 507 of 507; CI run 41895254455 green.
+
+**Step 6** (`fb28ce4`, `153f8cc`). The first dispatch of both modes, run 41895626568, with nothing cached:
+
+| Job | Result | Time |
+|---|---|---|
+| asan | **green**, 510 of 510, both canaries and `test_sanitizer_coverage` among them | 7 min 43 s: configure 28 s, build 6 min 16 s, test 19 s |
+| tsan | 509 tests, 507 pass, **exactly two fail**: `Execute.BlocksUntilResponse` (reported at `test_ws_client.cpp:275`, #27) and `WsReconnectSession.BackoffResetsAfterSuccessfulReconnect` (`test_ws_reconnect_session.cpp:233`, #28); the tsan canary and the coverage test pass | 6 min 21 s: configure 30 s, build 5 min 7 s, test 29 s |
+
+The runner: `ubuntu-latest`, kernel 7.0.0-1017-azure, `c++` Ubuntu 15.2.0-16ubuntu1, CMake 4.4.4, 4 cores. **That kernel has no
+`vm.mmap_rnd_bits`** (the log says `none`), so the TSan start-up workaround did nothing and ThreadSanitizer ran. The only annotation
+on either job is the `ubuntu-latest` migration notice that the main workflow carries too. So the schedule (03:41 UTC, asan alone)
+went in with `timeout-minutes` set to 20, about 2.6 times the slower cold run. A second dispatch with `which: asan` (run 41897406933)
+exercised the explicit-asan path under the new ceiling and was green, 510 of 510, in 8 min 46 s: dependencies 1 min 4 s (the apt step
+varies, #41), configure 32 s, build 6 min 33 s, test 31 s. So the ceiling is 2.3 times the slowest run seen. **Not yet seen:** the
+first scheduled run.
+
+**Step 7** (`57e103d`, then the CI paragraph in the commit that records this Outcome). `CLAUDE.md` counts eleven `cmake -P` checks and
+507 in ctest, and a Crypto.com-only tree registers all eleven (checked by configuring one); no stale count remains. The push changed
+only `CLAUDE.md` and started no run (`gh api …/actions/runs?head_sha=57e103d` found none).
+
+**Step 8.** The Mac, after the push, whole suites, `RelWithDebInfo`:
+
+| Tree | Build | Test | Result |
+|---|---|---|---|
+| `asan-macos-arm64` | 42 s | 28 s | **510 of 510**, no AddressSanitizer, UBSan or other report |
+| `tsan-macos-arm64` | 30 s | 49 s | 507 of 509; the two failures are the same two tests, and nothing else |
+
+TSan on the Mac reports #28 at `test_ws_reconnect_session.cpp:244` (CI at 233: the other side of the same pair) and #27 inside libc++'s
+`std::string` and `std::vector` (CI at `test_ws_client.cpp:275`). No `atos` stall was seen. LeakSanitizer is Linux-only; CI ran with
+`detect_leaks=1` and was clean. Nothing turned up that the plan did not expect, so D6 had nothing to do beyond #27 and #28, and
+[plan 033](033-tsan-races-in-the-tests.md) proposes their fix.
+
+**Opened along the way.** [flywheel#209](https://github.com/tomlin256/flywheel/issues/209) (the compile-side check, with a comment
+that holds the demonstration of C), [flywheel#210](https://github.com/tomlin256/flywheel/issues/210) (two comments there that call
+cryptocogs' platform module sanitizer-free), and [#42](https://github.com/tomlin256/cryptocogs/issues/42) (`test_ws_reconnect_session.cpp`
+sleeps and polls although `CLAUDE.md` says it is deterministic).
+
+**Left for later.** Step 9 and the first scheduled run; the five `tsan` dispatch runs, which wait for plan 033. The `ubuntu-dev`
+container (Linux arm64) was not used: CI covers Linux x86_64, and the plan did not need a second Linux result.
