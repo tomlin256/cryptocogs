@@ -56,9 +56,9 @@ jobs:
       PRESET: ${{ matrix.kind }}-linux-x86_64
 
     # Hard ceiling, so that a hung test (a TSan deadlock, say) cannot hold a runner for the default six hours. Set from
-    # the cold runs on the 4-core runner, which are all there are, since no cache makes a run warm: asan took 7 min 43 s
-    # and 8 min 46 s, and tsan 4 min 19 s to 7 min 6 s over six runs. The apt step varies from 10 to 156 s (#41), so 20
-    # minutes is about 2.3 times the slowest seen.
+    # the cold runs on the 4-core runner, which are all there are, since no cache makes a run warm: asan took 7 min 43 s,
+    # 8 min 46 s and 10 min 2 s, and tsan 4 min 10 s to 7 min 6 s over seven runs. The apt step varies from 10 to 156 s
+    # (#41), so 20 minutes is about 2 times the slowest seen. Raise it if a run ever gets near.
     timeout-minutes: 20
 
     strategy:

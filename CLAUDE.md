@@ -392,11 +392,10 @@ green, and it has no caches.
   `-j $(nproc)`, and `ctest --preset <mode>-linux-x86_64` with the runtime options in the job's `env` (`ASAN_OPTIONS` with
   `detect_leaks=1`, `UBSAN_OPTIONS`, `TSAN_OPTIONS` with `halt_on_error=1`). The canaries and `test_sanitizer_coverage` run with the
   rest.
-- **Cost.** A cold run on the 4-core runner (GCC 15.2.0, CMake 4.4.4) took 7 min 43 s for `asan` the first time and 8 min 46 s the
-  second (configure about 30 s, build 6 min 16 s to 6 min 33 s, test 19 s to 31 s, and an apt step that varies), and 4 min 19 s to
-  7 min 6 s for `tsan` over six runs; `timeout-minutes` is 20, about 2.3 times the slowest. There are no caches: a run is a few
-  minutes of free time on a public repository, and a dependency tree restored from the wrong mode would be partial instrumentation
-  with no error to say so.
+- **Cost.** A cold run on the 4-core runner (GCC 15.2.0, CMake 4.4.4) took 7 min 43 s, 8 min 46 s and 10 min 2 s for `asan` (configure
+  about 30 s, build 6 min 16 s to 8 min 36 s, test 19 s to 35 s, and an apt step that varies), and 4 min 10 s to 7 min 6 s for `tsan`
+  over seven runs; `timeout-minutes` is 20, about 2 times the slowest. There are no caches: a run is a few minutes of free time on a
+  public repository, and a dependency tree restored from the wrong mode would be partial instrumentation with no error to say so.
 - **TSan's mapping.** The tsan job logs the runner's `vm.mmap_rnd_bits` and lowers it to 28 only if it is higher, because a kernel
   that randomises `mmap` beyond that can stop ThreadSanitizer at start-up. The kernel of 2026-11-04 (7.0.0-1017-azure) has no such
   sysctl, so the step did nothing there.
