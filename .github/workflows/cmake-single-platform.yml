@@ -7,6 +7,9 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  # Manual trigger: a cache can only be measured by a second run on an unchanged tree, and that should not cost a
+  # junk commit (plan 030).
+  workflow_dispatch:
 
 env:
   # CI's platform is Linux on x86_64, built as Release. The preset (CMakePresets.json) names the tree,
@@ -39,7 +42,12 @@ jobs:
       run: cmake --preset ${{env.PRESET}}
 
     - name: Build
-      run: cmake --build --preset ${{env.PRESET}}
+      # -j: the build is compile-bound. In run 41852041317, 401 of the 408 s were compiles and 6.5 s were links, and
+      # building serially left every core but one idle. nproc is echoed so that the runner's core count stays a
+      # measurement and not an assumption (plan 030).
+      run: |
+        echo "runner cores: $(nproc)"
+        cmake --build --preset ${{env.PRESET}} -j $(nproc)
 
     - name: Test
       # The test preset carries --output-on-failure, and fails a run that finds no tests.
