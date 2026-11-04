@@ -91,7 +91,8 @@ option(CRYPTOCOGS_INSTALL "Generate install rules and a CMake package config" ${
 # This sits BEFORE the first FetchContent_MakeAvailable on purpose. A directory's compile and link options are
 # copied into each target as it is created, so they reach the fetched dependencies only if they are set first, and
 # ThreadSanitizer needs the dependencies instrumented too (a hand-rolled handshake inside uninstrumented code reads
-# as a race on our side). A subdirectory added above this block would be quietly uninstrumented.
+# as a race on our side). A subdirectory added above this block would be quietly uninstrumented:
+# test_sanitizer_coverage (tests/sanitize_checks/) fails, in a sanitizer tree, if any compile unit or executable is.
 #-------------------------------------------------------------------------------
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/cryptocogs_sanitize.cmake)

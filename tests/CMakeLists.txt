@@ -284,3 +284,45 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
                      -DTOMLPLUSPLUS_SRC=${tomlplusplus_SOURCE_DIR}
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/sanitize_checks/check_sanitize_option.cmake)
 endif()
+
+# In a sanitizer tree only: what proves the options are live. CRYPTOCOGS_SANITIZE is a build option, so only the tree it
+# is set in runs these.
+#
+# A canary commits one deliberate violation and is registered only in the mode that must catch it. run_canary.cmake
+# requires a non-zero exit AND the sanitizer's own report, so a tree whose options never reached the compiler goes red
+# here while every real test stays green. The expectation is a regex over the first line of the report, the same text
+# from GCC's runtime and Clang's.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR AND
+   (CRYPTOCOGS_SANITIZE STREQUAL "asan" OR CRYPTOCOGS_SANITIZE STREQUAL "tsan"))
+    function(cryptocogs_add_canary name expected_report)
+        add_executable(${name} sanitize_checks/canaries/${name}.cpp)
+        if(ARGN)
+            target_link_libraries(${name} PRIVATE ${ARGN})
+        endif()
+        add_test(NAME sanitizer_${name}
+                 COMMAND ${CMAKE_COMMAND}
+                         -DCANARY=$<TARGET_FILE:${name}>
+                         "-DEXPECT=${expected_report}"
+                         -P ${CMAKE_CURRENT_SOURCE_DIR}/sanitize_checks/run_canary.cmake)
+    endfunction()
+
+    if(CRYPTOCOGS_SANITIZE STREQUAL "asan")
+        cryptocogs_add_canary(canary_asan  "AddressSanitizer: heap-use-after-free")
+        cryptocogs_add_canary(canary_ubsan "runtime error: signed integer overflow")
+    else()
+        find_package(Threads REQUIRED)
+        cryptocogs_add_canary(canary_tsan  "ThreadSanitizer: data race" Threads::Threads)
+    endif()
+
+    # Every compile unit and every executable carries the mode's options. The canaries show the sanitizer works in the
+    # executables they are; this shows no other unit was left out, the fetched dependencies' included. It reads the
+    # compile_commands.json and the link.txt files that the Makefiles generator writes.
+    if(CMAKE_GENERATOR MATCHES "Makefiles")
+        add_test(NAME test_sanitizer_coverage
+                 COMMAND ${CMAKE_COMMAND}
+                         -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                         -DBUILD_DIR=${CMAKE_BINARY_DIR}
+                         -DMODE=${CRYPTOCOGS_SANITIZE}
+                         -P ${CMAKE_CURRENT_SOURCE_DIR}/sanitize_checks/check_sanitizer_coverage.cmake)
+    endif()
+endif()
