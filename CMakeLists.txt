@@ -78,6 +78,33 @@ endif()
 option(CRYPTOCOGS_INSTALL "Generate install rules and a CMake package config" ${_kapi_install_default})
 
 #-------------------------------------------------------------------------------
+# Sanitizers (opt-in; plan 032, #30)
+#
+#   -DCRYPTOCOGS_SANITIZE=asan    AddressSanitizer + UndefinedBehaviorSanitizer
+#   -DCRYPTOCOGS_SANITIZE=tsan    ThreadSanitizer
+#
+# The default, OFF, changes nothing. Any other value is a configure error that lists the modes
+# (cmake/cryptocogs_sanitize.cmake has the options and the reasons). Use a tree of its own, which the sanitizer
+# presets make (build/asan-<os>-<arch>, build/tsan-<os>-<arch>): the options reach every target, so a tree is one
+# mode or none.
+#
+# This sits BEFORE the first FetchContent_MakeAvailable on purpose. A directory's compile and link options are
+# copied into each target as it is created, so they reach the fetched dependencies only if they are set first, and
+# ThreadSanitizer needs the dependencies instrumented too (a hand-rolled handshake inside uninstrumented code reads
+# as a race on our side). A subdirectory added above this block would be quietly uninstrumented.
+#-------------------------------------------------------------------------------
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/cryptocogs_sanitize.cmake)
+set(CRYPTOCOGS_SANITIZE "OFF" CACHE STRING "Sanitizer: OFF, asan (address + undefined) or tsan (thread)")
+set_property(CACHE CRYPTOCOGS_SANITIZE PROPERTY STRINGS OFF asan tsan)
+cryptocogs_sanitizer_flags("${CRYPTOCOGS_SANITIZE}" _cryptocogs_sanitize_compile _cryptocogs_sanitize_link)
+if(_cryptocogs_sanitize_compile)
+    add_compile_options(${_cryptocogs_sanitize_compile})
+    add_link_options(${_cryptocogs_sanitize_link})
+    message(STATUS "cryptocogs: sanitizer '${CRYPTOCOGS_SANITIZE}' (${_cryptocogs_sanitize_link})")
+endif()
+
+#-------------------------------------------------------------------------------
 # Find OpenSSL
 #-------------------------------------------------------------------------------
 

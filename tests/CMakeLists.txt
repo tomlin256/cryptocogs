@@ -271,3 +271,16 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
                      -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/sanitize_checks/check_sanitize_flags.cmake)
 endif()
+
+# The option in the root CMakeLists.txt reaches the project's own targets. It configures the real project, offline as
+# test_tree_name does (the tests off, the two header-only dependencies taken from the sources this build fetched), once
+# with no option and once with each mode, and reads the compile_commands.json each tree writes. Top level only, as above.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_test(NAME test_sanitize_option
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -DSCRATCH_ROOT=${CMAKE_CURRENT_BINARY_DIR}/sanitize_checks
+                     -DNLOHMANN_JSON_SRC=${nlohmann_json_SOURCE_DIR}
+                     -DTOMLPLUSPLUS_SRC=${tomlplusplus_SOURCE_DIR}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/sanitize_checks/check_sanitize_option.cmake)
+endif()
