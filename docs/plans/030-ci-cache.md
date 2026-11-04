@@ -1,7 +1,8 @@
 # Plan 030 — CI: cache the build
 
 **Status:** Approved as written (2026-11-04), so D1 to D5 stand at the defaults below. Rob approved pushing this plan's
-commits to `main` and linking the plan from #37. Nothing below is implemented yet.
+commits to `main` and linking the plan from #37. Step 1 is done and measured (the Outcome has the numbers); Steps 2 to 4
+are not.
 **Design source:** flywheel's `docs/plans/ci_build_cost_reduction_plan.md` and its
 `.github/workflows/cmake-single-platform.yml` (a private repository). This plan applies that design and restates only
 what differs. The main difference: flywheel's `_deps` cache does not work here as written (measured below).
@@ -258,4 +259,12 @@ may not skip its clones either. No issue is opened for it.
 
 ## Outcome
 
-Not started.
+| Stage | Run | Job | Configure | Build | Test |
+|---|---|---:|---:|---:|---:|
+| Baseline, `e9ad24f` | 41852041317 | 457 s | 25 s | 408 s | 9 s |
+| Step 1, `-j $(nproc)`, `464768b` | 41875534338 | 299 s | 50 s | **221 s** | 11 s |
+
+**Step 1 — kept.** The run printed `runner cores: 4`, and Build went from 408 s to 221 s: 46% less, 1.85x on 4 cores. That is
+below the fastest of the six serial runs measured before (314 s), so the noise (314 to 586 s) does not explain it. The run
+was green, with ctest at 503 of 503 and no compiler warning in its log, so the parallel build exposed no missing dependency. Configure
+took 50 s against 24 to 35 s in those six runs: the step did not change, and it is the seven clones.
