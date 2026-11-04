@@ -314,8 +314,8 @@ cmake --build build/release-macos-arm64
 ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure
 ```
 
-There are twenty-five test executables (496 tests, plus the three build-tree checks of plan 028: `test_platform_name`,
-`test_tree_name` and `test_presets`, 499 in ctest) — seven Kraken/common, six Binance, six Coinbase, six Crypto.com:
+There are twenty-five test executables (496 tests, plus seven `cmake -P` checks that are listed after the table — 503 in
+ctest) — seven Kraken/common, six Binance, six Coinbase, six Crypto.com:
 
 | Binary | Source | What it tests |
 |---|---|---|
@@ -345,12 +345,24 @@ There are twenty-five test executables (496 tests, plus the three build-tree che
 | `<tree>/bin/test_cryptocom_client` | `test_cryptocom_client.cpp` | `CryptoComRestClient::execute()` signed-envelope round-trip via mock performer |
 | `<tree>/bin/test_cryptocom_ws_client` | `test_cryptocom_ws_client.cpp` | `HeartbeatResponder` auto-reply + id-correlated subscribe/ack/push lifecycle with `MockWsConnection` |
 
+The seven `cmake -P` checks need no build and finish in seconds; they are registered at the top level, in every tree:
+
+| Test | Script | What it holds |
+|---|---|---|
+| `test_platform_name` | `tests/tree_checks/check_platform.cmake` | the platform tag and the tree-name check in `cmake/cryptocogs_platform.cmake` (plan 028) |
+| `test_tree_name` | `tests/tree_checks/check_tree_name.cmake` | the build-tree guard in the root `CMakeLists.txt`, by configuring the real project offline (plan 028) |
+| `test_presets` | `tests/tree_checks/check_presets.cmake` | `CMakePresets.json` names one tree per kind and platform (plan 028) |
+| `test_cmake_floor` | `tests/cmake_checks/check_cmake_floor.cmake` | one CMake floor: the root's plain minimum, every other `cmake_minimum_required` outside `build*/`, and the README's "CMake 4.0 or later" (plan 029) |
+| `test_standard_requirement` | `tests/cmake_checks/check_standard_requirement.cmake` | every library created in `src/` compiles its consumers as C++23, read from `INTERFACE_COMPILE_FEATURES` (plan 029) |
+| `test_standard_guard` | `tests/cmake_checks/check_standard_guard.cmake` | every `include/exchange/*/*.hpp` refuses to preprocess at `-std=c++17` and `-std=c++20` with "requires C++23"; GCC and Clang only (plan 029) |
+| `test_package_version` | `tests/cmake_checks/check_package_version.cmake` | which `find_package(cryptocogs <version>)` requests `cryptocogsConfigVersion.cmake` accepts — `SameMajorVersion` — derived from the project's own version (plan 029) |
+
 Tests do **not** require network access or credentials — all I/O is mocked.
 The flag matrix splits cleanly: each exchange flag drops its own suite. A
 Crypto.com-only tree (`-DCRYPTOCOGS_BUILD_KRAKEN=OFF -DCRYPTOCOGS_BUILD_BINANCE=OFF
--DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 104 — the 85-test Crypto.com suite plus the
+-DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 104 gtests — the 85-test Crypto.com suite plus the
 exchange-agnostic 11 `TickPrice` and 8 `read_toml_credentials` tests, which build
-in any tree.
+in any tree — and the seven `cmake -P` checks.
 
 ### Test suite breakdown
 

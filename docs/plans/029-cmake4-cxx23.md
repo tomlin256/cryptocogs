@@ -1,7 +1,8 @@
 # Plan 029 — CMake 4 and C++23, released as v1.0.0
 
-**Status:** Approved (2026-11-04). Rob approved the plan as written, so D1 to D9 stand at the defaults below, and approved
-pushing this plan's commits and linking it from #32.
+**Status:** Done (2026-11-04), released as v1.0.0, apart from the checks that need the Linux container (Step 8; the Outcome
+says which and why). Rob approved the plan as written, so D1 to D9 stood at the defaults below, and approved pushing this
+plan's commits and linking it from #32.
 **Design source:** flywheel-dag's [require_cmake4_plan.md](https://github.com/tomlin256/flywheel-dag/blob/main/docs/plans/require_cmake4_plan.md)
 ([flywheel-dag#57](https://github.com/tomlin256/flywheel-dag/issues/57)) and
 [require_cxx23_plan.md](https://github.com/tomlin256/flywheel-dag/blob/main/docs/plans/require_cxx23_plan.md)
@@ -444,18 +445,89 @@ Commit: `docs(plan): results for 029 — CMake 4 and C++23 (step 10/10)`.
 - **The bind mount is case-insensitive**, so the Linux build cannot catch a filename-case bug; CI stays the check.
 - **This repo is public.** The plan, the docs and the commit bodies describe this library only.
 
+## Outcome
+
+**Released as v1.0.0** (annotated tag on `6d28ad5`, 2026-11-04), CI green on it: CMake 4.4.5, GCC 15.2.0, 503 of 503. The
+`include/` diff since v0.6.0 is the guard header and two lines in each of seven headers; `src/CMakeLists.txt` has the six
+`cxx_std_23` lines and a comment; googletest moved to v1.18.0 for the tests. #32 is closed.
+
+**Tests.** ctest went from 499 to 503: `test_cmake_floor`, `test_standard_requirement`, `test_standard_guard` and
+`test_package_version`. Each was seen red first (the last against hand-made version files, because it passes at 0.6.0 and at
+1.0.0), and eighteen hand-made changes to scratch copies, plus one case that must pass, fail them as the plan says:
+M1 to M6 (floor), M7 to M9b and the inherited case (requirement), M10 to M13 (guard), M14 to M17 (version policy). The
+Mac (Apple Clang 21, CMake 4.4.5) passed in full at each step (500, 501, 502, then 503) with the eight warnings of
+#24 and #26 and no ninth; the container (aarch64, CMake 4.4.5: GCC 13.3 release and debug, Clang 18.1.3 on libstdc++ 13)
+passed the same counts with the two of #26, up to Step 7; CI (ubuntu-26.04, GCC 15.2.0) was green on every push.
+
+**What the steps found**
+
+- **Step 1.** All of it passed at C++17, Clang 18 on libstdc++ included, so flywheel-dag#58 does not apply here. The three
+  development libraries were already in the live container (installed by hand at 11:32, not by this plan; dpkg.log), so the
+  by-hand install of D9 was a no-op. Container builds of 3 to 4 seconds are a warm ccache.
+- **CI's CMake is 4.4.5 in Step 2's log and 4.4.4 in the later ones**: two runner images behind `ubuntu-latest`.
+- **T3 as designed could not hold** (Step 5). `$<TARGET_PROPERTY:…,INTERFACE_COMPILE_FEATURES>` is transitive: it adds
+  nlohmann_json's `cxx_std_11` and the features of every linked library, so "no other `cxx_std_NN`" fails on the correct
+  tree. The first red run showed it. The check takes the highest standard, which is what CMake compiles a consumer at, and
+  the plan's T3 row and mutants were amended (M9b is new, and `kraken` alone at 17 passes on purpose: it inherits 23).
+- **T4 compiles too much** (Step 6). The first version compiled 64 units and took 19 to 29 seconds on the Mac; the guard is a
+  preprocessor `#error`, so `-E` proves it, and the test takes 4 to 7 seconds (9 on the runner). The glob also finds the guard
+  header itself, so it counts 33 headers, not 32.
+- **include-cleaner** would call every include of the guard unused, so `cxx_standard.hpp` carries `IWYU pragma: always_keep`.
+  An editor that parsed it with a stale compile database showed the `#error`; `clangd --check` with the refreshed
+  `build/debug-macos-arm64` reports 0 errors.
+- **An existing tree** configured under CMake 4.2 reconfigures under the new floor in 1.2 seconds with no clone: the
+  re-fetch flywheel-dag saw does not happen here, because the old range already set CMP0168.
+- **The floor is real, and CMake 3 is refused clearly** (Step 8, Kitware's tarballs checked against the releases' SHA-256
+  files). CMake 4.0.7 configures with no CMake warning (the "< 3.10" deprecations of backward-cpp and CLI11 are newer than
+  4.0), builds, and passes 503 of 503. CMake 3.31.12 stops the library as the top-level project, through the preset and
+  through a `FetchContent` consumer, with `CMake 4.0 or higher is required. You are running version 3.31.12`. A consumer
+  under 3.31.12 configured, built and ran against a package installed by 4.4.5, compiled as `-std=gnu++2b` with no
+  `CMAKE_CXX_STANDARD` of its own, which shows `cxx_std_23` reaches it. **CMake 3.20.6 cannot do it on Apple Clang 21**
+  ("The compiler feature cxx_std_23 is not known to CXX compiler"), so the README promises only what was measured.
+- **The generated files.** Of 671 files CMake generates, the only one that differs between HEAD and Step 3 is
+  `tests/CTestTestfile.cmake` (the new test and one backtrace line).
+
+**Deviations from the plan as approved**
+
+- Step 8 is partly done. Not run: AddressSanitizer, UndefinedBehaviorSanitizer and LeakSanitizer over the suite in the
+  container, and a container run at the release tip. The speed comparison (C++17 against C++23, the benchmark harness
+  of plans 025 to 027) was started and stopped at Rob's instruction ("skip the performance testing … we can test more
+  after it's pushed"); the two trees built, and no number was taken. All three follow the push.
+- Step 8 made a commit after all: the README sentence about an installed package, and the `v1.0.0` and `find_package(… 1)`
+  snippets (`62dd391`), pushed with the release.
+- T3, T4 and the mutant numbers were amended as above.
+
+**An incident, mine.** While Step 8 ran, my scratch copies filled the host's disk: I copied the checkout with
+`rsync --exclude build`, which skips only an entry named `build` and not the stale `build-bench`, `build-compat`,
+`build-ubsan` and `build2` beside it, so each of some fifteen copies was 750 MB (9.8 GB in all). The disk reached 100%
+(124 MiB free) at about 14:20. Docker Desktop's backend began shutting its engine down at 14:22 and has not come back (its
+log ends at "setting engine linux/virtualization-framework state stopped -> stopping"), the `ubuntu-dev` container went with
+it, and an AddressSanitizer run in the container died with the full disk. I deleted the copies (13 GiB are free now), did
+not force-restart Docker, and on Rob's instruction ("Docker is dead so skip any use of it") used no Docker after that. The host still has little room, which the stale trees in `build/`
+(about 2.8 GB) could ease.
+
+**Left for later**
+
+- Rob restarts Docker Desktop (`./start.sh --detach` does it, and recreates `ubuntu-dev` from the image that docker-ubuntu#3
+  fixed). Then: the sanitizer run, a container run of the tip, and the benchmark comparison, in that order.
+- docker-ubuntu: #3 is still open (closing it was refused by the session's permission classifier), and one docs commit
+  (plan 003's Outcome after the push) is not pushed.
+- [#35](https://github.com/tomlin256/cryptocogs/issues/35), the README's other stale statements, and
+  [#38](https://github.com/tomlin256/cryptocogs/issues/38), the `performance-enum-size` and unused-include findings.
+- Not done: a GitHub release object for v1.0.0 (D7); "Latest release" on GitHub still reads v0.0.3.
+
 ## Progress
 
 | Step | Status | Notes |
 |---|---|---|
 | 0 — Approval | Done (2026-11-04) | Approved as written: D1 to D9 stood. |
-| 1 — Start from green | Pending | |
-| 2 — CI shows its tools | Pending | |
-| 3 — Require CMake 4 | Pending | |
-| 4 — googletest v1.18.0 | Pending | |
-| 5 — Require C++23 | Pending | |
-| 6 — Refuse to compile below C++23 | Pending | |
-| 7 — Hold what `find_package` accepts | Pending | |
-| 8 — Verify, on the tip | Pending | |
-| 9 — Release v1.0.0 | Pending | |
-| 10 — Close the plan | Pending | |
+| 1 — Start from green | Done | At `3ab1e32`: Mac 499 of 499 (configure 26 s, build 18 s, ctest 6 s), the eight warnings of #24 and #26; container `release-linux-arm64` and `debug-linux-arm64` (GCC 13.3.0) and a hand-made `clang-linux-arm64` (Clang 18.1.3) 499 of 499, the two of #26. |
+| 2 — CI shows its tools | Done | `a26c0e3`; run 41838340297 green: CMake 4.4.5, GCC 15.2.0, 499 of 499. |
+| 3 — Require CMake 4 | Done | `cac0080`; T1 red then green, M1 to M6 as stated; 500 of 500 on the Mac and in the container; CI run 41839716936 green. |
+| 4 — googletest v1.18.0 | Done | `1e3d0e2`; 500 of 500, the Mac's eight warnings and no ninth; CI run 41842073731 green. |
+| 5 — Require C++23 | Done | `3931104`; T3 red then green (design amended), M7 to M9b as stated; 501 of 501 on the Mac and in the container; CI run 41844066017 green on GCC 15.2 (x86_64). |
+| 6 — Refuse to compile below C++23 | Done | `d371ae4`; T4 red (32 headers at both standards) then green, M10 to M13 as stated, M11 stops GCC 13.3's `-std=gnu++23` build at the `#error`; 502 of 502; CI run 41845554569 green. |
+| 7 — Hold what `find_package` accepts | Done | `a0b8b8a`; green at 0.6.0, seen red against M14 to M17; 503 of 503; CI run 41847319160 green. |
+| 8 — Verify, on the tip | Partly done | CMake 4.0.7, 3.31.12 and 3.20.6 as above; README commit `62dd391`. Not run: the container sanitizers and tip, and the benchmarks (Docker down; speed skipped on request). |
+| 9 — Release v1.0.0 | Done | `6d28ad5`, tag `v1.0.0`, pushed; the installed `cryptocogsConfigVersion.cmake` says 1.0.0; CI run 41849773159 green; #32 closed. |
+| 10 — Close the plan | Done | This commit. |
