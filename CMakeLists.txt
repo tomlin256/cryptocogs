@@ -34,7 +34,7 @@ endif()
 project(CRYPTOCOGS VERSION 1.0.0 LANGUAGES CXX)
 
 # Allow fetched dependencies that ask for less than CMake 3.5: CMake 4 removed compatibility below it and
-# stops on them. backward-cpp v1.6 says 3.0 and ixwebsocket v12.0.0 says 3.4.1...3.17.2 (plan 029). This stays
+# stops on them. backward-cpp v1.6 says 3.0 and ixwebsocket v12.1.0 says 3.4.1...3.17.2 (plan 029). This stays
 # with the floor at 4.0: the floor is this project's, not theirs.
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
@@ -135,11 +135,14 @@ if(CRYPTOCOGS_BUILD_TESTS)
   # ixwebsocket — used only by examples + tests (no core library links it), so
   # it is fetched here and kept out of the cryptocogs install via
   # IXWEBSOCKET_INSTALL OFF below (plan 017).
+  #
+  # Pinned at v12.1.0: v12.0.0's IXSocketOpenSSL.cpp warns about two unused
+  # parameters (-Wunused-parameter) on every build (#36).
   #-----------------------------------------------------------------------------
   FetchContent_Declare(
     ixwebsocket
     GIT_REPOSITORY https://github.com/machinezone/IXWebSocket.git
-    GIT_TAG        v12.0.0
+    GIT_TAG        v12.1.0
   )
   set(USE_TLS ON CACHE BOOL "" FORCE)
   set(USE_OPEN_SSL ON CACHE BOOL "" FORCE)

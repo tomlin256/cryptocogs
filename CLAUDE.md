@@ -188,7 +188,7 @@ cryptocogs/
 - **Fetched automatically** by `FetchContent` at configure time:
   | Library | Version | Used by |
   |---|---|---|
-  | IXWebSocket | v12.0.0 | WebSocket examples + `IxWsConnection` |
+  | IXWebSocket | v12.1.0 | WebSocket examples + `IxWsConnection` |
   | nlohmann/json | v3.12.0 | All JSON parsing |
   | toml++ | v3.4.0 | `read_toml_credentials` (`from_file` loaders) — build-only, in `exchange_common` |
   | spdlog | v1.17.0 | Examples and tests |
@@ -254,7 +254,7 @@ platform and each kind of build gets a tree of its own, named `<kind>-<os>-<arch
 - **Floor.** The project's floor is CMake 4.0 ([plan 029](docs/plans/029-cmake4-cxx23.md)): a plain
   `cmake_minimum_required`, not a range, and `test_cmake_floor` holds every other minimum in the checkout, and the
   README, to it. `CMAKE_POLICY_VERSION_MINIMUM 3.5` stays for two fetched dependencies that ask for less (backward-cpp
-  v1.6, ixwebsocket v12.0.0). `CMakePresets.json` stays at `cmakeMinimumRequired` 3.21 on purpose: it says which CMake
+  v1.6, ixwebsocket v12.1.0). `CMakePresets.json` stays at `cmakeMinimumRequired` 3.21 on purpose: it says which CMake
   can read the file, not what the project needs, and a higher number turns CMake 3's clear `CMake 4.0 or higher is
   required` into "major version 4 must be less than 3". `README.md`'s quick start is for a user with one platform: a
   free-form name such as `build` is allowed.
