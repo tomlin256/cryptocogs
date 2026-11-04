@@ -181,3 +181,22 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
                      -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake_checks/check_cmake_floor.cmake)
 endif()
+
+# Linking any library built in src/ compiles the consumer as C++23. The export copies a target's
+# INTERFACE_COMPILE_FEATURES to a find_package consumer, and nothing else in the suite notices a library that
+# loses its target_compile_features: the top-level CMAKE_CXX_STANDARD still compiles it. The features are read
+# by generator expression (transitively, so the script takes the highest), which needs no install, no network
+# and no compile. The targets are the directory's own, so a library added to src/ later is held to it too.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    get_property(_cryptocogs_libraries DIRECTORY ${PROJECT_SOURCE_DIR}/src PROPERTY BUILDSYSTEM_TARGETS)
+    set(_cryptocogs_target_features "")
+    foreach(_library IN LISTS _cryptocogs_libraries)
+        string(APPEND _cryptocogs_target_features
+               "${_library}=$<JOIN:$<TARGET_PROPERTY:${_library},INTERFACE_COMPILE_FEATURES>,+>|")
+    endforeach()
+    add_test(NAME test_standard_requirement
+             COMMAND ${CMAKE_COMMAND}
+                     "-DTARGET_FEATURES=${_cryptocogs_target_features}"
+                     -DWANT=cxx_std_23
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake_checks/check_standard_requirement.cmake)
+endif()

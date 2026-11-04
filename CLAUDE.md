@@ -178,7 +178,7 @@ cryptocogs/
 
 ## Build system
 
-- **CMake 4.0+**, **C++17** required.
+- **CMake 4.0+**, **C++23** required.
 - **System dependencies** (must be installed before configuring):
   - OpenSSL (`libssl-dev`)
   - libcurl (`libcurl4-openssl-dev`)
@@ -213,8 +213,8 @@ Turning all four exchanges off emits a "nothing will be built" warning.
 **Installing**: `cmake --install <tree> --prefix <p>` lays down the six static
 libs, the public headers (component-gated by the build flags), and a package
 config so a downstream project can `find_package(cryptocogs)` +
-`target_link_libraries(app cryptocogs::kraken)` — and inherit the C++17
-requirement automatically (the targets carry `cxx_std_17`, so a consumer need
+`target_link_libraries(app cryptocogs::kraken)` — and inherit the C++23
+requirement automatically (the targets carry `cxx_std_23`, so a consumer need
 not set `CMAKE_CXX_STANDARD` itself; plan 017). The header-only `nlohmann_json`
 is **vendored** into the prefix (it is FetchContent'd and so can't be an export
 dependency); OpenSSL/libcurl resolve via `find_dependency`. ixwebsocket, GTest,
@@ -1311,7 +1311,7 @@ Place the banner before `#pragma once` (for headers) or before the first `#inclu
 
 ## Coding conventions
 
-- **C++17** throughout; use structured bindings, `if constexpr`, `std::optional`, `std::string_view` where appropriate.
+- **C++23** throughout (plan 029; no C++23 language or library feature is adopted yet); use structured bindings, `if constexpr`, `std::optional`, `std::string_view` where appropriate.
 - All optional fields on request and response structs use `std::optional<T>`. Only set them when needed; omitted fields are not serialised.
 - JSON serialisation uses `to_json()` / `from_json()` static methods on each struct. Prefer `j.value("key", default)` over `j.at("key")` for fields that may be absent in responses.
 - Enum conversions are done by free functions `to_string(Enum)` and `foo_from_string(const std::string&)`. The canonical four (`Side`, `OrderType`, `TimeInForce`, `OrderStatus`) live in `exchange/common/types.hpp`; Kraken-only enums (`PriceType`, `TriggerReference`, `StpType`, `FeePreference`) and Kraken's hyphenated `OrderType` overrides (`kraken_order_type_to_string`/`from_string`) live in `exchange/kraken/types.hpp`. All throw `std::invalid_argument` on unknown values.

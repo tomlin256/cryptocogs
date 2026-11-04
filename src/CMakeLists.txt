@@ -32,10 +32,11 @@ target_include_directories(exchange_common PUBLIC
 target_link_libraries(exchange_common
     PUBLIC  $<BUILD_INTERFACE:nlohmann_json::nlohmann_json>
     PRIVATE $<BUILD_INTERFACE:tomlplusplus::tomlplusplus>)
-# Export the C++17 requirement so downstream find_package(cryptocogs) consumers
-# inherit it automatically — the top-level CMAKE_CXX_STANDARD is directory-scoped
-# and does not reach the export (plan 017). cxx_std_17 is a floor, not a pin.
-target_compile_features(exchange_common PUBLIC cxx_std_17)
+# Export the C++23 requirement (cryptocogs#32, plan 029) so downstream find_package(cryptocogs)
+# consumers inherit it automatically — the top-level CMAKE_CXX_STANDARD is directory-scoped
+# and does not reach the export (plan 017). cxx_std_23 is a floor, not a pin. test_standard_requirement
+# holds every library created in this directory to it.
+target_compile_features(exchange_common PUBLIC cxx_std_23)
 
 #-------------------------------------------------------------------------------
 # Common HTTP transport — generic libcurl-backed CurlHttpClient (plan 010).
@@ -57,7 +58,7 @@ target_include_directories(exchange_http PUBLIC
 target_link_libraries(exchange_http PUBLIC
     CURL::libcurl
     $<BUILD_INTERFACE:nlohmann_json::nlohmann_json>)
-target_compile_features(exchange_http PUBLIC cxx_std_17)
+target_compile_features(exchange_http PUBLIC cxx_std_23)
 
 #-------------------------------------------------------------------------------
 # Kraken exchange adapter
@@ -79,7 +80,7 @@ if(CRYPTOCOGS_BUILD_KRAKEN)
     target_link_libraries(kraken
         PUBLIC exchange_common exchange_http OpenSSL::SSL OpenSSL::Crypto
     )
-    target_compile_features(kraken PUBLIC cxx_std_17)
+    target_compile_features(kraken PUBLIC cxx_std_23)
 endif()
 
 #-------------------------------------------------------------------------------
@@ -108,7 +109,7 @@ if(CRYPTOCOGS_BUILD_BINANCE)
     target_link_libraries(binance
         PUBLIC exchange_common exchange_http OpenSSL::SSL OpenSSL::Crypto
     )
-    target_compile_features(binance PUBLIC cxx_std_17)
+    target_compile_features(binance PUBLIC cxx_std_23)
 endif()
 
 #-------------------------------------------------------------------------------
@@ -133,7 +134,7 @@ if(CRYPTOCOGS_BUILD_COINBASE)
     target_link_libraries(coinbase
         PUBLIC exchange_common exchange_http OpenSSL::SSL OpenSSL::Crypto
     )
-    target_compile_features(coinbase PUBLIC cxx_std_17)
+    target_compile_features(coinbase PUBLIC cxx_std_23)
 endif()
 
 #-------------------------------------------------------------------------------
@@ -160,7 +161,7 @@ if(CRYPTOCOGS_BUILD_CRYPTOCOM)
     target_link_libraries(cryptocom
         PUBLIC exchange_common exchange_http OpenSSL::SSL OpenSSL::Crypto
     )
-    target_compile_features(cryptocom PUBLIC cxx_std_17)
+    target_compile_features(cryptocom PUBLIC cxx_std_23)
 endif()
 
 #-------------------------------------------------------------------------------

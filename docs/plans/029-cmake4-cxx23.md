@@ -103,7 +103,7 @@ Seven parts, all from flywheel-dag's two plans except T3, with this repo's diffe
    | Test | Script | Asserts |
    |---|---|---|
    | T1 `test_cmake_floor` | `check_cmake_floor.cmake` | the root has one plain `cmake_minimum_required`, and that is the floor; every other one outside `build*/`, `cmake-build-*/` (CLion's, also ignored) and `.git/`, scripts added later included, is exactly that version; `README.md` says "CMake 4.0 or later"; it fails if it finds no root call, so a wrong path cannot pass by checking nothing |
-   | T3 `test_standard_requirement` | `check_standard_requirement.cmake` | every library target created in `src/` (the directory's `BUILDSYSTEM_TARGETS`, so an adapter added later is covered) lists `cxx_std_23` and no other `cxx_std_NN` in `INTERFACE_COMPILE_FEATURES`, which is what the export copies to a consumer; read by `$<TARGET_PROPERTY:…>` at generate time, so it needs no install, no network and no compile |
+   | T3 `test_standard_requirement` | `check_standard_requirement.cmake` | every library target created in `src/` (the directory's `BUILDSYSTEM_TARGETS`, so a library added later is covered) has `cxx_std_23` as the highest `cxx_std_NN` in its `INTERFACE_COMPILE_FEATURES`, which is what the export copies to a consumer and CMake compiles a consumer at; read by `$<TARGET_PROPERTY:…>` at generate time, so it needs no install, no network and no compile. *(Amended at Step 5: the expression is transitive and adds nlohmann_json's `cxx_std_11` and the features of every linked library, so "no other `cxx_std_NN`" could never hold; the highest is the standard a consumer gets.)* |
    | T4 `test_standard_guard` | `check_standard_guard.cmake` | each of `include/exchange/*/*.hpp` (32 today) fails to compile at `-std=c++17` and at `-std=c++20` with "requires C++23" on stderr; it names every header that compiled, or failed with another message; it fails if the glob finds none. Registered for GCC and Clang, whose `-std=` and `-fsyntax-only` it passes |
    | T5 `test_package_version` | `check_package_version.cmake` | which `find_package(cryptocogs <request>)` requests `cryptocogsConfigVersion.cmake` accepts, with the table derived from `PROJECT_VERSION` (below) |
 
@@ -258,13 +258,18 @@ T3 is written first and seen red against the unchanged `cxx_std_17`, naming all 
 
 | Change | Fails |
 |---|---|
-| M7 one library back at `cxx_std_17` | T3, naming it |
-| M8 one library with no `target_compile_features` | T3, naming it |
-| M9 a fifth library added in `src/` with none | T3, naming it (the directory's targets are what it reads) |
+| M7 `exchange_common` back at `cxx_std_17` | T3, naming it (the adapters keep their own 23) |
+| M8 `exchange_common` with no `target_compile_features` | T3, naming it: `cxx_std_11`, nlohmann_json's, is all it is left with |
+| M9 a fifth library added in `src/` that links nothing and has none | T3, naming it (the directory's targets are what it reads) |
+| M9b `exchange_http` at `cxx_std_26` | T3, naming it and the four adapters that link it: a standard nobody has chosen |
+| `kraken` alone back at `cxx_std_17` | passes, on purpose: it inherits 23 from `exchange_common`, so a consumer is compiled at C++23 either way |
+
+*(Amended at Step 5: M7 to M9 as first written were one library back at 17, one with none, and a fifth with none, which assumed the property is not transitive.)*
 
 **Done when:** T3 is red then green; `git grep -nE "CXX_STANDARD|cxx_std" -- CMakeLists.txt src` shows 23 and nothing
 else; the compile database has no `-std=…17` for this project's own sources; ctest passes in full (501 of 501) on both
-systems, with the same eight warnings on the Mac and none new; M7 to M9 fail as stated; CI is green on GCC 15.2.
+systems, with the same eight warnings on the Mac and none new; M7 to M9b fail as stated and the inherited case passes;
+CI is green on GCC 15.2.
 
 Commit: `build: require C++23 (step 5/10)`. Pushed on its own, because CI's compiler is the arbiter.
 

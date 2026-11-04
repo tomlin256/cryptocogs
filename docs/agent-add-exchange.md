@@ -257,7 +257,10 @@ pattern from (and a commit for the non-obvious ones). `<name>` is your slug.
   inside `if(CRYPTOCOGS_BUILD_<NAME>)`; link
   `PUBLIC exchange_common OpenSSL::SSL OpenSSL::Crypto CURL::libcurl`
   (OpenSSL/curl are **PUBLIC** — your `auth.hpp`/`rest_client.hpp` expose them
-  inline; see `9e73dc1`).
+  inline; see `9e73dc1`). Give the library `target_compile_features(<name> PUBLIC
+  cxx_std_23)` like the others: the install export hands it to a `find_package`
+  consumer, and `test_standard_requirement` fails for a library in `src/` that
+  would compile its consumers at any other standard.
 - `tests/*`: wrap your test/example targets in `if(CRYPTOCOGS_BUILD_<NAME>)`.
   Link tests `<name> GTest::gtest_main`. WS tests/examples need **only**
   `<name>` (it reaches the engine via `exchange_common` — do **not** add
