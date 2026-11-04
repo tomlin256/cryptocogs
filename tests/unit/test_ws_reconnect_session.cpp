@@ -224,7 +224,9 @@ TEST(WsReconnectSession, BackoffResetsAfterSuccessfulReconnect) {
     // On second reconnect, the first attempt should succeed immediately
     // (backoff reset to min_backoff), not take doubled time.
     std::atomic<int> connects{0};
-    int failsRemaining = 2;
+    // Decremented by the session's worker thread (the connect callback) and read by this thread in the
+    // waitFor predicates below, so it is atomic, like connects (#28).
+    std::atomic<int> failsRemaining{2};
 
     WsReconnectSession session(
         [&]{
