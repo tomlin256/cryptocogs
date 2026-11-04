@@ -306,6 +306,34 @@ cmake --build build/release-macos-arm64
 | `<tree>/bin/cryptocom_rest_client_example` | CLI11 demo of every public Crypto.com REST endpoint via `CryptoComRestClient` |
 | `<tree>/bin/cryptocom_ws_client_example` | `CryptoComMarketClient` — ticker/trade/book/candlestick + connection-reuse demo (heartbeat answered automatically) |
 
+### CI
+
+`.github/workflows/cmake-single-platform.yml` configures, builds and tests the `release-linux-x86_64` tree on
+`ubuntu-latest`, for every push and pull request to `main` that changes more than documentation (below), and on demand:
+`gh workflow run cmake-single-platform.yml --ref main`, which is also how a cache is measured, by a second run on an
+unchanged tree. It builds with `-j $(nproc)` and keeps two caches ([plan 030](docs/plans/030-ci-cache.md)). Both keys carry the
+compiler and CMake versions, and `ubuntu-latest` hands out more than one CMake at a time, so each version warms its own entry once.
+
+| Cache | Path | Key ends in | Behaviour |
+|---|---|---|---|
+| ccache | `~/.cache/ccache` | the commit | `restore-keys` take the latest snapshot of the same toolchain, then of any; entries are content-addressed, so a stale one misses and cannot be wrong; `CCACHE_MAXSIZE` is 500M and a snapshot is about 12 MB |
+| fetched dependencies | `build/release-linux-x86_64/_deps` | `hashFiles('CMakeLists.txt', 'tests/CMakeLists.txt')` | no `restore-keys`; on a hit CI configures with `-DFETCHCONTENT_FULLY_DISCONNECTED=ON`; the last step deletes the `*-src/.git` directories before the post action saves the entry, which is about 14 MB |
+
+- **The restored sources are trusted.** A file that gains a `FetchContent_Declare` call goes into the `hashFiles(...)` list of
+  the `deps-` key, on that one line; `test_ci_cache_key` fails until it does. It reads the literal call, so a dependency pinned
+  another way (`ExternalProject_Add`, a wrapper macro whose callers hold the tags) is yours to add. The key hashes whole files,
+  so editing `tests/CMakeLists.txt` for any reason misses this cache once.
+- **The flag is needed.** Under CMake 4 (CMP0168 NEW) FetchContent keeps its "already cloned" stamps in
+  `<tree>/CMakeFiles/fc-stamp`, not in `_deps`, so restoring `_deps` alone still clones every dependency.
+- **The `.git` directories are deleted, not excluded** by a `!` pattern in the cache `path`: the action hands tar the `_deps`
+  directory, and tar takes everything under it.
+- **Both caches assume the runner's fixed workspace path**, `/home/runner/work/cryptocogs/cryptocogs`. A container or a
+  self-hosted runner breaks that.
+- **Documentation-only changes start no run** ([plan 031](docs/plans/031-ci-skip-docs-only.md)): `paths-ignore` lists `docs/**`
+  and `CLAUDE.md` under both `push` and `pull_request`. A run starts unless every changed path matches, so a path that nobody
+  named runs CI. `README.md` is not named, because `test_cmake_floor` reads it. `test_ci_paths` fails when the two lists differ,
+  when an entry names no file, and when an entry covers a file that a check reads or a CMake or C++ source.
+
 ---
 
 ## Running tests

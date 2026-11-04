@@ -1,8 +1,8 @@
 # Plan 030 — CI: cache the build
 
-**Status:** Approved as written (2026-11-04), so D1 to D5 stand at the defaults below. Rob approved pushing this plan's
-commits to `main` and linking the plan from #37. Steps 1 and 2 are done and measured (the Outcome has the numbers); Steps 3
-and 4 are not.
+**Status:** Done (2026-11-04). Rob approved the plan as written, so D1 to D5 stood at the defaults below, and approved pushing
+its commits to `main` and linking it from #37. The Outcome has the numbers, and the plan marks where a step changed it
+(*Amended*).
 **Design source:** flywheel's `docs/plans/ci_build_cost_reduction_plan.md` and its
 `.github/workflows/cmake-single-platform.yml` (a private repository). This plan applies that design and restates only
 what differs. The main difference: flywheel's `_deps` cache does not work here as written (measured below).
@@ -244,8 +244,9 @@ says `Closes #37`.
 
 ## Not in this plan
 
-`paths:` filters and `concurrency` with `cancel-in-progress` (flywheel `ci_path_filter_debounce_plan.md`); `timeout-minutes`
-(flywheel `mgmt_server_stop_hang_ci_guard_plan.md`); a sanitizer workflow; a macOS leg. One lead for flywheel, not verified:
+`paths:` filters, which became [plan 031](031-ci-skip-docs-only.md) (#40) after Rob asked for them while this plan ran;
+`concurrency` with `cancel-in-progress` (flywheel `ci_path_filter_debounce_plan.md`); `timeout-minutes` (flywheel
+`mgmt_server_stop_hang_ci_guard_plan.md`); a sanitizer workflow; a macOS leg; the slow and variable apt step (#41). One lead for flywheel, not verified:
 none of its last six runs hit its `deps-` cache (keys churn), and its floor is also CMake 4.0, so by the table above a hit
 may not skip its clones either. No issue is opened for it.
 
@@ -263,6 +264,10 @@ may not skip its clones either. No issue is opened for it.
   configure loudly under `FULLY_DISCONNECTED`, not silently.
 - **Restored `*-build` directories plus a fresh configure** are assumed to be reused by make (flywheel saw that with
   FetchContent's older layout; I have not measured it under this one). Step 3's Done-when reads it from run D's log.
+- **The `deps-` key hashes whole files**, and `tests/CMakeLists.txt` also registers every test, so each new test misses the
+  dependency cache once (run E: 32.5 s of Configure). Hashing only the `GIT_REPOSITORY` and `GIT_TAG` lines would avoid it,
+  at the price of moving the key out of `hashFiles` and into a step; not done, because a miss costs seconds and a wrong key
+  costs a wrong build.
 - **Fixed workspace path.** Hosted runners use `/home/runner/work/cryptocogs/cryptocogs`, and both caches (ccache hashes
   paths too) assume it. A container or self-hosted runner breaks that; a comment in the workflow says so.
 - **Cold runs still happen:** after seven idle days (entries are evicted), after a runner image that changes GCC, and once
@@ -282,6 +287,11 @@ may not skip its clones either. No issue is opened for it.
 | Step 2, ccache, run A: cold, `772235a` | 41877531957 | 327 s | 41 s | 258 s | 14 s |
 | Step 2, ccache, run B: dispatch, same tree | 41878860746 | **66.5 s** | 25 s | **11 s** | 10 s |
 | Step 3, first push, run C: `deps` miss, `b3af7d9` | 41879448286 | 139 s | 27 s | 11 s | 9 s |
+| Step 3 amended, run C2: `deps` miss, CMake 4.4.5, `8b629bd` | 41880931962 | 80.6 s | 26.7 s | 11.3 s | 8.6 s |
+| D2a, dispatch: CMake 4.4.4, `deps` miss | 41881271159 | 57.8 s | 27.1 s | 3.6 s | 8.8 s |
+| D2b, dispatch: CMake 4.4.4, `deps` miss | 41881275977 | 81.8 s | 35.0 s | 11.8 s | 12.1 s |
+| **D3, dispatch: CMake 4.4.4, `deps` hit** | 41881778529 | **35.0 s** | **1.7 s** | 3.9 s | 12.1 s |
+| A real commit, plan 031 Step 1, which edits `tests/CMakeLists.txt`: `deps` miss, `8860993` | 41883029251 | 69.1 s | 32.5 s | 4.7 s | 12.9 s |
 
 The first three rows are read from the API's step timings. The two ccache runs are read from their job logs (first to last
 line, and the gaps between step headers), because GitHub's displayed status of both stayed `queued` long after their logs
@@ -312,3 +322,33 @@ directory itself (`resolvePaths` in `@actions/cache` globs with `implicitDescend
 `--files-from` and without `--no-recursion`). That fails Step 3's Done-when. A mock tree showed that deleting the
 `*-src/.git` directories in a last step does what the pattern was meant to, and that is the amendment above; the runs that
 prove it are C2 and D2, below.
+
+**Step 3 — kept, after one amendment.** Run C2, with the `.git` directories deleted by the last step, saved the `deps-`
+entry at **14,890,315 bytes (14.2 MiB)** against 427,056,792, and ccache restored by the key of its own toolchain and hit
+125 of 125. The next two dispatches, D2a and D2b, both landed on CMake 4.4.4 when only the 4.4.5 entry existed: both missed,
+and raced to save the same key, so D2b logged `Unable to reserve cache with key …, another job may be creating this cache`,
+a warning and not a failure. D2a's save (14,661,489 bytes) made the 4.4.4 entry. That is the alternation costing one cold run
+per CMake, as the self-review said it would.
+
+**D3**, a dispatch on 4.4.4 with both entries present, was the hit. The cache restored 14 MB in 1.7 s. The Configure command
+carried `-DFETCHCONTENT_FULLY_DISCONNECTED=ON` and took **1.7 s with no `Cloning into` line**, against 25 s. **No dependency
+was compiled**: 75 compile lines, all the project's, against 125. ccache hit 75 of 75, ctest passed 504 of 504, and both
+caches ended with `Cache hit occurred on the primary key, not saving cache`. The job took **35.0 s**, 92% less than the
+baseline's 457 s: apt 10.9 s, Configure 1.7 s, Build 3.9 s, Test 12.1 s. Step 3's Done-when is met, and so is the question
+the self-review left open: make reuses the restored `*-build` directories, since no `_deps/` object was built.
+
+D3's 35 s is the floor for an unchanged tree, as flywheel's 59 s was for its own. A commit that edits a widely included
+header recompiles its dependents, and one that edits `CMakeLists.txt` or `tests/CMakeLists.txt` misses the `deps-` key once
+(about 25 s of clones), because the key hashes whole files and `tests/CMakeLists.txt` also registers every test.
+
+**The first real commit after them (run E).** Plan 031's Step 1 added a test, so it edited `tests/CMakeLists.txt`, which is in the
+`deps-` key: the key missed once, Configure took 32.5 s with its seven clones, and the dependencies were compiled through
+ccache. ccache itself hit all 125 compiles, because the edit changed no compile, and Build took 4.7 s. The job took 69.1 s and
+ctest passed 505 of 505, the two new checks included. A commit that edits a widely included header would recompile its
+dependents; none has been measured, and the cost would be those translation units' compile time, with the rest cached.
+
+**Overall.** An unchanged tree takes **35 s** against 457 s at the baseline (92% less), and a commit that edits one of the two
+dependency-pinning files about 69 s (85% less). A ccache snapshot is 12 MB and a dependency entry 14 MB; after these runs the
+repository holds 8 entries, 101 MiB, of its 10 GB. Every run saves a ccache snapshot (the commit is in its key), so that grows
+by about 12 MB a run until entries unused for seven days age out or the limit evicts the least recently used. The repository
+is public, so no minutes were billed before or after: what changed is the wait for a result.
