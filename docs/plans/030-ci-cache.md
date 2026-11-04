@@ -99,9 +99,7 @@ env:
   id: deps
   uses: actions/cache@v6
   with:
-    path: |
-      ${{github.workspace}}/build/${{env.PRESET}}/_deps
-      !${{github.workspace}}/build/${{env.PRESET}}/_deps/*-src/.git
+    path: ${{github.workspace}}/build/${{env.PRESET}}/_deps
     key: deps-${{runner.os}}-${{runner.arch}}-${{env.PRESET}}-${{steps.toolchain.outputs.id}}-${{hashFiles('CMakeLists.txt', 'tests/CMakeLists.txt')}}
 
 - name: Cache ccache
@@ -125,8 +123,21 @@ env:
     ccache -z
     cmake --build --preset ${{env.PRESET}} -j $(nproc)
     ccache -s
+
+- name: Test
+  run: ctest --preset ${{env.PRESET}}
+
+# Amended at Step 3 (see the Outcome): the last step, so that the entry the cache's post action saves has no .git
+- name: Drop the dependencies' .git directories
+  if: steps.deps.outputs.cache-hit != 'true'
+  run: rm -rf ${{github.workspace}}/build/${{env.PRESET}}/_deps/*-src/.git
 ```
 
+- *(Amended at Step 3.)* The `.git` directories are deleted by the last step. The first design left them out with a `!`
+  pattern in `path` (`!…/_deps/*-src/.git`), and run C saved 407 MB with it: the action globs `path` with
+  `implicitDescendants: false` and gives tar the result as a `--files-from` list, so `…/_deps` is one directory entry and
+  tar archives everything under it, whatever the pattern says. A job's post actions run after its last step, so deleting
+  them there is what shrinks the entry.
 - `_deps` has no `restore-keys`: a partial match would restore sources of other pins, and with
   `FETCHCONTENT_FULLY_DISCONNECTED=ON` the restored `*-src` directories are trusted completely.
 - ccache has them: its entries are content-addressed over compiler, flags and preprocessed source, so a stale entry misses
@@ -188,7 +199,9 @@ In this order, red then green:
 
 1. `tests/ci_checks/check_cache_key.cmake` and `test_ci_cache_key` in `tests/CMakeLists.txt`, registered at the top level
    like the other `cmake -P` checks. It fails against the workflow as Step 2 leaves it (no `deps-` key).
-2. The `_deps` cache step and the `FETCHCONTENT_FULLY_DISCONNECTED` flag. The test passes.
+2. The `_deps` cache step and the `FETCHCONTENT_FULLY_DISCONNECTED` flag. The test passes. *(Amended: and a last step that
+   deletes the `.git` directories, which the first push of this step showed to be needed. That is a second commit of the
+   step, with its own runs, C2 and D2.)*
 
 *Test (new) `test_ci_cache_key`:* `cmake -DSOURCE_DIR=<repo> -P tests/ci_checks/check_cache_key.cmake`. It finds the
 `deps-` key in the workflow and its `hashFiles(...)` list, and requires that every `CMakeLists.txt`, `*.cmake` and
@@ -220,8 +233,10 @@ says `Closes #37`.
 - **Caching the FetchContent stamps** (`CMakeFiles/fc-stamp`, `fc-tmp`) — works (0 clones, 1.2 s), but ties the workflow to
   FetchContent's internal layout, which is the thing that made flywheel's recipe stop working.
 - **`GIT_SHALLOW TRUE` on the seven declarations** — cuts clones and cache size at the source with no CI logic, but it
-  edits what every consumer of cryptocogs through FetchContent sees, and it is not caching. The fallback if the `.git`
-  exclusion below does not take.
+  edits what every consumer of cryptocogs through FetchContent sees, and it is not caching. Still the fallback, if deleting
+  the `.git` directories at the end ever stops being enough.
+- **A `!` pattern in the cache `path`**, to leave the `.git` directories out — this plan's first design, and it does not
+  work: tar archives whatever is under a listed directory (see "The change", and the Outcome).
 - **`hendrikmuhs/ccache-action`** — flywheel's plan names it, but its workflows install ccache from apt and use
   `actions/cache` directly. Same here: one third-party action fewer.
 - **Split restore and save** (`actions/cache/restore` and `/save`, as flywheel's `sanitizers.yml`), to save caches after a
@@ -241,8 +256,9 @@ may not skip its clones either. No issue is opened for it.
   that pins a dependency; `test_ci_cache_key` holds the last. It sees only the literal `FetchContent_Declare(`: a pin added
   another way (`ExternalProject_Add`, or a wrapper macro whose callers hold the tags) is invisible to it, and Step 4's
   CLAUDE.md paragraph says so.
-- **The `!.../_deps/*-src/.git` exclusion is untested until Step 3's first save.** I tested a tree without `.git`, not the
-  action's glob. Run C's `Cache saved` size says: tens of MB means it took. If not, the fallback is `GIT_SHALLOW TRUE`.
+- **The `!.../_deps/*-src/.git` exclusion was untested until Step 3's first save, and failed it.** I had tested a tree
+  without `.git`, not the action's glob. Run C's `Cache saved` size said so (407 MB), and the fix is the last step of the
+  job. Its own risk: it deletes from the tree the post action is about to archive, so the saved size (run C2's) is the proof.
 - **A restore is all or nothing**, so no half-populated `_deps`. A restored `_deps` with a missing `*-src` would fail the
   configure loudly under `FULLY_DISCONNECTED`, not silently.
 - **Restored `*-build` directories plus a fresh configure** are assumed to be reused by make (flywheel saw that with
@@ -265,6 +281,7 @@ may not skip its clones either. No issue is opened for it.
 | Step 1, `-j $(nproc)`, `464768b` | 41875534338 | 299 s | 50 s | **221 s** | 11 s |
 | Step 2, ccache, run A: cold, `772235a` | 41877531957 | 327 s | 41 s | 258 s | 14 s |
 | Step 2, ccache, run B: dispatch, same tree | 41878860746 | **66.5 s** | 25 s | **11 s** | 10 s |
+| Step 3, first push, run C: `deps` miss, `b3af7d9` | 41879448286 | 139 s | 27 s | 11 s | 9 s |
 
 The first three rows are read from the API's step timings. The two ccache runs are read from their job logs (first to last
 line, and the gaps between step headers), because GitHub's displayed status of both stayed `queued` long after their logs
@@ -284,3 +301,14 @@ primary key and hit **125 of 125**, all direct: Build 11 s, and the job 66.5 s a
 ccache's directory is `/home/runner/.cache/ccache`, as the cache path assumes, and `max_size` read 500.0 MB. **D5:** the
 snapshot is 2.6% of the cap, so 500M stays as a ceiling and there is nothing to tune. What is left of B's 66.5 s is apt 17 s,
 Configure 25 s (the seven clones) and the tests 10 s; Step 3 goes after the 25 s.
+
+**Step 3, first push (run C) — the mechanism held, the size did not.** Run C landed on CMake 4.4.5, where A and B had run
+4.4.4, so both keys missed. ccache's second restore-key took A's 4.4.4 snapshot and **hit 125 of 125**, which proves that
+fallback; the run then saved a snapshot of its own (12,353,921 bytes). Configure took 26.7 s (the seven clones, 7 `Cloning
+into` lines), Build 10.6 s, and ctest passed 504 of 504, the new check included. The job took 139 s only because the apt step
+took 82.6 s, a mirror at 85.5 kB/s (raised as #41). The run saved the `deps-` entry as **427,056,792 bytes (407 MB), not tens
+of MB**: the `!` pattern in `path` had not left out the `.git` directories, because the action gives tar the `_deps`
+directory itself (`resolvePaths` in `@actions/cache` globs with `implicitDescendants: false`, and `tar` is run with
+`--files-from` and without `--no-recursion`). That fails Step 3's Done-when. A mock tree showed that deleting the
+`*-src/.git` directories in a last step does what the pattern was meant to, and that is the amendment above; the runs that
+prove it are C2 and D2, below.

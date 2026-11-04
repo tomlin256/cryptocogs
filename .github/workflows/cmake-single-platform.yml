@@ -53,7 +53,10 @@ jobs:
     #  - Under CMake 4 (CMP0168 is NEW) FetchContent keeps its "already cloned" stamps in <tree>/CMakeFiles/fc-stamp and
     #    fc-tmp, not in _deps, so restoring _deps alone still clones all seven. A hit therefore configures with
     #    FETCHCONTENT_FULLY_DISCONNECTED=ON (below): nothing is downloaded or updated, and the restored sources are trusted.
-    #  - The .git directories are left out. They are 436 of the 473 MB, and nothing reads them on a hit.
+    #  - The .git directories are left out of the saved entry. They are 436 of the 473 MB (405 of the compressed MB), and
+    #    nothing reads them on a hit. The last step of the job deletes them, because a pattern in `path` cannot: the action
+    #    hands tar the _deps directory itself, and tar takes everything under it (run 41879448286 saved 407 MB with a
+    #    `!` pattern there).
     #
     # Because the restored sources are trusted, the key covers everything that can change what is in them: the toolchain
     # (the build outputs are in the tree too), and every file that pins a dependency. There are two, CMakeLists.txt and
@@ -66,9 +69,7 @@ jobs:
       id: deps
       uses: actions/cache@v6
       with:
-        path: |
-          ${{github.workspace}}/build/${{env.PRESET}}/_deps
-          !${{github.workspace}}/build/${{env.PRESET}}/_deps/*-src/.git
+        path: ${{github.workspace}}/build/${{env.PRESET}}/_deps
         key: deps-${{runner.os}}-${{runner.arch}}-${{env.PRESET}}-${{steps.toolchain.outputs.id}}-${{hashFiles('CMakeLists.txt', 'tests/CMakeLists.txt')}}
 
     # ccache covers what costs: 98% of the build is compiling (plan 030). Its entries are content-addressed over the
@@ -115,3 +116,10 @@ jobs:
       # The test preset carries --output-on-failure, and fails a run that finds no tests.
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
       run: ctest --preset ${{env.PRESET}}
+
+    # The post action of Cache third-party dependencies saves _deps after this step, and only when the cache missed. Without
+    # the .git directories the entry is tens of MB and not 407 (see that step). The tree is discarded with the job, and a
+    # failed job saves nothing, so nothing is lost by deleting them last.
+    - name: Drop the dependencies' .git directories
+      if: steps.deps.outputs.cache-hit != 'true'
+      run: rm -rf ${{github.workspace}}/build/${{env.PRESET}}/_deps/*-src/.git
