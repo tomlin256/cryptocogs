@@ -1,6 +1,7 @@
 # Plan 029 — CMake 4 and C++23, released as v1.0.0
 
-**Status:** Proposed (2026-11-04). Nothing but this file lands until Rob approves it.
+**Status:** Approved (2026-11-04). Rob approved the plan as written, so D1 to D9 stand at the defaults below, and approved
+pushing this plan's commits and linking it from #32.
 **Design source:** flywheel-dag's [require_cmake4_plan.md](https://github.com/tomlin256/flywheel-dag/blob/main/docs/plans/require_cmake4_plan.md)
 ([flywheel-dag#57](https://github.com/tomlin256/flywheel-dag/issues/57)) and
 [require_cxx23_plan.md](https://github.com/tomlin256/flywheel-dag/blob/main/docs/plans/require_cxx23_plan.md)
@@ -442,7 +443,7 @@ Commit: `docs(plan): results for 029 — CMake 4 and C++23 (step 10/10)`.
 
 | Step | Status | Notes |
 |---|---|---|
-| 0 — Approval | Proposed | |
+| 0 — Approval | Done (2026-11-04) | Approved as written: D1 to D9 stood. |
 | 1 — Start from green | Pending | |
 | 2 — CI shows its tools | Pending | |
 | 3 — Require CMake 4 | Pending | |
