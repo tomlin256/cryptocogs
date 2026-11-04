@@ -43,6 +43,7 @@ cryptocogs/
 ├── include/
 │   ├── exchange/
 │   │   ├── common/                      # Exchange-agnostic scaffold — exchange::, ::rest::, ::ws::
+│   │   │   ├── cxx_standard.hpp         #   The C++23 guard: #error below C++23 (plan 029); included first by the 7 headers below that include no other exchange/ header
 │   │   │   ├── types.hpp                #   Canonical enums: Side, OrderType, TimeInForce, OrderStatus
 │   │   │   ├── tick_price.hpp           #   TickPrice — exact-decimal price representation (namespace exchange::)
 │   │   │   ├── rest.hpp                 #   TypedPublicRequest<R>, TypedPrivateRequest<R>, RestResponse<T>,
@@ -1312,6 +1313,7 @@ Place the banner before `#pragma once` (for headers) or before the first `#inclu
 ## Coding conventions
 
 - **C++23** throughout (plan 029; no C++23 language or library feature is adopted yet); use structured bindings, `if constexpr`, `std::optional`, `std::string_view` where appropriate.
+- **Every public header refuses to compile below C++23.** `exchange/common/cxx_standard.hpp` holds the `#error` (it tests for newer than C++20, because GCC 13 reports 202100L for `-std=c++23`), and the seven headers that include no other `exchange/` header include it first: `common/{credentials_file,tick_price,types,ws,rest,reconnect_session}.hpp` and `cryptocom/auth.hpp`. A new public header either includes one of them or includes the guard itself; `test_standard_guard` preprocesses every `include/exchange/*/*.hpp` at `-std=c++17` and `-std=c++20` and fails, naming it, for one that does not stop at the guard. A library added to `src/` carries `target_compile_features(<name> PUBLIC cxx_std_23)`, and `test_standard_requirement` fails for one whose consumers would be compiled at another standard.
 - All optional fields on request and response structs use `std::optional<T>`. Only set them when needed; omitted fields are not serialised.
 - JSON serialisation uses `to_json()` / `from_json()` static methods on each struct. Prefer `j.value("key", default)` over `j.at("key")` for fields that may be absent in responses.
 - Enum conversions are done by free functions `to_string(Enum)` and `foo_from_string(const std::string&)`. The canonical four (`Side`, `OrderType`, `TimeInForce`, `OrderStatus`) live in `exchange/common/types.hpp`; Kraken-only enums (`PriceType`, `TriggerReference`, `StpType`, `FeePreference`) and Kraken's hyphenated `OrderType` overrides (`kraken_order_type_to_string`/`from_string`) live in `exchange/kraken/types.hpp`. All throw `std::invalid_argument` on unknown values.

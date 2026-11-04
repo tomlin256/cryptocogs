@@ -30,6 +30,8 @@
 //   json to_json() const;              // SUBSCRIBE wire frame
 //   json unsubscribe_json() const;     // matching UNSUBSCRIBE frame
 
+#include "exchange/common/cxx_standard.hpp"
+
 #include <nlohmann/json.hpp>
 
 #include <atomic>

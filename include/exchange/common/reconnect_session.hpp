@@ -35,6 +35,8 @@
 // Backoff: initial = minBackoff (default 1 s), doubles per consecutive failure,
 // caps at 60 s.  Resets to minBackoff after a successful connect.
 
+#include "exchange/common/cxx_standard.hpp"
+
 #include <atomic>
 #include <chrono>
 #include <condition_variable>

@@ -200,3 +200,19 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
                      -DWANT=cxx_std_23
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake_checks/check_standard_requirement.cmake)
 endif()
+
+# Every public header refuses to compile below C++23, and says why. The suite builds as C++23, so nothing else
+# would notice a guard that stopped working: this preprocesses each header at C++17 and at C++20 and expects
+# the guard's message. It runs the compiler itself with -std= and -E, so it is registered for GCC and Clang,
+# at the top level. The headers' own dependencies (nlohmann/json, curl, ixwebsocket) are on its include
+# path, so that the guard is the only thing that can fail.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    string(REPLACE ";" "|" _cryptocogs_curl_include_dirs "${CURL_INCLUDE_DIRS}")
+    add_test(NAME test_standard_guard
+             COMMAND ${CMAKE_COMMAND}
+                     -DCXX=${CMAKE_CXX_COMPILER}
+                     -DINCLUDE_DIR=${PROJECT_SOURCE_DIR}/include
+                     "-DEXTRA_INCLUDE_DIRS=${nlohmann_json_SOURCE_DIR}/include|${ixwebsocket_SOURCE_DIR}|${_cryptocogs_curl_include_dirs}"
+                     -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/standard_guard
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake_checks/check_standard_guard.cmake)
+endif()

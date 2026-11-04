@@ -34,6 +34,8 @@
 //
 // Namespace: exchange::cryptocom::rest
 
+#include "exchange/common/cxx_standard.hpp"
+
 #include <cstdint>
 #include <string>
 

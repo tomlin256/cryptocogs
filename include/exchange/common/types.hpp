@@ -13,6 +13,8 @@
 // Canonical exchange-agnostic enumerations shared across REST and WebSocket
 // layers for all exchange adapters.
 
+#include "exchange/common/cxx_standard.hpp"
+
 #include <string>
 
 namespace exchange {

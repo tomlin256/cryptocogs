@@ -34,7 +34,7 @@ cmake -B build && cmake --build build
 ```
 
 All other dependencies (IXWebSocket, nlohmann/json, spdlog, Google Test) are fetched automatically by CMake.
-Building needs CMake 4.0 or later.
+Building needs a C++23 compiler and CMake 4.0 or later.
 
 `build/` above is the tree this snippet makes, and the examples below run from it. A checkout that is built on more
 than one platform, as the maintainers' is, keeps one tree per kind of build and platform under `build/` instead
@@ -351,6 +351,11 @@ FetchContent_MakeAvailable(cryptocogs)
 
 target_link_libraries(my_app PRIVATE cryptocogs::kraken)   # and/or cryptocogs::binance
 ```
+
+The library is C++23. Linking a `cryptocogs::` target asks CMake for `cxx_std_23`, so your target is compiled as C++23
+(a higher standard of your own is left alone), and a header included below C++23 stops with `cryptocogs requires C++23`;
+a build outside CMake must pass `-std=c++23` itself. Adding the library with `FetchContent` needs CMake 4.0 or later in
+your project too, because the library's own `CMakeLists.txt` asks for it.
 
 ### Installing & `find_package`
 

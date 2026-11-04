@@ -20,6 +20,8 @@
 // IRestAuth              — authentication strategy interface; implementations
 //                          inject credentials/signatures into HttpRequest.
 
+#include "exchange/common/cxx_standard.hpp"
+
 #include <map>
 #include <optional>
 #include <string>

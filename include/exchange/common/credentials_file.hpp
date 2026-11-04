@@ -23,6 +23,8 @@
 //
 // Namespace: exchange::rest
 
+#include "exchange/common/cxx_standard.hpp"
+
 #include <string>
 #include <vector>
 

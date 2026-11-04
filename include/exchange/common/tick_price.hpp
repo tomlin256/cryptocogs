@@ -20,6 +20,8 @@
 //
 // Namespace: exchange
 
+#include "exchange/common/cxx_standard.hpp"
+
 #include <nlohmann/json.hpp>
 
 #include <cstdint>
