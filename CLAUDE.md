@@ -203,6 +203,7 @@ cryptocogs/
 | `CRYPTOCOGS_BUILD_COINBASE` | `ON` | Build the Coinbase adapter (`libcoinbase.a`) and its tests/examples |
 | `CRYPTOCOGS_BUILD_CRYPTOCOM` | `ON` | Build the Crypto.com adapter (`libcryptocom.a`) and its tests/examples |
 | `CRYPTOCOGS_BUILD_TESTS` | `ON` | Build unit tests and example programs |
+| `CRYPTOCOGS_SANITIZE` | `OFF` | `asan` (AddressSanitizer + UBSan) or `tsan` (ThreadSanitizer) for the whole tree, the fetched dependencies included; any other value is a configure error. See [Sanitizers](#sanitizers) ([plan 032](docs/plans/032-sanitizer-option-and-presets.md)) |
 | `CRYPTOCOGS_INSTALL` | top-level: `ON` | Generate `install()` rules + the `cryptocogs` CMake package config ([plan 012](docs/plans/012-install-and-package-config.md)). Defaults off when cryptocogs is a `FetchContent` subproject |
 
 The four exchange flags are independent: e.g. `-DCRYPTOCOGS_BUILD_KRAKEN=OFF
@@ -235,18 +236,21 @@ platform and each kind of build gets a tree of its own, named `<kind>-<os>-<arch
 
 | Part | Values |
 |---|---|
-| `<kind>` | one lower-case word. `release` and `debug` have presets; `bench`, `ubsan`, `asan`, `tsan` and the like are made by hand, and any word is allowed |
+| `<kind>` | one lower-case word. `release`, `debug`, `asan` and `tsan` have presets (`asan` and `tsan` are `RelWithDebInfo` plus `CRYPTOCOGS_SANITIZE`, see [Sanitizers](#sanitizers)); `bench` and the like are made by hand, and any word is allowed |
 | `<os>` | `macos` or `linux` |
 | `<arch>` | `arm64` or `x86_64` (`aarch64` is spelled `arm64`, `amd64` is spelled `x86_64`) |
 
-- **Presets.** `CMakePresets.json` spells out the six trees that have presets (`release-` and `debug-` for
-  `macos-arm64`, `linux-arm64` and `linux-x86_64`). `cmake --list-presets` shows the ones for this host; each has a
-  build preset and a test preset of the same name. A kind preset sets `CMAKE_BUILD_TYPE` (`Release`, `Debug`) and
-  nothing else: CI adds its own flags on its command line. `test_presets` pins the file.
+- **Presets.** `CMakePresets.json` spells out the twelve trees that have presets (`release-`, `debug-`, `asan-` and `tsan-`
+  for `macos-arm64`, `linux-arm64` and `linux-x86_64`). `cmake --list-presets` shows the ones for this host; each has a
+  build preset and a test preset of the same name. A kind preset sets `CMAKE_BUILD_TYPE` (`Release`, `Debug`, and
+  `RelWithDebInfo` for the sanitizer kinds, which also set `CRYPTOCOGS_SANITIZE`) and nothing else: CI adds its own flags
+  on its command line. `test_presets` pins the file.
 - **The guard.** The top of `CMakeLists.txt` refuses a configure that would make a tree lie: a directory named for a
-  platform that is not this host's (`cmake -B build/release-linux-x86_64` on an arm64 machine), and any tree that was
-  first configured on another platform, whatever it is called. The error names the tree to use. It examines the OS and
-  the architecture in the name, not the kind, and not other names (`build`, `scratch`). Only the top-level project is
+  platform that is not this host's (`cmake -B build/release-linux-x86_64` on an arm64 machine), an `asan-…` or `tsan-…`
+  tree that is not configured for that sanitizer ([plan 032](docs/plans/032-sanitizer-option-and-presets.md)), and any
+  tree that was first configured on another platform, whatever it is called. The error names the tree to use. It examines
+  the OS and the architecture in the name, and the sanitizer in an `asan-` or `tsan-` kind; other kinds and other names
+  (`build`, `scratch`) are not examined, and `release-…` with `asan` stays legal. Only the top-level project is
   examined, so a consumer's tree never is. A refused configure into an existing tree leaves its settings alone, but
   CMake saves its cache as it stood at the failure; the next valid configure restores it and rebuilds nothing.
 - **Hand-made trees.** `cmake -S . -B build/bench-macos-arm64 -DCMAKE_BUILD_TYPE=RelWithDebInfo
@@ -260,6 +264,40 @@ platform and each kind of build gets a tree of its own, named `<kind>-<os>-<arch
   free-form name such as `build` is allowed.
 - **Names** are compared in lower case, since a bind-mounted checkout is case-insensitive. `.gitignore` already
   ignores `build*`, which is why the checks live in `tests/tree_checks/` and not `tests/build_checks/`.
+
+### Sanitizers
+
+`-DCRYPTOCOGS_SANITIZE=<mode>` instruments the whole tree, the fetched dependencies included ([plan 032](docs/plans/032-sanitizer-option-and-presets.md)):
+`asan` is AddressSanitizer + UBSan, `tsan` is ThreadSanitizer. The default `OFF` changes nothing, and any other value
+is a configure error. The options are written in one place, `cmake/cryptocogs_sanitize.cmake`, and set before the first
+`FetchContent_MakeAvailable`, because a directory's options reach only the targets created after the call. One tree per
+kind, made by the sanitizer presets (`asan-macos-arm64`, `tsan-linux-arm64`, …), which set `RelWithDebInfo` and the mode:
+
+```bash
+cmake --preset asan-macos-arm64 && cmake --build --preset asan-macos-arm64 -j
+ASAN_OPTIONS=detect_stack_use_after_return=1:strict_string_checks=1 UBSAN_OPTIONS=print_stacktrace=1 ctest --preset asan-macos-arm64
+
+cmake --preset tsan-macos-arm64 && cmake --build --preset tsan-macos-arm64 -j
+TSAN_OPTIONS=second_deadlock_stack=1 ctest --preset tsan-macos-arm64
+```
+
+In the Linux container the same presets are `asan-linux-arm64` and `tsan-linux-arm64`, run with CI's options (`ASAN_OPTIONS`
+adds `detect_leaks=1`, which macOS cannot do; `TSAN_OPTIONS=halt_on_error=1:second_deadlock_stack=1`).
+
+- **The tree proves the sanitizer is live.** A sanitizer tree adds `sanitizer_canary_*` (one deliberate violation each, run by
+  `tests/sanitize_checks/run_canary.cmake`, which needs a non-zero exit *and* the sanitizer's own report) and
+  `test_sanitizer_coverage` (every compile unit in `compile_commands.json` and every executable's link line carries the
+  mode's options, the fetched dependencies' included); `test_sanitize_flags` and `test_sanitize_option` run in every tree.
+  A canary that goes red means the options no longer reach the compiler, or the optimiser deleted the violation: GCC drops
+  an unused sum's UBSan check with the sum, so `canary_ubsan` stores it to a volatile. A tree built with the block of
+  options below an `add_subdirectory` leaves the canaries green and turns only `test_sanitizer_coverage` red.
+- **UBSan aborts** (`-fno-sanitize-recover=undefined`): the first report fails the test. Without it a report prints and the
+  run is green.
+- **The guard** refuses an `asan-…` or `tsan-…` tree that is not configured for that mode, so the name and the options
+  cannot drift apart.
+- **macOS** has no LeakSanitizer (Apple's runtime on arm64), so leaks show only on Linux. ThreadSanitizer is not
+  deterministic: it reports a race only when it sees both accesses, so a clean TSan run proves less than a clean ASan run.
+- **Hand-made trees** with `-DCMAKE_CXX_FLAGS=-fsanitize=…` remain possible and unguarded; the presets are the supported way.
 
 ### Common build commands
 
@@ -342,7 +380,7 @@ compiler and CMake versions, and `ubuntu-latest` hands out more than one CMake a
 ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure
 ```
 
-There are twenty-five test executables (496 tests, plus nine `cmake -P` checks that are listed after the table — 505 in
+There are twenty-five test executables (496 tests, plus eleven `cmake -P` checks that are listed after the table — 507 in
 ctest) — seven Kraken/common, six Binance, six Coinbase, six Crypto.com:
 
 | Binary | Source | What it tests |
@@ -373,7 +411,7 @@ ctest) — seven Kraken/common, six Binance, six Coinbase, six Crypto.com:
 | `<tree>/bin/test_cryptocom_client` | `test_cryptocom_client.cpp` | `CryptoComRestClient::execute()` signed-envelope round-trip via mock performer |
 | `<tree>/bin/test_cryptocom_ws_client` | `test_cryptocom_ws_client.cpp` | `HeartbeatResponder` auto-reply + id-correlated subscribe/ack/push lifecycle with `MockWsConnection` |
 
-The nine `cmake -P` checks need no build and finish in seconds; they are registered at the top level, in every tree:
+The eleven `cmake -P` checks need no build and finish in seconds; they are registered at the top level, in every tree:
 
 | Test | Script | What it holds |
 |---|---|---|
@@ -386,13 +424,18 @@ The nine `cmake -P` checks need no build and finish in seconds; they are registe
 | `test_package_version` | `tests/cmake_checks/check_package_version.cmake` | which `find_package(cryptocogs <version>)` requests `cryptocogsConfigVersion.cmake` accepts — `SameMajorVersion` — derived from the project's own version (plan 029) |
 | `test_ci_cache_key` | `tests/ci_checks/check_cache_key.cmake` | the CI cache of the fetched dependencies is keyed over every file that declares one: each `CMakeLists.txt`, `*.cmake` and `*.cmake.in` with a `FetchContent_Declare` call is in the `hashFiles(...)` list of the `deps-` key in `.github/workflows/cmake-single-platform.yml`, and each listed file exists (plan 030) |
 | `test_ci_paths` | `tests/ci_checks/check_paths.cmake` | the `paths-ignore` lists under the workflow's `push` and `pull_request` triggers are equal, each entry names an existing file or `<dir>/**`, and no entry covers a file that a check reads or a CMake or C++ source (plan 031) |
+| `test_sanitize_flags` | `tests/sanitize_checks/check_sanitize_flags.cmake` | the `CRYPTOCOGS_SANITIZE` mode → options mapping in `cmake/cryptocogs_sanitize.cmake`: `OFF`, `asan` and `tsan` give exactly their options, and each near miss (`ASAN`, `thread`, `ON`, …) is refused naming the value and the modes (plan 032) |
+| `test_sanitize_option` | `tests/sanitize_checks/check_sanitize_option.cmake` | the option in the root `CMakeLists.txt` reaches the project's targets: it configures the real project offline with no option and with each mode, and reads the `compile_commands.json` each writes (plan 032) |
+
+A tree configured with `CRYPTOCOGS_SANITIZE` adds the tests that prove its options are live (`sanitizer_canary_*` and
+`test_sanitizer_coverage`; see [Sanitizers](#sanitizers)).
 
 Tests do **not** require network access or credentials — all I/O is mocked.
 The flag matrix splits cleanly: each exchange flag drops its own suite. A
 Crypto.com-only tree (`-DCRYPTOCOGS_BUILD_KRAKEN=OFF -DCRYPTOCOGS_BUILD_BINANCE=OFF
 -DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 104 gtests — the 85-test Crypto.com suite plus the
 exchange-agnostic 11 `TickPrice` and 8 `read_toml_credentials` tests, which build
-in any tree — and the nine `cmake -P` checks.
+in any tree — and the eleven `cmake -P` checks.
 
 ### Test suite breakdown
 
