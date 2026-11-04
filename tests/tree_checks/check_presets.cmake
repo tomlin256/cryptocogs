@@ -19,8 +19,9 @@
 #       <kind>-<os>-<arch> and inheriting base, that kind and that host; none appears twice.
 #   R6  each has a build preset and a test preset of the same name, which name it as configurePreset
 #       and carry its host's condition; each test preset sets execution.noTestsAction to error, so a
-#       test preset that points at a tree with no tests cannot report a green run, and
-#       output.outputOnFailure to true.
+#       test preset that points at a tree with no tests cannot report a green run, execution.timeout
+#       to 120, so that a test that blocks when it is broken fails after two minutes and not at the
+#       ceiling of the job that runs it (plan 033), and output.outputOnFailure to true.
 #   R7  `cmake -S <dir> --list-presets=all` lists, for the configure, build and test presets, exactly
 #       the presets in the file that are for HOST_SYSTEM_NAME's OS: one per kind on Darwin, two per
 #       kind on Linux, none elsewhere. This is the end-to-end check that CMake agrees with the text of
@@ -272,12 +273,17 @@ foreach(kind IN LISTS expected_kinds)
             if(section STREQUAL "testPresets")
                 json_member(no_tests "${preset}" execution noTestsAction)
                 json_member(on_failure "${preset}" output outputOnFailure)
+                json_member(timeout "${preset}" execution timeout)
                 if(NOT no_tests STREQUAL "error")
                     string(APPEND failures
                         "\n  R6: test preset '${name}' sets noTestsAction to '${no_tests}', want 'error'")
                 endif()
                 if(NOT on_failure STREQUAL "ON")
                     string(APPEND failures "\n  R6: test preset '${name}' does not set outputOnFailure")
+                endif()
+                if(NOT timeout STREQUAL "120")
+                    string(APPEND failures
+                        "\n  R6: test preset '${name}' sets execution.timeout to '${timeout}', want 120")
                 endif()
             endif()
         endforeach()

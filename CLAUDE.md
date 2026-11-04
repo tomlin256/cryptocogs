@@ -403,7 +403,7 @@ green, and it has no caches.
 ## Running tests
 
 ```bash
-ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure
+ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure and a 120 s timeout per test
 ```
 
 There are twenty-five test executables (496 tests, plus eleven `cmake -P` checks that are listed after the table — 507 in
