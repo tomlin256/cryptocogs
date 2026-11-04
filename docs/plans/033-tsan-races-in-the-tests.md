@@ -1,7 +1,8 @@
 # Plan 033 — Fix the two ThreadSanitizer races in the tests
 
-**Status:** Approved (2026-11-04). Rob approved the plan as written, so D1 to D5 stand at the defaults below. Step 0 is done;
-nothing else is implemented.
+**Status:** Done (2026-11-04). Rob approved the plan as written, so D1 to D5 stood at the defaults below. Steps 0 to 4 are done:
+#27 and #28 are fixed and closed, the Mac's tsan tree passes 514 of 514, and five consecutive `tsan` dispatch runs in CI are green,
+which was plan 032's gate for the nightly.
 
 Closes [#27](https://github.com/tomlin256/cryptocogs/issues/27) and [#28](https://github.com/tomlin256/cryptocogs/issues/28).
 
@@ -176,4 +177,69 @@ the change is test-only and touches no header under `include/`.
 
 ## Outcome
 
-Not started.
+Steps 0 to 3 are done and pushed; Step 4 is at the end. Measured on the Mac (Apple clang 21.0.0, CMake 4.4.5, Unix Makefiles, 12 cores)
+and on `ubuntu-latest` (GCC 15.2.0, 4 cores).
+
+**Step 0** (`a7d85df`). Approved as written. #27 and #28 link the plan, and the plan links both.
+
+**Step 1** (`0cdcbf1`). `test_presets` was red (twelve lines, "test preset … sets execution.timeout to '', want 120") and green after
+the JSON. Two hand-made changes to the file each failed it naming R6: one test preset without a timeout, and one with 60. That the
+field does what the plan assumed was checked on a throwaway project whose one test sleeps 6 s, under a test preset whose timeout is
+1: ctest stopped it at 1.06 s with `***Timeout`. ctest 507 of 507.
+
+**Step 2** (`6e711c0`). The tsan tree was red on `BackoffResetsAfterSuccessfulReconnect` (Subprocess aborted; the race reported at
+`test_ws_reconnect_session.cpp:244`). With `std::atomic<int> failsRemaining{2}` it passed 200 runs in a row (`ctest --repeat
+until-fail:200`, 18 s) with no report. The checkpoint, as predicted: the default tree 507 of 507, asan 510 of 510, tsan 508 of 509,
+the one failure being #27. No test was added: the existing test is the regression test, and the tsan tree is its oracle.
+
+**Step 3** (`b3ef1e2`). `test_mock_ws_connection` was red because it did not compile (the three members were missing), and green
+after the mock. Five hand-made changes to the mock, each configured and built in a scratch tsan tree, each failed it:
+
+| Change | Result |
+|---|---|
+| `send()` without the lock | TSan, four reports; `ConcurrentSendsLoseNothingAndKeepEachThreadsOrder` and `WaitForSentWakesWhenAnotherThreadSends` abort |
+| `release_waiters()` sets no flag | `ReleaseWaitersWakesWithFalse` hangs and is stopped as `Timeout` |
+| `send()` wakes nobody | `WaitForSentWakesWhenAnotherThreadSends` hangs: `Timeout` |
+| `sent()` returns a reference to the log | `SentReturnsTheMessagesInOrderAsACopy` fails |
+| `wait_for_sent` returns true whatever the count | `ReleaseWaitersWakesWithFalse` fails |
+
+Two things these runs showed. The copy test, as first written, copied at the call site and could not tell a copy from a reference;
+it now binds `const auto&` to the temporary, and the fourth row is what it caught. And my first run of this table reused the previous
+mutation's binary for the second row (zero objects compiled), because Apple's GNU Make 3.81 compares one-second timestamps; the
+harness now deletes the test's object file first, and the table above is from that run.
+
+The 91 sites were renamed with one `sed`; none bound a reference, iterated, took an address or mutated the log, so the copy was a
+drop-in. **The plan said four test files; three more files read the member**: `tests/benchmarks/bench_{binance,cryptocom,kraken}_ws.cpp`,
+which the default build never compiles. I found them by grepping all of `tests/` after the rename. They were compiled in a scratch tree
+with `CRYPTOCOGS_BUILD_BENCHMARKS=ON` and not run; they build with three `-Wunused-result` warnings on `fut.get()` that were there
+before (added to [#24](https://github.com/tomlin256/cryptocogs/issues/24)). The benchmarks' baselines (plans 025 to 027) now include a
+lock and a notify in `send()`, tens of nanoseconds; not re-measured.
+
+The checkpoint on the committed state: the default tree 512 of 512, asan 515 of 515, tsan 514 of 514 (the first time every test passes
+in that tree), no sanitizer report anywhere. `Execute.BlocksUntilResponse` passed 200 runs in a row under tsan in 7 s (it took 0.24 s
+a run with the sleep), and the five mock tests 200 runs in 21 s. A Crypto.com-only tree was built and run for `CLAUDE.md`: 112 gtests
+and 123 in ctest. The document said 104 gtests, with an 85-test Crypto.com suite that is 88 today, so that figure had drifted before
+this plan; it is corrected.
+
+**Step 4.** Five consecutive `tsan` dispatch runs on `b3ef1e2`, one at a time (`gh workflow run sanitizers.yml --ref main -f which=tsan`,
+driven by a script that stops at the first run that is not green), all `completed success`:
+
+| # | Run | Job time |
+|---|---|---|
+| 1 | 41903619210 | 4 min 19 s |
+| 2 | 41904405730 | 6 min 51 s |
+| 3 | 41905586543 | 6 min 15 s |
+| 4 | 41906615392 | 7 min 6 s |
+| 5 | 41907779281 | 5 min 15 s |
+
+I read the logs of runs 1 and 5: each says `100% tests passed out of 514`, with `sanitizer_canary_tsan` among them and no ThreadSanitizer
+report; runs 2 to 4 I judged by their conclusion. The main workflow for the same commit (41903524924) was green, as were those for
+`0cdcbf1` and `6e711c0`. The runner's kernel still has no `vm.mmap_rnd_bits`. With the first dispatch of plan 032 (6 min 21 s, before the
+fixes), the cold time of the tsan job over six runs is 4 min 19 s to 7 min 6 s.
+
+That is plan 032's gate for putting `tsan` in the nightly; its Step 9 is next. #27 and #28 were closed by the commits that say
+`Closes` (`b3ef1e2`, `6e711c0`).
+
+**Opened or updated along the way.** A comment on [#24](https://github.com/tomlin256/cryptocogs/issues/24) with three more
+`-Wunused-result` sites, in the benchmarks. [#42](https://github.com/tomlin256/cryptocogs/issues/42), the polling that D3 left alone, is
+still open.

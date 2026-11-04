@@ -2,8 +2,9 @@
 
 **Status:** In progress (2026-11-04). Rob approved the plan as written, so D1 to D8 stood at the defaults below, and asked for one
 addition: an issue in flywheel proposing the compile-side coverage check (D4) for its own sanitizer tests, which is
-[flywheel#209](https://github.com/tomlin256/flywheel/issues/209). Steps 0 to 8 are done and pushed. Step 9 (`tsan` joins the nightly,
-and #30 closes) waits for #27 and #28, whose fix is proposed in [plan 033](033-tsan-races-in-the-tests.md).
+[flywheel#209](https://github.com/tomlin256/flywheel/issues/209). Steps 0 to 9 are done and pushed: #27 and #28 were fixed by
+[plan 033](033-tsan-races-in-the-tests.md), and `tsan` is in the nightly. What is left is to read the first scheduled run with both
+jobs (03:41 UTC); #30 closes when it is green.
 
 Closes [#30](https://github.com/tomlin256/cryptocogs/issues/30) — "A sanitizer option and presets: asan and tsan trees are
 hand-made today".
@@ -365,8 +366,9 @@ A check of the workflow file beyond what `test_presets` already pins.
 
 ## Outcome
 
-Steps 1 to 8 are done and pushed. Step 9 waits for [#27](https://github.com/tomlin256/cryptocogs/issues/27) and
-[#28](https://github.com/tomlin256/cryptocogs/issues/28), whose fix is proposed in [plan 033](033-tsan-races-in-the-tests.md).
+Steps 1 to 9 are done and pushed. Step 9 waited for [#27](https://github.com/tomlin256/cryptocogs/issues/27) and
+[#28](https://github.com/tomlin256/cryptocogs/issues/28), which [plan 033](033-tsan-races-in-the-tests.md) fixed; what is left is to
+read the first scheduled run with both jobs.
 Measured on the Mac (Apple clang 21.0.0, CMake 4.4.5, Unix Makefiles, 12 cores) and on `ubuntu-latest` (GCC 15.2.0, CMake 4.4.4,
 4 cores, kernel 7.0.0-1017-azure).
 
@@ -463,5 +465,15 @@ that holds the demonstration of C), [flywheel#210](https://github.com/tomlin256/
 cryptocogs' platform module sanitizer-free), and [#42](https://github.com/tomlin256/cryptocogs/issues/42) (`test_ws_reconnect_session.cpp`
 sleeps and polls although `CLAUDE.md` says it is deterministic).
 
-**Left for later.** Step 9 and the first scheduled run; the five `tsan` dispatch runs, which wait for plan 033. The `ubuntu-dev`
-container (Linux arm64) was not used: CI covers Linux x86_64, and the plan did not need a second Linux result.
+**Step 9** (`a940546`). Plan 033 fixed #27 and #28 (`6e711c0`, `b3ef1e2`; the Mac's tsan tree passes 514 of 514), and five consecutive
+`tsan` dispatch runs on `b3ef1e2` were green: 41903619210, 41904405730, 41905586543, 41906615392 and 41907779281, 4 min 19 s to 7 min 6 s
+each. The matrix now falls through to both modes: `which == 'tsan'` gives tsan, `which == 'asan'` gives asan, anything else gives both.
+I checked the four inputs (`tsan`, `asan`, `both`, none) offline, and a dispatch with `which: both` exercised the branch that the
+schedule takes (run 41909134424, `a940546`): both jobs green, asan 515 of 515 in 10 min 2 s and tsan 514 of 514 in 4 min 10 s. The asan
+run is the slowest of the three, and the build step is what varied (8 min 36 s, against 6 min 16 s on the first run; apt 13 s,
+configure 31 s, test 35 s), so the 20-minute ceiling is 2 times the slowest cold run and not the 2.3 that Step 6 wrote down; the
+comment and `CLAUDE.md` say so (`2ff151d`). `CLAUDE.md`'s CI paragraph says that both modes run nightly and what the runs cost.
+
+**Left for later.** The first scheduled run with both jobs (03:41 UTC), which the done-when of Step 9 asks to be read from
+`gh run list --workflow sanitizers.yml --event schedule`, and closing #30 on it. The `ubuntu-dev` container (Linux arm64) was not used:
+CI covers Linux x86_64, and the plan did not need a second Linux result.
