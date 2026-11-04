@@ -257,3 +257,17 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
                      -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/ci_checks/check_paths.cmake)
 endif()
+
+#-------------------------------------------------------------------------------
+# Sanitizers (plan 032): plain cmake -P scripts
+#-------------------------------------------------------------------------------
+
+# The CRYPTOCOGS_SANITIZE mode -> options mapping in cmake/cryptocogs_sanitize.cmake. A plain script, so it runs in every
+# tree: the option itself only changes the tree it is set in, and a regression in the mapping is invisible until someone
+# asks for a sanitizer. Top level only, where the checkout it reads is this project's own.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_test(NAME test_sanitize_flags
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/sanitize_checks/check_sanitize_flags.cmake)
+endif()
