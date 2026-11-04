@@ -9,10 +9,11 @@
 # green. It has no caches on purpose (plan 032, D7): a run is a few minutes of free time on a public repository, and a
 # dependency tree restored from the wrong mode would be partial instrumentation with no error to say so.
 #
-# When it runs. On demand (Actions > Sanitizers > Run workflow; `which` picks one job or both). The nightly schedule
-# comes with the first green dispatch of the asan job, and runs asan alone until tsan is green: tsan is dispatch-only
-# until #27 and #28 are fixed and five consecutive tsan dispatch runs are green, because ThreadSanitizer reports a race
-# only when it sees both accesses and a single green run proves little (plan 032, D7).
+# When it runs. Nightly at 03:41 UTC, and on demand (Actions > Sanitizers > Run workflow; `which` picks one job or both).
+# The nightly runs asan alone: tsan is dispatch-only until #27 and #28 are fixed and five consecutive tsan dispatch runs
+# are green, because ThreadSanitizer reports a race only when it sees both accesses and a single green run proves
+# little (plan 032, D7). The first dispatch of both (run 41895626568) had asan green and tsan red on exactly those two
+# tests, `Execute.BlocksUntilResponse` and `WsReconnectSession.BackoffResetsAfterSuccessfulReconnect`, and nothing else.
 #
 # The same build locally, one tree per kind (the preset names it, build/asan-linux-x86_64, and sets
 # CRYPTOCOGS_SANITIZE; on the Mac it is asan-macos-arm64, and cmake --list-presets shows the host's):
@@ -21,6 +22,10 @@
 name: Sanitizers
 
 on:
+  schedule:
+    # Off the top of the hour, when the hosted runners are busiest. Runs on the default branch. A scheduled run has no
+    # `which`, so the matrix below gives it asan alone.
+    - cron: '41 3 * * *'
   workflow_dispatch:
     inputs:
       which:
@@ -49,16 +54,17 @@ jobs:
       # CMakeLists.txt says which preset to use.
       PRESET: ${{ matrix.kind }}-linux-x86_64
 
-    # Hard ceiling, so that a hung test (a TSan deadlock, say) cannot hold a runner for the default six hours. It is
-    # set from the first cold runs, which are all there are: there is no cache to make a run warm.
-    timeout-minutes: 45
+    # Hard ceiling, so that a hung test (a TSan deadlock, say) cannot hold a runner for the default six hours. Set from
+    # the first cold runs on the 4-core runner, which are all there are, since no cache makes a run warm: asan took 7 min
+    # 43 s and tsan 6 min 21 s. The apt step varies from 10 to 156 s (#41), so 20 minutes is about 2.6 times the slower.
+    timeout-minutes: 20
 
     strategy:
       # One mode red must not hide the other.
       fail-fast: false
       matrix:
-        # A dispatch's `which` picks the modes (its default is both). A run with no `which`, the nightly once it exists,
-        # falls through to asan alone.
+        # A dispatch's `which` picks the modes (its default is both). A run with no `which`, the nightly, falls through
+        # to asan alone; tsan joins it in plan 032, Step 9.
         kind: ${{ fromJSON(inputs.which == 'tsan' && '["tsan"]' || inputs.which == 'both' && '["asan","tsan"]' || '["asan"]') }}
 
     steps:
