@@ -1,4 +1,4 @@
-# check_tree_name.cmake — test_tree_name: the build-tree guard in the root CMakeLists.txt (plan 028).
+# check_tree_name.cmake — test_tree_name: the build-tree guard in the root CMakeLists.txt (plans 028 and 032).
 #
 # Run by ctest as
 #   cmake -DSOURCE_DIR=<repo> -DSCRATCH_ROOT=<dir> -DNLOHMANN_JSON_SRC=<dir> -DTOMLPLUSPLUS_SRC=<dir> -P
@@ -120,6 +120,26 @@ expect_cache_platform("build" b "${host}")
 
 configure_tree(c "${SOURCE_DIR}" "${host}")
 expect_configures("${host} (no kind)" c)
+
+# ── a sanitizer tree configured for the mode in its name (plan 032) ────────────
+# (Each case has a tree of its own: a tree keeps the -D it was configured with.)
+configure_tree(s1 "${SOURCE_DIR}" "asan-${host}-gcc13" -DCRYPTOCOGS_SANITIZE=asan)
+expect_configures("asan-${host}-gcc13 with asan" s1)
+
+# A kind that only starts like a sanitizer's is not one, and nothing else is required of a sanitizer tree: a
+# debug tree may be instrumented.
+configure_tree(s2 "${SOURCE_DIR}" "asanx-${host}")
+expect_configures("asanx-${host} with nothing" s2)
+configure_tree(s3 "${SOURCE_DIR}" "debug-${host}" -DCRYPTOCOGS_SANITIZE=asan)
+expect_configures("debug-${host} with asan" s3)
+
+# ── a sanitizer tree that is not configured for its mode ───────────────────────
+configure_tree(s4 "${SOURCE_DIR}" "asan-${host}")
+expect_refused("asan-${host} with nothing" s4 "asan-${host}" "asan" "CRYPTOCOGS_SANITIZE" "OFF")
+expect_no_compiler("asan-${host} with nothing" s4)
+configure_tree(s5 "${SOURCE_DIR}" "tsan-${host}" -DCRYPTOCOGS_SANITIZE=asan)
+expect_refused("tsan-${host} with asan" s5 "tsan-${host}" "tsan" "asan")
+expect_no_compiler("tsan-${host} with asan" s5)
 
 # ── a free-form tree that remembers another platform ───────────────────────────
 configure_tree(d "${SOURCE_DIR}" "scratch" "-DCRYPTOCOGS_TREE_PLATFORM=${other}")

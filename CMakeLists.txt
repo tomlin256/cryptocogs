@@ -9,9 +9,10 @@ cmake_minimum_required(VERSION 4.0)
 #
 # A CMake build tree belongs to one OS and one architecture, and one checkout is built on the Mac
 # and in a Linux container that mounts it. Trees are named <kind>-<os>-<arch> and kept under build/
-# (build/release-macos-arm64, build/debug-linux-arm64). The guard refuses a tree whose name says it
-# is for another platform than this host, and a tree that was first configured on another platform
-# whatever it is called; either error names the tree to use. It sits before project(), because the
+# (build/release-macos-arm64, build/asan-linux-arm64). The guard refuses a tree whose name says it
+# is for another platform than this host, an asan-... or tsan-... tree that is not configured for
+# that sanitizer (plan 032), and a tree that was first configured on another platform whatever it is
+# called; each error names the tree to use. It sits before project(), because the
 # host's architecture is not known after it (CMAKE_HOST_SYSTEM_PROCESSOR is empty until project()
 # runs) and a refused configure should leave no compiler detection behind. Top-level only, so a
 # consumer's tree is never examined.
@@ -23,7 +24,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     cryptocogs_platform(_cryptocogs_host "${CMAKE_HOST_SYSTEM_NAME}" "${_cryptocogs_machine}")
     get_filename_component(_cryptocogs_tree "${CMAKE_BINARY_DIR}" NAME)
     cryptocogs_tree_problem(_cryptocogs_problem
-        "${_cryptocogs_tree}" "${_cryptocogs_host}" "${CRYPTOCOGS_TREE_PLATFORM}")
+        "${_cryptocogs_tree}" "${_cryptocogs_host}" "${CRYPTOCOGS_TREE_PLATFORM}" "${CRYPTOCOGS_SANITIZE}")
     if(_cryptocogs_problem)
         message(FATAL_ERROR "${_cryptocogs_problem}")
     endif()
