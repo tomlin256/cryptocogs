@@ -1,6 +1,6 @@
 # Plan 037 — Clear the clang-tidy findings so the opt-in gate passes
 
-**Status: Approved (2026-11-05); Step 0 done, Step 1 next.** Rob's request: *"fix #46 using agents so you can do it in parallel"*.
+**Status: Approved (2026-11-05); Steps 0 and 1 done, Step 2 next.** Rob's request: *"fix #46 using agents so you can do it in parallel"*.
 
 Closes [#46](https://github.com/tomlin256/cryptocogs/issues/46). Answers the `performance-enum-size` half of
 [#38](https://github.com/tomlin256/cryptocogs/issues/38) (D1); #38's two unused includes in `common/ws.hpp` are not in this plan.
@@ -52,7 +52,7 @@ GCC 13.3 `-Wall -Wextra -Wpedantic -Werror` for the macro of D2). This decides t
 
 | Pattern after which `opt` is dereferenced | Reported |
 |---|---|
-| `ASSERT_TRUE(opt.has_value());`, `ASSERT_TRUE(opt);`, `ASSERT_NE(opt, std::nullopt);`, with or without `<< "…"` | **yes**, at each later use: gtest hides the test behind an `AssertionResult` the analysis cannot see through |
+| `ASSERT_TRUE(opt.has_value());`, `ASSERT_TRUE(opt);`, `ASSERT_NE(opt, std::nullopt);`, with or without `<< "…"` | **yes**, at each later use. The cause is not established: gtest's assertion branches on an `AssertionResult`, but a hand-written copy of that expansion in a project header *is* followed (Step 1's mutants), so what proves the macro is followed is the gate's own unit for its test, not a belief about gtest |
 | `opt.value()` in place of `*opt` or `opt->` | **yes**: the issue's claim, confirmed |
 | `if (!opt.has_value()) { FAIL() << …; }` | no |
 | the same check in a macro, on a member chain (`resp.result`), a local captured by reference in a lambda, `*shared_ptr_to_optional`, two optionals one after the other | no |
@@ -108,10 +108,15 @@ D2, D3, D5, D6, D7 and D8 were not asked about one by one, and stand as written.
     layout and the check stays on for new enums, and it is what you choose if you want the layout stable until a major release; the sizes above are
     the price. (Switching the check off in `.clang-tidy` is the third way, and the worst: it silences it for new enums too.)
 - **D2. Optional access in the tests: one macro, `ASSERT_HAS_VALUE(opt)`,** in a new `tests/unit/assert_has_value.hpp`, replaces
-  `ASSERT_TRUE(opt.has_value())`. It is the form the analysis sees (an `if` that returns through `FAIL()`), streams like gtest's, carries gtest's
-  `switch (0) case 0: default:` blocker so `if (x) ASSERT_HAS_VALUE(o); else …` compiles without `-Wdangling-else`, and fails the test in the
-  same cases and with a message that names the expression. Where a macro cannot go (a lambda or helper that returns a value), the code checks the
-  optional in plain sight (`if (!opt) { ADD_FAILURE() << …; return …; }`). *Alternatives rejected below.*
+  `ASSERT_TRUE(opt.has_value())`. It is the form the analysis sees (a plain `if (opt.has_value()) {} else` whose else branch returns through
+  `GTEST_FATAL_FAILURE_`, the macro under gtest's own `ASSERT_TRUE`), streams like gtest's (the message first, whatever is streamed after it on its
+  own line), fails the test in the same cases, and names the expression. Where a macro cannot go (a lambda or helper that returns a value), the code
+  checks the optional in plain sight (`if (!opt) { ADD_FAILURE() << …; return …; }`). *Alternatives rejected below.*
+  **As built (Step 1):** the plan said the macro would carry gtest's `switch (0) case 0: default:` blocker, so that `if (x) ASSERT_HAS_VALUE(o); else …`
+  compiles under `-Wdangling-else`. The probes of Step 1 (Apple clang 21, GCC 13.3, `-Wall -Wextra -Wpedantic -Werror`) show that use compiles
+  without the blocker, and that the blocker changes one case only: an `if` with no `else` at all (`if (x) ASSERT_HAS_VALUE(o);`), which clang then
+  accepts and GCC rejects, with the blocker too, exactly as it rejects gtest's own assertions there. A blocker would let the Mac accept what CI's
+  GCC refuses, so the macro has none, and an `if` around it needs an `else` or braces on both compilers.
 - **D3. Optional access and `if ((ok = report(resp)))` in the two REST examples.** `report()` returns `const Resp*` (the result when the response is
   ok **and** has one, otherwise `nullptr` after logging), and each branch reads `const auto* r = report(resp); ok = (r != nullptr); if (r) { … r->… }`.
   That clears the 13 assignments in conditions and 58 of the 61 optional accesses in the examples at once; the other three (`kraken_example.cpp`)
@@ -189,7 +194,7 @@ How each kind of site is fixed (the agents' brief; the plan, not the agent, deci
 
 | Test | Runs | Passes when |
 |---|---|---|
-| `test_assert_has_value` (new, every tree with the tests on) | the macro in `TEST` bodies and in void helpers under `EXPECT_FATAL_FAILURE` | **present:** no failure, the dereference after the macro works; **empty:** exactly one fatal failure whose text names the expression (`o has no value`), and the statement after the macro did not run; **streaming:** `ASSERT_HAS_VALUE(o) << "context"` adds the context; **un-braced `if … else`** compiles and picks the right branch; **forms:** a member chain, a pointer dereference, a captured local, an `std::optional<std::string>` |
+| `test_assert_has_value` (new, every tree with the tests on; 10 tests) | the macro in `TEST` bodies, and in void lambdas whose failures a `ScopedFakeTestPartResultReporter` (gtest-spi.h) collects, so the exact text is compared | **present:** no failure, the dereference after the macro works, the code after it runs; **empty:** exactly one fatal failure whose text is exactly `o has no value`, and the statement after the macro did not run; **streaming:** `ASSERT_HAS_VALUE(name) << "context"` gives `name has no value`, a newline, then the context; **as a branch of an `if` that has an `else`** (then and else position): compiles and picks the right branch; **forms:** a member chain, a pointer dereference, a local that a callback sets, an `std::optional<std::string>`, the expression named as written |
 | the gate's own `clang_tidy_tests_unit_test_assert_has_value` | clang-tidy on that test | green from the start, and the proof that the analysis sees the macro: a mutant that deletes the macro line turns this unit red |
 | the 528 existing, and the gate's 84 (91 with the benchmarks) | | all pass at the end; the gate's per-unit tests go green as the workstreams land |
 
@@ -213,11 +218,23 @@ Mac `debug-macos-arm64` and container `debug-linux-arm64` are green at the tip (
 gate switched off again). At this step the configure, build and `ctest` are run again after each change below. Then `test_assert_has_value.cpp`
 and its registration go in first, so the test is red (no header), then `assert_has_value.hpp`.
 
-**Mutants of the macro,** each caught by the test meant to catch it: the condition inverted; `ADD_FAILURE()` for `FAIL()` (the test that the statement
-after the macro did not run); the message dropped; the blocker removed (the un-braced `if … else` test, under GCC `-Wall -Werror` in the container);
-the macro line deleted from the test (the gate's unit for that file turns red). **Done when:** the checkpoint is green with 528 + the new tests on
-the Mac and in the container; the new test was red first; the five mutants are killed; and `clang_tidy_tests_unit_test_assert_has_value` is green.
-Commit: `test: add ASSERT_HAS_VALUE, an optional check that clang-tidy can see (step 1/6)`.
+**Mutants of the macro,** made on copies in the scratch directory, each caught by the test meant to catch it: the condition inverted; a non-fatal
+failure for the fatal one (the test that the statement after the macro did not run); the message without the expression; `FAIL() <<` for
+`GTEST_FATAL_FAILURE_` (the layout test); gtest's own `ASSERT_TRUE(opt.has_value()) << …` in its place (the gate's unit for that file turns red);
+and the macro line deleted from the test (the gate's unit turns red, and nothing else does). **Done when:** the checkpoint is green with 528 + the
+new tests on the Mac and in the container; the new test was red first; the six mutants are killed; and `clang_tidy_tests_unit_test_assert_has_value`
+is green. Commit: `test: add ASSERT_HAS_VALUE, an optional check that clang-tidy can see (step 1/6)`.
+
+**As built (2026-11-05).** `tests/unit/assert_has_value.hpp`, `tests/unit/test_assert_has_value.cpp` (10 tests; its `capture()` trims the newline
+that gtest ends every message with) and the registration in `tests/unit/CMakeLists.txt`. The test was red first (`fatal error:
+'assert_has_value.hpp' file not found`). The checkpoint: a configure that prints what the unchanged tree's does, no warning, and **538 of 538** on
+the Mac (Apple clang 21) and in the container (GCC 13.3, `-Werror`). The gate: `clang_tidy_tests_unit_test_assert_has_value` passes on the Mac
+(clang-tidy 23.1.4) and clang-tidy 23.1.6 in the container reports nothing for the file. The mutants: condition inverted, all 10 tests fail;
+non-fatal failure, 4 fail; message without the expression, 5; `FAIL() <<`, 5 (the layout); gtest's own `ASSERT_TRUE(opt.has_value()) << …`, 5 tests
+fail and the gate reports 6 `bugprone-unchecked-optional-access`; the macro line deleted from the first test, all 10 tests pass and the gate reports
+1, the one kill that is the gate's alone. A hand-written copy of gtest's own expansion (`if (const AssertionResult ar = AssertionResult(opt.has_value()))
+; else …`) in the macro's place passes the gate, so nothing here rests on a belief about why gtest's own form fails. The blocker of the plan's
+list of mutants does not exist (D2, *as built*).
 
 ### Step 2 — The fan-out
 
@@ -342,7 +359,7 @@ green, so it is small: `clang-tidy-23` from apt.llvm.org, configure only, `ctest
 | Step | Status | Notes |
 |---|---|---|
 | 0 Approval | Done (2026-11-05) | Approved as proposed (D1 `: std::uint8_t`, D4 catch and report). The plan is pushed, and #46 carries its path |
-| 1 Start from green, and the macro, test first | Pending | |
+| 1 Start from green, and the macro, test first | Done (2026-11-05) | `ASSERT_HAS_VALUE` and its 10 tests: 538 of 538 on the Mac and in the container; test red first; six mutants killed, one by the gate alone; no blocker (D2, *as built*) |
 | 2 The fan-out | Pending | |
 | 3 Integrate and verify | Pending | |
 | 4 The second check: the Linux container | Pending | |
