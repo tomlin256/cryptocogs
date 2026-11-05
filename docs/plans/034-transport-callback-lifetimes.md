@@ -358,9 +358,12 @@ bump commit changes one line of `CMakeLists.txt` (1.0.0 to 1.0.1, `21c8d75`); `t
 version and passed; the debug and the release tree both built and passed **521 of 521** (only the six known #24 warnings); CI was green
 on the bump commit (run 42018665984, 2 min 8 s); then the annotated tag `v1.0.1` went on that commit and was pushed. Its message says
 what changed for a user: nothing to edit, the destructor, the relay and the contained identifier, and what else is in the tag
-(sanitizer option and presets, CI, ixwebsocket v12.1.0, test-only fixes). A tag and no GitHub release, as for v0.5.x to v1.0.0 (the
-last GitHub release is v0.0.3). The README's FetchContent example still pins `v1.0.0`: it started pinning a tag
-with 1.0.0 (before that it said `main`), so this is the first patch release it could have followed, and I left it.
+(sanitizer option and presets, CI, ixwebsocket v12.1.0, test-only fixes). I first made only the tag, as for v0.5.x to v1.0.0 (before it,
+the last GitHub release was v0.0.3); Rob then said he saw a tag and no release on GitHub, so `gh release create v1.0.1 --verify-tag`
+published one from the same tag, with the notes in Markdown: [v1.0.1](https://github.com/tomlin256/cryptocogs/releases/tag/v1.0.1),
+not a draft, marked Latest, the tag unmoved. v0.5.x to v1.0.0 still have tags only. The README's FetchContent example still pins
+`v1.0.0`: it started pinning a tag with 1.0.0 (before that it said `main`), so this is the first patch release it could have followed,
+and I left it.
 
 **Left for later.** [#44](https://github.com/tomlin256/cryptocogs/issues/44) (a non-string `method` throws out of the responder) and
 [#45](https://github.com/tomlin256/cryptocogs/issues/45) (why the sanitizers were silent, and what closes the gap) are open. The red
