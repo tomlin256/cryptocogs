@@ -7,8 +7,8 @@
 // full license information.
 // =============================================================================
 
-#ifndef _KRAKEN_KAPI_HPP_
-#define _KRAKEN_KAPI_HPP_
+#ifndef KRAKEN_KAPI_HPP_
+#define KRAKEN_KAPI_HPP_
 
 #include <map>
 #include <string>
@@ -68,7 +68,7 @@ private:
    std::string secret_;  // API secret
    std::string url_;     // API base URL
    std::string version_; // API version
-   CURL*  curl_;         // CURL handle
+   CURL* curl_{nullptr}; // CURL handle
 
    // disallow copying
    KAPI(const KAPI&);

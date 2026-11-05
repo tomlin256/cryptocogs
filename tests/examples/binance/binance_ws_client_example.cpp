@@ -34,6 +34,9 @@
 #include <spdlog/spdlog.h>
 
 #include <chrono>
+#include <cstdlib>
+#include <exception>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <thread>
@@ -215,51 +218,59 @@ bool run_multi(const std::string& symbol) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 int main(int argc, char** argv) {
-    CLI::App app{"Binance WebSocket market-stream demo (combined endpoint)"};
-    app.require_subcommand(1);
+    try {
+        CLI::App app{"Binance WebSocket market-stream demo (combined endpoint)"};
+        app.require_subcommand(1);
 
-    std::string symbol;
-    std::string interval = "1m";
-    int         levels   = 0;
+        std::string symbol;
+        std::string interval = "1m";
+        int         levels   = 0;
 
-    auto* aggtrade = app.add_subcommand("aggtrade", "Aggregated trade stream");
-    aggtrade->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
+        auto* aggtrade = app.add_subcommand("aggtrade", "Aggregated trade stream");
+        aggtrade->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
 
-    auto* trade = app.add_subcommand("trade", "Raw trade stream");
-    trade->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
+        auto* trade = app.add_subcommand("trade", "Raw trade stream");
+        trade->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
 
-    auto* kline = app.add_subcommand("kline", "Kline/candlestick stream");
-    kline->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
-    kline->add_option("--interval", interval, "Kline interval (default 1m)");
+        auto* kline = app.add_subcommand("kline", "Kline/candlestick stream");
+        kline->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
+        kline->add_option("--interval", interval, "Kline interval (default 1m)");
 
-    auto* ticker = app.add_subcommand("ticker", "Rolling 24 h ticker stream");
-    ticker->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
+        auto* ticker = app.add_subcommand("ticker", "Rolling 24 h ticker stream");
+        ticker->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
 
-    auto* miniticker = app.add_subcommand("miniticker", "Rolling 24 h mini-ticker stream");
-    miniticker->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
+        auto* miniticker = app.add_subcommand("miniticker", "Rolling 24 h mini-ticker stream");
+        miniticker->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
 
-    auto* bookticker = app.add_subcommand("bookticker", "Best bid/ask stream");
-    bookticker->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
+        auto* bookticker = app.add_subcommand("bookticker", "Best bid/ask stream");
+        bookticker->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
 
-    auto* depth = app.add_subcommand("depth", "Order book depth stream");
-    depth->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
-    depth->add_option("--levels", levels,
-                      "Partial book levels (5/10/20); omit for diff stream");
+        auto* depth = app.add_subcommand("depth", "Order book depth stream");
+        depth->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
+        depth->add_option("--levels", levels,
+                          "Partial book levels (5/10/20); omit for diff stream");
 
-    auto* multi = app.add_subcommand("multi", "aggTrade + bookTicker on one socket");
-    multi->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
+        auto* multi = app.add_subcommand("multi", "aggTrade + bookTicker on one socket");
+        multi->add_option("symbol", symbol, "Symbol, e.g. BTCUSDT")->required();
 
-    CLI11_PARSE(app, argc, argv);
+        CLI11_PARSE(app, argc, argv);
 
-    bool ok = false;
-    if (*aggtrade)        ok = run_aggtrade(symbol);
-    else if (*trade)      ok = run_trade(symbol);
-    else if (*kline)      ok = run_kline(symbol, interval);
-    else if (*ticker)     ok = run_ticker(symbol);
-    else if (*miniticker) ok = run_miniticker(symbol);
-    else if (*bookticker) ok = run_bookticker(symbol);
-    else if (*depth)      ok = run_depth(symbol, levels);
-    else if (*multi)      ok = run_multi(symbol);
+        bool ok = false;
+        if (*aggtrade)        ok = run_aggtrade(symbol);
+        else if (*trade)      ok = run_trade(symbol);
+        else if (*kline)      ok = run_kline(symbol, interval);
+        else if (*ticker)     ok = run_ticker(symbol);
+        else if (*miniticker) ok = run_miniticker(symbol);
+        else if (*bookticker) ok = run_bookticker(symbol);
+        else if (*depth)      ok = run_depth(symbol, levels);
+        else if (*multi)      ok = run_multi(symbol);
 
-    return ok ? 0 : 1;
+        return ok ? 0 : 1;
+    } catch (const std::exception& e) {
+        std::cerr << "fatal: " << e.what() << '\n';
+        return EXIT_FAILURE;
+    } catch (...) {
+        std::cerr << "fatal: unknown exception\n";
+        return EXIT_FAILURE;
+    }
 }

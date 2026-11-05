@@ -27,6 +27,9 @@
 #include <spdlog/spdlog.h>
 
 #include <chrono>
+#include <cstdlib>
+#include <exception>
+#include <iostream>
 #include <memory>
 
 using namespace exchange::binance::ws;
@@ -62,15 +65,23 @@ bool run_ping() {
 } // namespace
 
 int main(int argc, char** argv) {
-    CLI::App app{"Binance WebSocket API (trading endpoint) demo"};
-    app.require_subcommand(1);
+    try {
+        CLI::App app{"Binance WebSocket API (trading endpoint) demo"};
+        app.require_subcommand(1);
 
-    auto* ping = app.add_subcommand("ping", "Heartbeat against the WS API endpoint");
+        auto* ping = app.add_subcommand("ping", "Heartbeat against the WS API endpoint");
 
-    CLI11_PARSE(app, argc, argv);
+        CLI11_PARSE(app, argc, argv);
 
-    bool ok = false;
-    if (*ping) ok = run_ping();
+        bool ok = false;
+        if (*ping) ok = run_ping();
 
-    return ok ? 0 : 1;
+        return ok ? 0 : 1;
+    } catch (const std::exception& e) {
+        std::cerr << "fatal: " << e.what() << '\n';
+        return EXIT_FAILURE;
+    } catch (...) {
+        std::cerr << "fatal: unknown exception\n";
+        return EXIT_FAILURE;
+    }
 }

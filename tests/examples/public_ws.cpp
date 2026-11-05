@@ -26,6 +26,9 @@
 
 #include "exchange/kraken/ws_api.hpp"
 
+#include <cstdlib>
+#include <exception>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <thread>
@@ -143,112 +146,120 @@ static void handle_message(const json& j, bool dump_json)
 
 int main(int argc, char* argv[])
 {
-    CLI::App app{"Kraken public WebSocket example — all public channels"};
-    app.require_subcommand(1);
+    try {
+        CLI::App app{"Kraken public WebSocket example — all public channels"};
+        app.require_subcommand(1);
 
-    bool dump_json = false;
-    app.add_flag("--dump-json", dump_json,
-        "Print raw JSON for every inbound frame (useful for capturing test fixtures)");
+        bool dump_json = false;
+        app.add_flag("--dump-json", dump_json,
+            "Print raw JSON for every inbound frame (useful for capturing test fixtures)");
 
-    // ── ticker ────────────────────────────────────────────────────────────────
-    auto* ticker_cmd = app.add_subcommand("ticker",
-        "Level 1 best bid/ask, last price, 24 h stats");
-    std::string ticker_symbol;
-    ticker_cmd->add_option("symbol", ticker_symbol,
-        "Trading symbol (e.g. BTC/USD)")->required();
+        // ── ticker ────────────────────────────────────────────────────────────────
+        auto* ticker_cmd = app.add_subcommand("ticker",
+            "Level 1 best bid/ask, last price, 24 h stats");
+        std::string ticker_symbol;
+        ticker_cmd->add_option("symbol", ticker_symbol,
+            "Trading symbol (e.g. BTC/USD)")->required();
 
-    // ── book ──────────────────────────────────────────────────────────────────
-    auto* book_cmd = app.add_subcommand("book",
-        "Level 2 order book; depth = 10|25|100|500|1000 (default 10)");
-    std::string book_symbol;
-    std::optional<int> book_depth;
-    book_cmd->add_option("symbol", book_symbol,
-        "Trading symbol (e.g. BTC/USD)")->required();
-    book_cmd->add_option("--depth", book_depth,
-        "Order book depth: 10|25|100|500|1000");
+        // ── book ──────────────────────────────────────────────────────────────────
+        auto* book_cmd = app.add_subcommand("book",
+            "Level 2 order book; depth = 10|25|100|500|1000 (default 10)");
+        std::string book_symbol;
+        std::optional<int> book_depth;
+        book_cmd->add_option("symbol", book_symbol,
+            "Trading symbol (e.g. BTC/USD)")->required();
+        book_cmd->add_option("--depth", book_depth,
+            "Order book depth: 10|25|100|500|1000");
 
-    // ── trade ─────────────────────────────────────────────────────────────────
-    auto* trade_cmd = app.add_subcommand("trade", "Public trades feed");
-    std::string trade_symbol;
-    trade_cmd->add_option("symbol", trade_symbol,
-        "Trading symbol (e.g. BTC/USD)")->required();
+        // ── trade ─────────────────────────────────────────────────────────────────
+        auto* trade_cmd = app.add_subcommand("trade", "Public trades feed");
+        std::string trade_symbol;
+        trade_cmd->add_option("symbol", trade_symbol,
+            "Trading symbol (e.g. BTC/USD)")->required();
 
-    // ── ohlc ──────────────────────────────────────────────────────────────────
-    auto* ohlc_cmd = app.add_subcommand("ohlc",
-        "OHLC candles; interval in minutes: "
-        "1|5|15|30|60|240|1440|10080|21600 (default 1)");
-    std::string ohlc_symbol;
-    std::optional<int> ohlc_interval;
-    ohlc_cmd->add_option("symbol", ohlc_symbol,
-        "Trading symbol (e.g. BTC/USD)")->required();
-    ohlc_cmd->add_option("--interval", ohlc_interval,
-        "Candle interval in minutes: 1|5|15|30|60|240|1440|10080|21600");
+        // ── ohlc ──────────────────────────────────────────────────────────────────
+        auto* ohlc_cmd = app.add_subcommand("ohlc",
+            "OHLC candles; interval in minutes: "
+            "1|5|15|30|60|240|1440|10080|21600 (default 1)");
+        std::string ohlc_symbol;
+        std::optional<int> ohlc_interval;
+        ohlc_cmd->add_option("symbol", ohlc_symbol,
+            "Trading symbol (e.g. BTC/USD)")->required();
+        ohlc_cmd->add_option("--interval", ohlc_interval,
+            "Candle interval in minutes: 1|5|15|30|60|240|1440|10080|21600");
 
-    // ── instrument ────────────────────────────────────────────────────────────
-    app.add_subcommand("instrument",
-        "Static instrument/market info (no symbol required)");
+        // ── instrument ────────────────────────────────────────────────────────────
+        app.add_subcommand("instrument",
+            "Static instrument/market info (no symbol required)");
 
-    CLI11_PARSE(app, argc, argv);
+        CLI11_PARSE(app, argc, argv);
 
-    // ── Build subscribe request ───────────────────────────────────────────────
+        // ── Build subscribe request ───────────────────────────────────────────────
 
-    exchange::kraken::ws::SubscribeRequest sub_req;
+        exchange::kraken::ws::SubscribeRequest sub_req;
 
-    if (ticker_cmd->parsed()) {
-        sub_req.channel = exchange::kraken::ws::SubscribeChannel::Ticker;
-        sub_req.symbols = std::vector<std::string>{ticker_symbol};
-    } else if (book_cmd->parsed()) {
-        sub_req.channel = exchange::kraken::ws::SubscribeChannel::Book;
-        sub_req.symbols = std::vector<std::string>{book_symbol};
-        if (book_depth) sub_req.depth = *book_depth;
-    } else if (trade_cmd->parsed()) {
-        sub_req.channel = exchange::kraken::ws::SubscribeChannel::Trade;
-        sub_req.symbols = std::vector<std::string>{trade_symbol};
-    } else if (ohlc_cmd->parsed()) {
-        sub_req.channel = exchange::kraken::ws::SubscribeChannel::OHLC;
-        sub_req.symbols = std::vector<std::string>{ohlc_symbol};
-        if (ohlc_interval) sub_req.interval = *ohlc_interval;
-    } else {
-        sub_req.channel = exchange::kraken::ws::SubscribeChannel::Instrument;
-    }
+        if (ticker_cmd->parsed()) {
+            sub_req.channel = exchange::kraken::ws::SubscribeChannel::Ticker;
+            sub_req.symbols = std::vector<std::string>{ticker_symbol};
+        } else if (book_cmd->parsed()) {
+            sub_req.channel = exchange::kraken::ws::SubscribeChannel::Book;
+            sub_req.symbols = std::vector<std::string>{book_symbol};
+            if (book_depth) sub_req.depth = book_depth;
+        } else if (trade_cmd->parsed()) {
+            sub_req.channel = exchange::kraken::ws::SubscribeChannel::Trade;
+            sub_req.symbols = std::vector<std::string>{trade_symbol};
+        } else if (ohlc_cmd->parsed()) {
+            sub_req.channel = exchange::kraken::ws::SubscribeChannel::OHLC;
+            sub_req.symbols = std::vector<std::string>{ohlc_symbol};
+            if (ohlc_interval) sub_req.interval = ohlc_interval;
+        } else {
+            sub_req.channel = exchange::kraken::ws::SubscribeChannel::Instrument;
+        }
 
-    const std::string sub_json = sub_req.to_json().dump();
+        const std::string sub_json = sub_req.to_json().dump();
 
-    // ── WebSocket ─────────────────────────────────────────────────────────────
+        // ── WebSocket ─────────────────────────────────────────────────────────────
 
-    ix::WebSocket ws;
-    ws.setUrl("wss://ws.kraken.com/v2");
+        ix::WebSocket ws;
+        ws.setUrl("wss://ws.kraken.com/v2");
 
-    ws.setOnMessageCallback(
-        [&](const ix::WebSocketMessagePtr& msg)
-        {
-            if (msg->type == ix::WebSocketMessageType::Open)
+        ws.setOnMessageCallback(
+            [&](const ix::WebSocketMessagePtr& msg)
             {
-                spdlog::info("ws opened");
-                ws.send(sub_json);
-            }
-            else if (msg->type == ix::WebSocketMessageType::Close)
-            {
-                spdlog::info("ws closed");
-            }
-            else if (msg->type == ix::WebSocketMessageType::Error)
-            {
-                spdlog::error("ws error: {}", msg->errorInfo.reason);
-            }
-            else if (msg->type == ix::WebSocketMessageType::Message)
-            {
-                try {
-                    handle_message(json::parse(msg->str), dump_json);
-                } catch (const std::exception& e) {
-                    spdlog::error("parse error: {}", e.what());
+                if (msg->type == ix::WebSocketMessageType::Open)
+                {
+                    spdlog::info("ws opened");
+                    ws.send(sub_json);
+                }
+                else if (msg->type == ix::WebSocketMessageType::Close)
+                {
+                    spdlog::info("ws closed");
+                }
+                else if (msg->type == ix::WebSocketMessageType::Error)
+                {
+                    spdlog::error("ws error: {}", msg->errorInfo.reason);
+                }
+                else if (msg->type == ix::WebSocketMessageType::Message)
+                {
+                    try {
+                        handle_message(json::parse(msg->str), dump_json);
+                    } catch (const std::exception& e) {
+                        spdlog::error("parse error: {}", e.what());
+                    }
                 }
             }
-        }
-    );
+        );
 
-    ws.start();
-    std::this_thread::sleep_for(std::chrono::seconds{15});
-    ws.stop();
+        ws.start();
+        std::this_thread::sleep_for(std::chrono::seconds{15});
+        ws.stop();
 
-    return 0;
+        return 0;
+    } catch (const std::exception& e) {
+        std::cerr << "fatal: " << e.what() << '\n';
+        return EXIT_FAILURE;
+    } catch (...) {
+        std::cerr << "fatal: unknown exception\n";
+        return EXIT_FAILURE;
+    }
 }

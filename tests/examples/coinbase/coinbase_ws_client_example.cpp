@@ -29,6 +29,9 @@
 #include <spdlog/spdlog.h>
 
 #include <chrono>
+#include <cstdlib>
+#include <exception>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <thread>
@@ -133,28 +136,36 @@ void run_multi(const std::string& product) {
 } // namespace
 
 int main(int argc, char** argv) {
-    CLI::App app{"Coinbase Exchange WebSocket feed demo"};
-    app.require_subcommand(1);
+    try {
+        CLI::App app{"Coinbase Exchange WebSocket feed demo"};
+        app.require_subcommand(1);
 
-    std::string product;
-    auto add = [&](const char* name, const char* desc) {
-        auto* sub = app.add_subcommand(name, desc);
-        sub->add_option("product_id", product, "e.g. BTC-USD")->required();
-        return sub;
-    };
-    auto* ticker    = add("ticker", "Ticker channel");
-    auto* level2    = add("level2", "Level2 book (snapshot + updates)");
-    auto* matches   = add("matches", "Match (trade) channel");
-    auto* heartbeat = add("heartbeat", "Heartbeat channel");
-    auto* multi     = add("multi", "ticker + matches on one socket");
+        std::string product;
+        auto add = [&](const char* name, const char* desc) {
+            auto* sub = app.add_subcommand(name, desc);
+            sub->add_option("product_id", product, "e.g. BTC-USD")->required();
+            return sub;
+        };
+        auto* ticker    = add("ticker", "Ticker channel");
+        auto* level2    = add("level2", "Level2 book (snapshot + updates)");
+        auto* matches   = add("matches", "Match (trade) channel");
+        auto* heartbeat = add("heartbeat", "Heartbeat channel");
+        auto* multi     = add("multi", "ticker + matches on one socket");
 
-    CLI11_PARSE(app, argc, argv);
+        CLI11_PARSE(app, argc, argv);
 
-    if (*ticker)         run_ticker(product);
-    else if (*level2)    run_level2(product);
-    else if (*matches)   run_matches(product);
-    else if (*heartbeat) run_heartbeat(product);
-    else if (*multi)     run_multi(product);
+        if (*ticker)         run_ticker(product);
+        else if (*level2)    run_level2(product);
+        else if (*matches)   run_matches(product);
+        else if (*heartbeat) run_heartbeat(product);
+        else if (*multi)     run_multi(product);
 
-    return 0;
+        return 0;
+    } catch (const std::exception& e) {
+        std::cerr << "fatal: " << e.what() << '\n';
+        return EXIT_FAILURE;
+    } catch (...) {
+        std::cerr << "fatal: unknown exception\n";
+        return EXIT_FAILURE;
+    }
 }

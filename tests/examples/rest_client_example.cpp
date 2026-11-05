@@ -35,6 +35,9 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cstdlib>
+#include <exception>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <vector>
@@ -285,115 +288,127 @@ static void run_trades(KrakenRestClient& client,
 // ─────────────────────────────────────────────────────────────────────────────
 
 int main(int argc, char* argv[]) {
-    CLI::App app{"Kraken REST client demo — all public endpoints"};
-    app.require_subcommand(1);
-
-    // ── time ──────────────────────────────────────────────────────────────────
-    auto* time_cmd = app.add_subcommand("time", "Server time (GET /0/public/Time)");
-
-    // ── status ────────────────────────────────────────────────────────────────
-    auto* status_cmd = app.add_subcommand("status", "System status (GET /0/public/SystemStatus)");
-
-    // ── assets ────────────────────────────────────────────────────────────────
-    auto* assets_cmd = app.add_subcommand("assets",
-        "Asset info; omit --assets for all (GET /0/public/Assets)");
-    std::vector<std::string> assets_filter;
-    assets_cmd->add_option("--assets", assets_filter,
-        "Comma-separated asset filter, e.g. XBT,ETH")
-        ->delimiter(',');
-
-    // ── pairs ─────────────────────────────────────────────────────────────────
-    auto* pairs_cmd = app.add_subcommand("pairs",
-        "Trading pair info; omit --pairs for all (GET /0/public/AssetPairs)");
-    std::vector<std::string> pairs_filter;
-    pairs_cmd->add_option("--pairs", pairs_filter,
-        "Comma-separated pair filter, e.g. XBTUSD,ETHUSD")
-        ->delimiter(',');
-
-    // ── ticker ────────────────────────────────────────────────────────────────
-    auto* ticker_cmd = app.add_subcommand("ticker",
-        "Level 1 price data; omit --pairs for all (GET /0/public/Ticker)");
-    std::vector<std::string> ticker_pairs;
-    ticker_cmd->add_option("--pairs", ticker_pairs,
-        "Comma-separated pair filter, e.g. XXBTZUSD,XETHZUSD")
-        ->delimiter(',');
-
-    // ── ohlc ──────────────────────────────────────────────────────────────────
-    auto* ohlc_cmd = app.add_subcommand("ohlc",
-        "OHLC candles; interval in minutes: 1|5|15|30|60|240|1440|10080|21600 "
-        "(GET /0/public/OHLC)");
-    std::string ohlc_pair;
-    std::optional<int32_t> ohlc_interval;
-    std::optional<int64_t> ohlc_since;
-    ohlc_cmd->add_option("pair", ohlc_pair, "Trading pair (e.g. XXBTZUSD)")->required();
-    ohlc_cmd->add_option("--interval", ohlc_interval,
-        "Candle interval in minutes: 1|5|15|30|60|240|1440|10080|21600");
-    ohlc_cmd->add_option("--since", ohlc_since,
-        "Return committed OHLC data since given ID");
-
-    // ── depth ─────────────────────────────────────────────────────────────────
-    auto* depth_cmd = app.add_subcommand("depth",
-        "Order book; count = 1..500 (GET /0/public/Depth)");
-    std::string depth_pair;
-    std::optional<int32_t> depth_count;
-    depth_cmd->add_option("pair", depth_pair, "Trading pair (e.g. XXBTZUSD)")->required();
-    depth_cmd->add_option("--count", depth_count,
-        "Number of asks/bids to return: 1..500");
-
-    // ── trades ────────────────────────────────────────────────────────────────
-    auto* trades_cmd = app.add_subcommand("trades",
-        "Recent public trades (GET /0/public/Trades)");
-    std::string trades_pair;
-    std::optional<int64_t> trades_since;
-    std::optional<int32_t> trades_count;
-    trades_cmd->add_option("pair", trades_pair, "Trading pair (e.g. XXBTZUSD)")->required();
-    trades_cmd->add_option("--since", trades_since,
-        "Return trade data since given timestamp");
-    trades_cmd->add_option("--count", trades_count,
-        "Maximum number of trades to return");
-
-    CLI11_PARSE(app, argc, argv);
-
-    curl_global_init(CURL_GLOBAL_ALL);
-    KrakenRestClient client;
-
+    bool curl_ready = false;  // true once curl_global_init has run: the handlers below then clean up as the normal path does
     try {
-        if (time_cmd->parsed()) {
-            run_time(client);
+        CLI::App app{"Kraken REST client demo — all public endpoints"};
+        app.require_subcommand(1);
 
-        } else if (status_cmd->parsed()) {
-            run_status(client);
+        // ── time ──────────────────────────────────────────────────────────────────
+        auto* time_cmd = app.add_subcommand("time", "Server time (GET /0/public/Time)");
 
-        } else if (assets_cmd->parsed()) {
-            std::optional<std::vector<std::string>> filter =
-                assets_filter.empty() ? std::nullopt : std::make_optional(assets_filter);
-            run_assets(client, filter);
+        // ── status ────────────────────────────────────────────────────────────────
+        auto* status_cmd = app.add_subcommand("status", "System status (GET /0/public/SystemStatus)");
 
-        } else if (pairs_cmd->parsed()) {
-            std::optional<std::vector<std::string>> filter =
-                pairs_filter.empty() ? std::nullopt : std::make_optional(pairs_filter);
-            run_pairs(client, filter);
+        // ── assets ────────────────────────────────────────────────────────────────
+        auto* assets_cmd = app.add_subcommand("assets",
+            "Asset info; omit --assets for all (GET /0/public/Assets)");
+        std::vector<std::string> assets_filter;
+        assets_cmd->add_option("--assets", assets_filter,
+            "Comma-separated asset filter, e.g. XBT,ETH")
+            ->delimiter(',');
 
-        } else if (ticker_cmd->parsed()) {
-            std::optional<std::vector<std::string>> filter =
-                ticker_pairs.empty() ? std::nullopt : std::make_optional(ticker_pairs);
-            run_ticker(client, filter);
+        // ── pairs ─────────────────────────────────────────────────────────────────
+        auto* pairs_cmd = app.add_subcommand("pairs",
+            "Trading pair info; omit --pairs for all (GET /0/public/AssetPairs)");
+        std::vector<std::string> pairs_filter;
+        pairs_cmd->add_option("--pairs", pairs_filter,
+            "Comma-separated pair filter, e.g. XBTUSD,ETHUSD")
+            ->delimiter(',');
 
-        } else if (ohlc_cmd->parsed()) {
-            run_ohlc(client, ohlc_pair, ohlc_interval, ohlc_since);
+        // ── ticker ────────────────────────────────────────────────────────────────
+        auto* ticker_cmd = app.add_subcommand("ticker",
+            "Level 1 price data; omit --pairs for all (GET /0/public/Ticker)");
+        std::vector<std::string> ticker_pairs;
+        ticker_cmd->add_option("--pairs", ticker_pairs,
+            "Comma-separated pair filter, e.g. XXBTZUSD,XETHZUSD")
+            ->delimiter(',');
 
-        } else if (depth_cmd->parsed()) {
-            run_depth(client, depth_pair, depth_count);
+        // ── ohlc ──────────────────────────────────────────────────────────────────
+        auto* ohlc_cmd = app.add_subcommand("ohlc",
+            "OHLC candles; interval in minutes: 1|5|15|30|60|240|1440|10080|21600 "
+            "(GET /0/public/OHLC)");
+        std::string ohlc_pair;
+        std::optional<int32_t> ohlc_interval;
+        std::optional<int64_t> ohlc_since;
+        ohlc_cmd->add_option("pair", ohlc_pair, "Trading pair (e.g. XXBTZUSD)")->required();
+        ohlc_cmd->add_option("--interval", ohlc_interval,
+            "Candle interval in minutes: 1|5|15|30|60|240|1440|10080|21600");
+        ohlc_cmd->add_option("--since", ohlc_since,
+            "Return committed OHLC data since given ID");
 
-        } else if (trades_cmd->parsed()) {
-            run_trades(client, trades_pair, trades_since, trades_count);
+        // ── depth ─────────────────────────────────────────────────────────────────
+        auto* depth_cmd = app.add_subcommand("depth",
+            "Order book; count = 1..500 (GET /0/public/Depth)");
+        std::string depth_pair;
+        std::optional<int32_t> depth_count;
+        depth_cmd->add_option("pair", depth_pair, "Trading pair (e.g. XXBTZUSD)")->required();
+        depth_cmd->add_option("--count", depth_count,
+            "Number of asks/bids to return: 1..500");
+
+        // ── trades ────────────────────────────────────────────────────────────────
+        auto* trades_cmd = app.add_subcommand("trades",
+            "Recent public trades (GET /0/public/Trades)");
+        std::string trades_pair;
+        std::optional<int64_t> trades_since;
+        std::optional<int32_t> trades_count;
+        trades_cmd->add_option("pair", trades_pair, "Trading pair (e.g. XXBTZUSD)")->required();
+        trades_cmd->add_option("--since", trades_since,
+            "Return trade data since given timestamp");
+        trades_cmd->add_option("--count", trades_count,
+            "Maximum number of trades to return");
+
+        CLI11_PARSE(app, argc, argv);
+
+        curl_global_init(CURL_GLOBAL_ALL);
+        curl_ready = true;
+        KrakenRestClient client;
+
+        try {
+            if (time_cmd->parsed()) {
+                run_time(client);
+
+            } else if (status_cmd->parsed()) {
+                run_status(client);
+
+            } else if (assets_cmd->parsed()) {
+                std::optional<std::vector<std::string>> filter =
+                    assets_filter.empty() ? std::nullopt : std::make_optional(assets_filter);
+                run_assets(client, filter);
+
+            } else if (pairs_cmd->parsed()) {
+                std::optional<std::vector<std::string>> filter =
+                    pairs_filter.empty() ? std::nullopt : std::make_optional(pairs_filter);
+                run_pairs(client, filter);
+
+            } else if (ticker_cmd->parsed()) {
+                std::optional<std::vector<std::string>> filter =
+                    ticker_pairs.empty() ? std::nullopt : std::make_optional(ticker_pairs);
+                run_ticker(client, filter);
+
+            } else if (ohlc_cmd->parsed()) {
+                run_ohlc(client, ohlc_pair, ohlc_interval, ohlc_since);
+
+            } else if (depth_cmd->parsed()) {
+                run_depth(client, depth_pair, depth_count);
+
+            } else if (trades_cmd->parsed()) {
+                run_trades(client, trades_pair, trades_since, trades_count);
+            }
+        } catch (const std::exception& e) {
+            spdlog::error("Fatal: {}", e.what());
+            curl_global_cleanup();
+            return 1;
         }
-    } catch (const std::exception& e) {
-        spdlog::error("Fatal: {}", e.what());
-        curl_global_cleanup();
-        return 1;
-    }
 
-    curl_global_cleanup();
-    return 0;
+        curl_global_cleanup();
+        return 0;
+    } catch (const std::exception& e) {
+        std::cerr << "fatal: " << e.what() << '\n';
+        if (curl_ready) curl_global_cleanup();
+        return EXIT_FAILURE;
+    } catch (...) {
+        std::cerr << "fatal: unknown exception\n";
+        if (curl_ready) curl_global_cleanup();
+        return EXIT_FAILURE;
+    }
 }

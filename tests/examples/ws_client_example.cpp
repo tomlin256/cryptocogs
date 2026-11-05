@@ -31,6 +31,8 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <exception>
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
@@ -136,7 +138,7 @@ static void run_book(const std::string& symbol, std::optional<int> depth) {
 
     exchange::kraken::ws::BookSubscribeRequest sub_req;
     sub_req.symbols = std::vector<std::string>{symbol};
-    if (depth) sub_req.depth = *depth;
+    if (depth) sub_req.depth = depth;
 
     auto [ack, handle] = session->subscribe(
         sub_req,
@@ -216,7 +218,7 @@ static void run_ohlc(const std::string& symbol, std::optional<int> interval) {
 
     exchange::kraken::ws::OHLCSubscribeRequest sub_req;
     sub_req.symbols = std::vector<std::string>{symbol};
-    if (interval) sub_req.interval = *interval;
+    if (interval) sub_req.interval = interval;
 
     auto [ack, handle] = session->subscribe(
         sub_req,
@@ -287,64 +289,72 @@ static void run_instrument() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 int main(int argc, char* argv[]) {
-    CLI::App app{"KrakenWsClient subscription demo — all public WebSocket channels"};
-    app.require_subcommand(1);
-
-    // ── ticker ────────────────────────────────────────────────────────────────
-    auto* ticker_cmd = app.add_subcommand("ticker",
-        "Level 1 best bid/ask, last price, 24h stats");
-    std::string ticker_symbol;
-    ticker_cmd->add_option("symbol", ticker_symbol, "Trading symbol (e.g. BTC/USD)")
-        ->required();
-
-    // ── book ──────────────────────────────────────────────────────────────────
-    auto* book_cmd = app.add_subcommand("book",
-        "Level 2 order book; depth = 10|25|100|500|1000 (default 10)");
-    std::string book_symbol;
-    std::optional<int> book_depth;
-    book_cmd->add_option("symbol", book_symbol, "Trading symbol (e.g. BTC/USD)")
-        ->required();
-    book_cmd->add_option("--depth", book_depth,
-        "Order book depth: 10|25|100|500|1000");
-
-    // ── trade ─────────────────────────────────────────────────────────────────
-    auto* trade_cmd = app.add_subcommand("trade", "Public trades feed");
-    std::string trade_symbol;
-    trade_cmd->add_option("symbol", trade_symbol, "Trading symbol (e.g. ETH/USD)")
-        ->required();
-
-    // ── ohlc ──────────────────────────────────────────────────────────────────
-    auto* ohlc_cmd = app.add_subcommand("ohlc",
-        "OHLC candles; interval in minutes: 1|5|15|30|60|240|1440|10080|21600 (default 1)");
-    std::string ohlc_symbol;
-    std::optional<int> ohlc_interval;
-    ohlc_cmd->add_option("symbol", ohlc_symbol, "Trading symbol (e.g. BTC/USD)")
-        ->required();
-    ohlc_cmd->add_option("--interval", ohlc_interval,
-        "Candle interval in minutes: 1|5|15|30|60|240|1440|10080|21600");
-
-    // ── instrument ────────────────────────────────────────────────────────────
-    app.add_subcommand("instrument",
-        "Static instrument/market info (no symbol required)");
-
-    CLI11_PARSE(app, argc, argv);
-
     try {
-        if (ticker_cmd->parsed()) {
-            run_ticker(ticker_symbol);
-        } else if (book_cmd->parsed()) {
-            run_book(book_symbol, book_depth);
-        } else if (trade_cmd->parsed()) {
-            run_trade(trade_symbol);
-        } else if (ohlc_cmd->parsed()) {
-            run_ohlc(ohlc_symbol, ohlc_interval);
-        } else {
-            run_instrument();
-        }
-    } catch (const std::exception& e) {
-        spdlog::error("Fatal: {}", e.what());
-        return 1;
-    }
+        CLI::App app{"KrakenWsClient subscription demo — all public WebSocket channels"};
+        app.require_subcommand(1);
 
-    return 0;
+        // ── ticker ────────────────────────────────────────────────────────────────
+        auto* ticker_cmd = app.add_subcommand("ticker",
+            "Level 1 best bid/ask, last price, 24h stats");
+        std::string ticker_symbol;
+        ticker_cmd->add_option("symbol", ticker_symbol, "Trading symbol (e.g. BTC/USD)")
+            ->required();
+
+        // ── book ──────────────────────────────────────────────────────────────────
+        auto* book_cmd = app.add_subcommand("book",
+            "Level 2 order book; depth = 10|25|100|500|1000 (default 10)");
+        std::string book_symbol;
+        std::optional<int> book_depth;
+        book_cmd->add_option("symbol", book_symbol, "Trading symbol (e.g. BTC/USD)")
+            ->required();
+        book_cmd->add_option("--depth", book_depth,
+            "Order book depth: 10|25|100|500|1000");
+
+        // ── trade ─────────────────────────────────────────────────────────────────
+        auto* trade_cmd = app.add_subcommand("trade", "Public trades feed");
+        std::string trade_symbol;
+        trade_cmd->add_option("symbol", trade_symbol, "Trading symbol (e.g. ETH/USD)")
+            ->required();
+
+        // ── ohlc ──────────────────────────────────────────────────────────────────
+        auto* ohlc_cmd = app.add_subcommand("ohlc",
+            "OHLC candles; interval in minutes: 1|5|15|30|60|240|1440|10080|21600 (default 1)");
+        std::string ohlc_symbol;
+        std::optional<int> ohlc_interval;
+        ohlc_cmd->add_option("symbol", ohlc_symbol, "Trading symbol (e.g. BTC/USD)")
+            ->required();
+        ohlc_cmd->add_option("--interval", ohlc_interval,
+            "Candle interval in minutes: 1|5|15|30|60|240|1440|10080|21600");
+
+        // ── instrument ────────────────────────────────────────────────────────────
+        app.add_subcommand("instrument",
+            "Static instrument/market info (no symbol required)");
+
+        CLI11_PARSE(app, argc, argv);
+
+        try {
+            if (ticker_cmd->parsed()) {
+                run_ticker(ticker_symbol);
+            } else if (book_cmd->parsed()) {
+                run_book(book_symbol, book_depth);
+            } else if (trade_cmd->parsed()) {
+                run_trade(trade_symbol);
+            } else if (ohlc_cmd->parsed()) {
+                run_ohlc(ohlc_symbol, ohlc_interval);
+            } else {
+                run_instrument();
+            }
+        } catch (const std::exception& e) {
+            spdlog::error("Fatal: {}", e.what());
+            return 1;
+        }
+
+        return 0;
+    } catch (const std::exception& e) {
+        std::cerr << "fatal: " << e.what() << '\n';
+        return EXIT_FAILURE;
+    } catch (...) {
+        std::cerr << "fatal: unknown exception\n";
+        return EXIT_FAILURE;
+    }
 }

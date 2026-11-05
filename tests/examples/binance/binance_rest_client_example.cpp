@@ -32,6 +32,9 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cstdlib>
+#include <exception>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <vector>
@@ -255,106 +258,118 @@ static void run_trades(BinanceRestClient& client,
 // ─────────────────────────────────────────────────────────────────────────────
 
 int main(int argc, char* argv[]) {
-    CLI::App app{"Binance REST client demo — all public market-data endpoints"};
-    app.require_subcommand(1);
-
-    // ── ping ──────────────────────────────────────────────────────────────────
-    auto* ping_cmd = app.add_subcommand("ping", "Connectivity check (GET /api/v3/ping)");
-
-    // ── time ──────────────────────────────────────────────────────────────────
-    auto* time_cmd = app.add_subcommand("time", "Server time (GET /api/v3/time)");
-
-    // ── exchangeinfo ──────────────────────────────────────────────────────────
-    auto* exchangeinfo_cmd = app.add_subcommand("exchangeinfo",
-        "Exchange trading rules and symbol info (GET /api/v3/exchangeInfo)");
-
-    // ── ticker ────────────────────────────────────────────────────────────────
-    auto* ticker_cmd = app.add_subcommand("ticker",
-        "Latest price; omit options for all symbols (GET /api/v3/ticker/price)");
-    std::string ticker_symbol;
-    std::vector<std::string> ticker_symbols;
-    auto* ticker_symbol_opt = ticker_cmd->add_option("--symbol", ticker_symbol,
-        "Single symbol, e.g. BTCUSDT");
-    ticker_cmd->add_option("--symbols", ticker_symbols,
-        "Comma-separated symbol list, e.g. BTCUSDT,ETHBTC")
-        ->delimiter(',')
-        ->excludes(ticker_symbol_opt);
-
-    // ── book ──────────────────────────────────────────────────────────────────
-    auto* book_cmd = app.add_subcommand("book",
-        "Order book (GET /api/v3/depth)");
-    std::string book_symbol;
-    std::optional<int> book_limit;
-    book_cmd->add_option("symbol", book_symbol, "Symbol (e.g. BTCUSDT)")->required();
-    book_cmd->add_option("--limit", book_limit,
-        "Number of price levels: 1..5000 (default 100)");
-
-    // ── klines ────────────────────────────────────────────────────────────────
-    auto* klines_cmd = app.add_subcommand("klines",
-        "Candlestick data (GET /api/v3/klines)");
-    std::string klines_symbol;
-    std::string klines_interval;
-    std::optional<int64_t> klines_start_time;
-    std::optional<int64_t> klines_end_time;
-    std::optional<int> klines_limit;
-    klines_cmd->add_option("symbol", klines_symbol, "Symbol (e.g. BTCUSDT)")->required();
-    klines_cmd->add_option("--interval", klines_interval,
-        "Kline interval: 1m|5m|15m|1h|4h|1d|1w|1M ...")->required();
-    klines_cmd->add_option("--start-time", klines_start_time,
-        "Start time (Unix ms)");
-    klines_cmd->add_option("--end-time", klines_end_time,
-        "End time (Unix ms)");
-    klines_cmd->add_option("--limit", klines_limit,
-        "Number of klines: 1..1000 (default 500)");
-
-    // ── trades ────────────────────────────────────────────────────────────────
-    auto* trades_cmd = app.add_subcommand("trades",
-        "Recent public trades (GET /api/v3/trades)");
-    std::string trades_symbol;
-    std::optional<int> trades_limit;
-    trades_cmd->add_option("symbol", trades_symbol, "Symbol (e.g. BTCUSDT)")->required();
-    trades_cmd->add_option("--limit", trades_limit,
-        "Number of trades: 1..1000 (default 500)");
-
-    CLI11_PARSE(app, argc, argv);
-
-    curl_global_init(CURL_GLOBAL_ALL);
-
+    bool curl_ready = false;  // true once curl_global_init has run: the handlers below then clean up as the normal path does
     try {
-        BinanceRestClient client{"https://api.binance.com"};
+        CLI::App app{"Binance REST client demo — all public market-data endpoints"};
+        app.require_subcommand(1);
 
-        if (ping_cmd->parsed()) {
-            run_ping(client);
+        // ── ping ──────────────────────────────────────────────────────────────────
+        auto* ping_cmd = app.add_subcommand("ping", "Connectivity check (GET /api/v3/ping)");
 
-        } else if (time_cmd->parsed()) {
-            run_time(client);
+        // ── time ──────────────────────────────────────────────────────────────────
+        auto* time_cmd = app.add_subcommand("time", "Server time (GET /api/v3/time)");
 
-        } else if (exchangeinfo_cmd->parsed()) {
-            run_exchangeinfo(client);
+        // ── exchangeinfo ──────────────────────────────────────────────────────────
+        auto* exchangeinfo_cmd = app.add_subcommand("exchangeinfo",
+            "Exchange trading rules and symbol info (GET /api/v3/exchangeInfo)");
 
-        } else if (ticker_cmd->parsed()) {
-            std::optional<std::string> symbol =
-                ticker_symbol.empty() ? std::nullopt : std::make_optional(ticker_symbol);
-            std::optional<std::vector<std::string>> symbols =
-                ticker_symbols.empty() ? std::nullopt : std::make_optional(ticker_symbols);
-            run_ticker(client, symbol, symbols);
+        // ── ticker ────────────────────────────────────────────────────────────────
+        auto* ticker_cmd = app.add_subcommand("ticker",
+            "Latest price; omit options for all symbols (GET /api/v3/ticker/price)");
+        std::string ticker_symbol;
+        std::vector<std::string> ticker_symbols;
+        auto* ticker_symbol_opt = ticker_cmd->add_option("--symbol", ticker_symbol,
+            "Single symbol, e.g. BTCUSDT");
+        ticker_cmd->add_option("--symbols", ticker_symbols,
+            "Comma-separated symbol list, e.g. BTCUSDT,ETHBTC")
+            ->delimiter(',')
+            ->excludes(ticker_symbol_opt);
 
-        } else if (book_cmd->parsed()) {
-            run_book(client, book_symbol, book_limit);
+        // ── book ──────────────────────────────────────────────────────────────────
+        auto* book_cmd = app.add_subcommand("book",
+            "Order book (GET /api/v3/depth)");
+        std::string book_symbol;
+        std::optional<int> book_limit;
+        book_cmd->add_option("symbol", book_symbol, "Symbol (e.g. BTCUSDT)")->required();
+        book_cmd->add_option("--limit", book_limit,
+            "Number of price levels: 1..5000 (default 100)");
 
-        } else if (klines_cmd->parsed()) {
-            run_klines(client, klines_symbol, klines_interval,
-                       klines_start_time, klines_end_time, klines_limit);
+        // ── klines ────────────────────────────────────────────────────────────────
+        auto* klines_cmd = app.add_subcommand("klines",
+            "Candlestick data (GET /api/v3/klines)");
+        std::string klines_symbol;
+        std::string klines_interval;
+        std::optional<int64_t> klines_start_time;
+        std::optional<int64_t> klines_end_time;
+        std::optional<int> klines_limit;
+        klines_cmd->add_option("symbol", klines_symbol, "Symbol (e.g. BTCUSDT)")->required();
+        klines_cmd->add_option("--interval", klines_interval,
+            "Kline interval: 1m|5m|15m|1h|4h|1d|1w|1M ...")->required();
+        klines_cmd->add_option("--start-time", klines_start_time,
+            "Start time (Unix ms)");
+        klines_cmd->add_option("--end-time", klines_end_time,
+            "End time (Unix ms)");
+        klines_cmd->add_option("--limit", klines_limit,
+            "Number of klines: 1..1000 (default 500)");
 
-        } else if (trades_cmd->parsed()) {
-            run_trades(client, trades_symbol, trades_limit);
+        // ── trades ────────────────────────────────────────────────────────────────
+        auto* trades_cmd = app.add_subcommand("trades",
+            "Recent public trades (GET /api/v3/trades)");
+        std::string trades_symbol;
+        std::optional<int> trades_limit;
+        trades_cmd->add_option("symbol", trades_symbol, "Symbol (e.g. BTCUSDT)")->required();
+        trades_cmd->add_option("--limit", trades_limit,
+            "Number of trades: 1..1000 (default 500)");
+
+        CLI11_PARSE(app, argc, argv);
+
+        curl_global_init(CURL_GLOBAL_ALL);
+        curl_ready = true;
+
+        try {
+            BinanceRestClient client{"https://api.binance.com"};
+
+            if (ping_cmd->parsed()) {
+                run_ping(client);
+
+            } else if (time_cmd->parsed()) {
+                run_time(client);
+
+            } else if (exchangeinfo_cmd->parsed()) {
+                run_exchangeinfo(client);
+
+            } else if (ticker_cmd->parsed()) {
+                std::optional<std::string> symbol =
+                    ticker_symbol.empty() ? std::nullopt : std::make_optional(ticker_symbol);
+                std::optional<std::vector<std::string>> symbols =
+                    ticker_symbols.empty() ? std::nullopt : std::make_optional(ticker_symbols);
+                run_ticker(client, symbol, symbols);
+
+            } else if (book_cmd->parsed()) {
+                run_book(client, book_symbol, book_limit);
+
+            } else if (klines_cmd->parsed()) {
+                run_klines(client, klines_symbol, klines_interval,
+                           klines_start_time, klines_end_time, klines_limit);
+
+            } else if (trades_cmd->parsed()) {
+                run_trades(client, trades_symbol, trades_limit);
+            }
+        } catch (const std::exception& e) {
+            spdlog::error("Fatal: {}", e.what());
+            curl_global_cleanup();
+            return 1;
         }
-    } catch (const std::exception& e) {
-        spdlog::error("Fatal: {}", e.what());
-        curl_global_cleanup();
-        return 1;
-    }
 
-    curl_global_cleanup();
-    return 0;
+        curl_global_cleanup();
+        return 0;
+    } catch (const std::exception& e) {
+        std::cerr << "fatal: " << e.what() << '\n';
+        if (curl_ready) curl_global_cleanup();
+        return EXIT_FAILURE;
+    } catch (...) {
+        std::cerr << "fatal: unknown exception\n";
+        if (curl_ready) curl_global_cleanup();
+        return EXIT_FAILURE;
+    }
 }

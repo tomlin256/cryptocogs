@@ -146,7 +146,7 @@ static std::string create_nonce()
 {
    std::ostringstream oss;
 
-   timeval tp;
+   timeval tp{};
    if (gettimeofday(&tp, NULL) != 0) {
       oss << "gettimeofday() failed: " << strerror(errno);
       throw std::runtime_error(oss.str());

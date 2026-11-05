@@ -33,6 +33,9 @@
 #include <spdlog/spdlog.h>
 
 #include <chrono>
+#include <cstdlib>
+#include <exception>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <string>
@@ -166,35 +169,43 @@ bool run_multi(const std::string& instrument) {
 } // namespace
 
 int main(int argc, char** argv) {
-    CLI::App app{"Crypto.com Exchange market WebSocket demo"};
-    app.require_subcommand(1);
+    try {
+        CLI::App app{"Crypto.com Exchange market WebSocket demo"};
+        app.require_subcommand(1);
 
-    std::string instrument;
-    std::string timeframe = "1m";
-    int         depth     = 10;
+        std::string instrument;
+        std::string timeframe = "1m";
+        int         depth     = 10;
 
-    auto add = [&](const char* name, const char* desc) {
-        auto* sub = app.add_subcommand(name, desc);
-        sub->add_option("instrument", instrument, "e.g. BTC_USD")->required();
-        sub->add_option("--seconds", stream_seconds, "Stream duration (default 12)");
-        return sub;
-    };
-    auto* ticker = add("ticker", "Ticker channel");
-    auto* trade  = add("trade", "Public trade channel");
-    auto* book   = add("book", "Order book channel");
-    book->add_option("--depth", depth, "Levels per side (default 10)");
-    auto* candle = add("candlestick", "Candlestick channel");
-    candle->add_option("--timeframe", timeframe, "e.g. 1m/5m/1h (default 1m)");
-    auto* multi  = add("multi", "ticker + trade on one socket");
+        auto add = [&](const char* name, const char* desc) {
+            auto* sub = app.add_subcommand(name, desc);
+            sub->add_option("instrument", instrument, "e.g. BTC_USD")->required();
+            sub->add_option("--seconds", stream_seconds, "Stream duration (default 12)");
+            return sub;
+        };
+        auto* ticker = add("ticker", "Ticker channel");
+        auto* trade  = add("trade", "Public trade channel");
+        auto* book   = add("book", "Order book channel");
+        book->add_option("--depth", depth, "Levels per side (default 10)");
+        auto* candle = add("candlestick", "Candlestick channel");
+        candle->add_option("--timeframe", timeframe, "e.g. 1m/5m/1h (default 1m)");
+        auto* multi  = add("multi", "ticker + trade on one socket");
 
-    CLI11_PARSE(app, argc, argv);
+        CLI11_PARSE(app, argc, argv);
 
-    bool ok = false;
-    if (*ticker)        ok = run_ticker(instrument);
-    else if (*trade)    ok = run_trade(instrument);
-    else if (*book)     ok = run_book(instrument, depth);
-    else if (*candle)   ok = run_candlestick(instrument, timeframe);
-    else if (*multi)    ok = run_multi(instrument);
+        bool ok = false;
+        if (*ticker)        ok = run_ticker(instrument);
+        else if (*trade)    ok = run_trade(instrument);
+        else if (*book)     ok = run_book(instrument, depth);
+        else if (*candle)   ok = run_candlestick(instrument, timeframe);
+        else if (*multi)    ok = run_multi(instrument);
 
-    return ok ? 0 : 1;
+        return ok ? 0 : 1;
+    } catch (const std::exception& e) {
+        std::cerr << "fatal: " << e.what() << '\n';
+        return EXIT_FAILURE;
+    } catch (...) {
+        std::cerr << "fatal: unknown exception\n";
+        return EXIT_FAILURE;
+    }
 }
