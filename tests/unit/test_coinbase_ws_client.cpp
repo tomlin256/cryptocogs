@@ -13,6 +13,7 @@
 // error routing, malformed-frame handling, and idempotent cancel().
 
 #include "exchange/coinbase/ws_streams.hpp"
+#include "assert_has_value.hpp"
 #include "mock_ws_connection.hpp"
 #include "coinbase_ws_example_json.hpp"
 
@@ -21,6 +22,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 
 using namespace exchange::coinbase::ws;
 namespace wf = coinbase_ws_fixtures;
@@ -50,7 +52,7 @@ TEST(CoinbaseWsClient, PreOpenSubscribeIsQueuedThenFlushed) {
     auto conn   = std::make_shared<MockWsConnection>();
     auto client = make_coinbase_stream_client(conn);
 
-    auto h = client->subscribe_ticker({"BTC-USD"}, [](CoinbaseTickerEvent) {});
+    auto h = client->subscribe_ticker({"BTC-USD"}, [](const CoinbaseTickerEvent&) {});
     EXPECT_TRUE(conn->sent().empty());  // queued until open
     EXPECT_TRUE(h.is_active());
 
@@ -70,11 +72,11 @@ TEST(CoinbaseWsClient, TickerFrameDispatchedToTypedCallback) {
     auto client = make_coinbase_stream_client(conn);
 
     std::optional<CoinbaseTickerEvent> got;
-    client->subscribe_ticker({"BTC-USD"}, [&](CoinbaseTickerEvent e) { got = e; });
+    client->subscribe_ticker({"BTC-USD"}, [&](CoinbaseTickerEvent e) { got = std::move(e); });
     conn->fire_open();
     conn->inject_message(wf::TICKER_JSON);
 
-    ASSERT_TRUE(got.has_value());
+    ASSERT_HAS_VALUE(got);
     EXPECT_EQ(got->product_id, "BTC-USD");
     EXPECT_EQ(got->trade_id, 1040406588);
     EXPECT_DOUBLE_EQ(got->price, 63212.97);
@@ -90,18 +92,18 @@ TEST(CoinbaseWsClient, Level2SnapshotAndUpdateRouteToTheirCallbacks) {
     std::optional<CoinbaseL2Snapshot> snap;
     std::optional<CoinbaseL2Update>   upd;
     client->subscribe_level2({"BTC-USD"},
-                             [&](CoinbaseL2Snapshot s) { snap = s; },
-                             [&](CoinbaseL2Update u)   { upd  = u; });
+                             [&](CoinbaseL2Snapshot s) { snap = std::move(s); },
+                             [&](CoinbaseL2Update u)   { upd  = std::move(u); });
     conn->fire_open();
 
     conn->inject_message(wf::SNAPSHOT_JSON);
-    ASSERT_TRUE(snap.has_value());
+    ASSERT_HAS_VALUE(snap);
     ASSERT_EQ(snap->bids.size(), 2u);
     EXPECT_DOUBLE_EQ(snap->bids[0].price, 63210.11);
     EXPECT_DOUBLE_EQ(snap->asks[1].size, 2.1);
 
     conn->inject_message(wf::L2UPDATE_JSON);
-    ASSERT_TRUE(upd.has_value());
+    ASSERT_HAS_VALUE(upd);
     ASSERT_EQ(upd->changes.size(), 2u);
     EXPECT_EQ(upd->changes[0].side, "buy");
     EXPECT_DOUBLE_EQ(upd->changes[0].price, 63210.11);
@@ -113,7 +115,8 @@ TEST(CoinbaseWsClient, Level2BatchSubscribeFrameUsesLevel2BatchChannel) {
     auto client = make_coinbase_stream_client(conn);
 
     client->subscribe_level2_batch({"BTC-USD", "ETH-USD"},
-                                   [](CoinbaseL2Snapshot) {}, [](CoinbaseL2Update) {});
+                                   [](const CoinbaseL2Snapshot&) {},
+                                   [](const CoinbaseL2Update&) {});
     conn->fire_open();
 
     ASSERT_EQ(conn->sent().size(), 1u);
@@ -130,18 +133,18 @@ TEST(CoinbaseWsClient, Level2BatchSnapshotAndUpdateRouteToTheirCallbacks) {
     std::optional<CoinbaseL2Snapshot> snap;
     std::optional<CoinbaseL2Update>   upd;
     client->subscribe_level2_batch({"BTC-USD"},
-                                   [&](CoinbaseL2Snapshot s) { snap = s; },
-                                   [&](CoinbaseL2Update u)   { upd  = u; });
+                                   [&](CoinbaseL2Snapshot s) { snap = std::move(s); },
+                                   [&](CoinbaseL2Update u)   { upd  = std::move(u); });
     conn->fire_open();
 
     conn->inject_message(wf::SNAPSHOT_JSON);
-    ASSERT_TRUE(snap.has_value());
+    ASSERT_HAS_VALUE(snap);
     ASSERT_EQ(snap->bids.size(), 2u);
     EXPECT_DOUBLE_EQ(snap->bids[0].price, 63210.11);
     EXPECT_DOUBLE_EQ(snap->asks[1].size, 2.1);
 
     conn->inject_message(wf::L2UPDATE_JSON);
-    ASSERT_TRUE(upd.has_value());
+    ASSERT_HAS_VALUE(upd);
     ASSERT_EQ(upd->changes.size(), 2u);
     EXPECT_EQ(upd->changes[0].side, "buy");
     EXPECT_DOUBLE_EQ(upd->changes[0].price, 63210.11);
@@ -153,11 +156,11 @@ TEST(CoinbaseWsClient, MatchFrameDispatched) {
     auto client = make_coinbase_stream_client(conn);
 
     std::optional<CoinbaseMatchEvent> got;
-    client->subscribe_matches({"BTC-USD"}, [&](CoinbaseMatchEvent e) { got = e; });
+    client->subscribe_matches({"BTC-USD"}, [&](CoinbaseMatchEvent e) { got = std::move(e); });
     conn->fire_open();
     conn->inject_message(wf::MATCH_JSON);
 
-    ASSERT_TRUE(got.has_value());
+    ASSERT_HAS_VALUE(got);
     EXPECT_EQ(got->trade_id, 1040406589);
     EXPECT_DOUBLE_EQ(got->price, 63212.98);
     EXPECT_EQ(got->side, "sell");
@@ -169,11 +172,11 @@ TEST(CoinbaseWsClient, HeartbeatFrameDispatched) {
     auto client = make_coinbase_stream_client(conn);
 
     std::optional<CoinbaseHeartbeatEvent> got;
-    client->subscribe_heartbeat({"BTC-USD"}, [&](CoinbaseHeartbeatEvent e) { got = e; });
+    client->subscribe_heartbeat({"BTC-USD"}, [&](CoinbaseHeartbeatEvent e) { got = std::move(e); });
     conn->fire_open();
     conn->inject_message(wf::HEARTBEAT_JSON);
 
-    ASSERT_TRUE(got.has_value());
+    ASSERT_HAS_VALUE(got);
     EXPECT_EQ(got->sequence, 7100000003);
     EXPECT_EQ(got->last_trade_id, 1040406590);
     EXPECT_EQ(got->product_id, "BTC-USD");
@@ -190,7 +193,7 @@ TEST(CoinbaseWsClient, SubscriptionsConfirmationObserved) {
     conn->fire_open();
     conn->inject_message(wf::SUBSCRIPTIONS_JSON);
 
-    ASSERT_TRUE(captured.has_value());
+    ASSERT_HAS_VALUE(captured);
     EXPECT_EQ(captured->at("type"), "subscriptions");
 }
 
@@ -204,7 +207,7 @@ TEST(CoinbaseWsClient, ErrorFrameRoutedToCallbackAndErrorHandler) {
     conn->fire_open();
     conn->inject_message(wf::ERROR_JSON);
 
-    ASSERT_TRUE(err.has_value());
+    ASSERT_HAS_VALUE(err);
     EXPECT_EQ(err->message, "Failed to subscribe");
     EXPECT_EQ(handler->conn_errors, 1);
     EXPECT_EQ(handler->last_conn_msg, "Failed to subscribe");
@@ -228,7 +231,7 @@ TEST(CoinbaseWsClient, UserChannelSubscribeFrameIsSigned) {
     auto client = make_coinbase_stream_client(conn);
     const auto creds = test_creds();
 
-    client->subscribe_user(creds, {"BTC-USD"}, [](CoinbaseLifecycleEvent) {});
+    client->subscribe_user(creds, {"BTC-USD"}, [](const CoinbaseLifecycleEvent&) {});
     conn->fire_open();
 
     ASSERT_EQ(conn->sent().size(), 1u);
@@ -251,23 +254,23 @@ TEST(CoinbaseWsClient, UserLifecycleEventsDispatched) {
 
     std::optional<CoinbaseLifecycleEvent> ev;
     client->subscribe_user(test_creds(), {"BTC-USD"},
-                           [&](CoinbaseLifecycleEvent e) { ev = e; });
+                           [&](CoinbaseLifecycleEvent e) { ev = std::move(e); });
     conn->fire_open();
 
     conn->inject_message(wf::USER_RECEIVED_JSON);
-    ASSERT_TRUE(ev.has_value());
+    ASSERT_HAS_VALUE(ev);
     EXPECT_EQ(ev->type, "received");
     EXPECT_EQ(ev->order_id, "d0c5a4f3-0000-4000-8000-000000000010");
     EXPECT_EQ(ev->side, "buy");
-    ASSERT_TRUE(ev->price.has_value());
+    ASSERT_HAS_VALUE(ev->price);
     EXPECT_DOUBLE_EQ(*ev->price, 30000.0);
 
     conn->inject_message(wf::USER_DONE_JSON);
-    ASSERT_TRUE(ev.has_value());
+    ASSERT_HAS_VALUE(ev);
     EXPECT_EQ(ev->type, "done");
-    ASSERT_TRUE(ev->reason.has_value());
+    ASSERT_HAS_VALUE(ev->reason);
     EXPECT_EQ(*ev->reason, "filled");
-    ASSERT_TRUE(ev->remaining_size.has_value());
+    ASSERT_HAS_VALUE(ev->remaining_size);
     EXPECT_DOUBLE_EQ(*ev->remaining_size, 0.0);
 }
 
@@ -278,7 +281,7 @@ TEST(CoinbaseWsClient, CancelRemovesCallbackSendsUnsubscribeAndIsIdempotent) {
     auto client = make_coinbase_stream_client(conn);
 
     int count = 0;
-    auto h = client->subscribe_ticker({"BTC-USD"}, [&](CoinbaseTickerEvent) { ++count; });
+    auto h = client->subscribe_ticker({"BTC-USD"}, [&](const CoinbaseTickerEvent&) { ++count; });
     conn->fire_open();                       // flushes the subscribe (sent[0])
     conn->inject_message(wf::TICKER_JSON);
     EXPECT_EQ(count, 1);

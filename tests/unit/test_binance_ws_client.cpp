@@ -15,6 +15,7 @@
 
 #include "exchange/binance/ws_api.hpp"
 #include "exchange/binance/ws_streams.hpp"
+#include "assert_has_value.hpp"
 #include "binance_ws_api_example_json.hpp"
 #include "binance_ws_stream_example_json.hpp"
 #include "mock_ws_connection.hpp"
@@ -66,7 +67,7 @@ std::string wrap(const std::string& stream, const char* bare_payload) {
 TEST(BinanceStreamDescriptor, SuccessAck_IsMethodResponse) {
     auto d = binance_stream_frame_descriptor(json::parse(fixtures::kSubscribeAckJson));
     EXPECT_EQ(d.kind, FrameKind::MethodResponse);
-    ASSERT_TRUE(d.correlation_id.has_value());
+    ASSERT_HAS_VALUE(d.correlation_id);
     EXPECT_EQ(*d.correlation_id, "1");
     EXPECT_TRUE(d.route_key.empty());
 }
@@ -74,7 +75,7 @@ TEST(BinanceStreamDescriptor, SuccessAck_IsMethodResponse) {
 TEST(BinanceStreamDescriptor, ErrorAck_IsMethodResponse) {
     auto d = binance_stream_frame_descriptor(json::parse(fixtures::kErrorAckJson));
     EXPECT_EQ(d.kind, FrameKind::MethodResponse);
-    ASSERT_TRUE(d.correlation_id.has_value());
+    ASSERT_HAS_VALUE(d.correlation_id);
     EXPECT_EQ(*d.correlation_id, "7");
 }
 
@@ -113,7 +114,7 @@ TEST(BinanceStreamAck, SuccessAck_FromJson) {
 TEST(BinanceStreamAck, ErrorAck_FromJson) {
     auto a = BinanceStreamAck::from_json(json::parse(fixtures::kErrorAckJson));
     EXPECT_FALSE(a.success);
-    ASSERT_TRUE(a.error.has_value());
+    ASSERT_HAS_VALUE(a.error);
     EXPECT_EQ(*a.error, "Invalid request: subscription id not provided");
     EXPECT_EQ(a.id, 7);
 }
@@ -321,7 +322,7 @@ TEST(BinanceStreamLifecycle, Subscribe_Lifecycle) {
     conn->inject_message(make_ack(id));
     auto [ack, handle] = fut.get();
     EXPECT_TRUE(ack.ok);
-    ASSERT_TRUE(ack.result.has_value());
+    ASSERT_HAS_VALUE(ack.result);
     EXPECT_EQ(ack.result->id, id);
     EXPECT_TRUE(handle.is_active());
 
@@ -366,7 +367,7 @@ TEST(BinanceStreamLifecycle, Subscribe_ErrorAck_NoCallbackInstalled) {
 
     auto [ack, handle] = fut.get();
     EXPECT_FALSE(ack.ok);
-    ASSERT_TRUE(ack.error.has_value());
+    ASSERT_HAS_VALUE(ack.error);
     EXPECT_EQ(*ack.error, "Invalid request");
     EXPECT_FALSE(handle.is_active());
 
@@ -457,7 +458,7 @@ TEST(BinanceWsApiDescriptor, SuccessReply_IsMethodResponse) {
     auto d = binance_ws_api_frame_descriptor(
         json::parse(fixtures::kWsApiOrderPlaceSuccessJson));
     EXPECT_EQ(d.kind, FrameKind::MethodResponse);
-    ASSERT_TRUE(d.correlation_id.has_value());
+    ASSERT_HAS_VALUE(d.correlation_id);
     EXPECT_EQ(*d.correlation_id, "e2a85d9f-07a5-4f94-8d5f-789dc3deb097");
     EXPECT_TRUE(d.route_key.empty());
 }
@@ -466,7 +467,7 @@ TEST(BinanceWsApiDescriptor, ErrorReply_IsMethodResponse) {
     auto d = binance_ws_api_frame_descriptor(
         json::parse(fixtures::kWsApiOrderPlaceErrorJson));
     EXPECT_EQ(d.kind, FrameKind::MethodResponse);
-    ASSERT_TRUE(d.correlation_id.has_value());
+    ASSERT_HAS_VALUE(d.correlation_id);
     EXPECT_EQ(*d.correlation_id, "e2a85d9f-07a5-4f94-8d5f-789dc3deb097");
 }
 
@@ -476,7 +477,7 @@ TEST(BinanceWsApiDescriptor, IntId_StringifiesLikePendingKey) {
     auto d = binance_ws_api_frame_descriptor(
         json::parse(R"({"id":7,"status":200,"result":{}})"));
     EXPECT_EQ(d.kind, FrameKind::MethodResponse);
-    ASSERT_TRUE(d.correlation_id.has_value());
+    ASSERT_HAS_VALUE(d.correlation_id);
     EXPECT_EQ(*d.correlation_id, "7");
 }
 
@@ -500,7 +501,7 @@ TEST(BinanceWsApiEnvelope, Pong_Success) {
     auto m = BinanceWsPongMessage::from_json(json::parse(fixtures::kWsApiPongJson));
     EXPECT_TRUE(m.success);
     EXPECT_EQ(m.status, 200);
-    ASSERT_TRUE(m.id.has_value());
+    ASSERT_HAS_VALUE(m.id);
     EXPECT_EQ(*m.id, 1);
     EXPECT_FALSE(m.error.has_value());
     EXPECT_FALSE(m.error_code.has_value());
@@ -512,9 +513,9 @@ TEST(BinanceWsApiEnvelope, Error_PopulatesCodeAndMsg) {
         json::parse(fixtures::kWsApiOrderPlaceErrorJson));
     EXPECT_FALSE(m.success);
     EXPECT_EQ(m.status, 400);
-    ASSERT_TRUE(m.error.has_value());
+    ASSERT_HAS_VALUE(m.error);
     EXPECT_EQ(*m.error, "Account has insufficient balance for requested action.");
-    ASSERT_TRUE(m.error_code.has_value());
+    ASSERT_HAS_VALUE(m.error_code);
     EXPECT_EQ(*m.error_code, -2010);
     // String id is tolerated but not stored in the int slot.
     EXPECT_FALSE(m.id.has_value());
@@ -689,13 +690,13 @@ TEST(BinanceWsApiNewOrder, ParsesSuccess) {
 
     EXPECT_TRUE(resp.success);
     EXPECT_EQ(resp.status, 200);
-    ASSERT_TRUE(resp.order.has_value());
+    ASSERT_HAS_VALUE(resp.order);
     EXPECT_EQ(resp.order->order_id, 12510053279);
     EXPECT_EQ(resp.order->symbol, "BTCUSDT");
-    ASSERT_TRUE(resp.order->status.has_value());
+    ASSERT_HAS_VALUE(resp.order->status);
     EXPECT_EQ(*resp.order->status, OrderStatus::New);
     EXPECT_EQ(resp.order->transact_time, 1655716096505);
-    ASSERT_TRUE(resp.order->price.has_value());
+    ASSERT_HAS_VALUE(resp.order->price);
     EXPECT_DOUBLE_EQ(*resp.order->price, 0.10);
 
     ASSERT_EQ(resp.rate_limits.size(), 1u);
@@ -708,9 +709,9 @@ TEST(BinanceWsApiNewOrder, ParsesError) {
 
     EXPECT_FALSE(resp.success);
     EXPECT_EQ(resp.status, 400);
-    ASSERT_TRUE(resp.error.has_value());
+    ASSERT_HAS_VALUE(resp.error);
     EXPECT_EQ(*resp.error, "Account has insufficient balance for requested action.");
-    ASSERT_TRUE(resp.error_code.has_value());
+    ASSERT_HAS_VALUE(resp.error_code);
     EXPECT_EQ(*resp.error_code, -2010);
     EXPECT_FALSE(resp.order.has_value());
 }
@@ -775,7 +776,7 @@ TEST(BinanceWsApiCancel, ParsesSuccess) {
 
     EXPECT_TRUE(resp.success);
     EXPECT_EQ(resp.status, 200);
-    ASSERT_TRUE(resp.order.has_value());
+    ASSERT_HAS_VALUE(resp.order);
     EXPECT_EQ(resp.order->symbol, "BTCUSDT");
     EXPECT_EQ(resp.order->orig_client_order_id, "a097fe6304b20a7e4fc436");
     EXPECT_EQ(resp.order->order_id, 12510053279);
@@ -816,7 +817,7 @@ TEST(BinanceWsApiLifecycle, PingRoundTrip) {
 
     const auto resp = fut.get();
     EXPECT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->status, 200);
 }
 
@@ -845,8 +846,8 @@ TEST(BinanceWsApiLifecycle, OrderPlaceRoundTrip) {
 
     const auto resp = fut.get();
     EXPECT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
-    ASSERT_TRUE(resp.result->order.has_value());
+    ASSERT_HAS_VALUE(resp.result);
+    ASSERT_HAS_VALUE(resp.result->order);
     EXPECT_EQ(resp.result->order->order_id, 12510053279);
 }
 
@@ -869,7 +870,7 @@ TEST(BinanceWsApiLifecycle, OrderPlaceError) {
 
     const auto resp = fut.get();  // resolves — must not hang
     EXPECT_FALSE(resp.ok);
-    ASSERT_TRUE(resp.error.has_value());
+    ASSERT_HAS_VALUE(resp.error);
     EXPECT_EQ(*resp.error, "Account has insufficient balance for requested action.");
 }
 
@@ -899,7 +900,7 @@ TEST(BinanceWsApiLifecycle, Timeout) {
     // No reply is ever injected — the blocking execute must time out.
     const auto resp = client->execute(BinanceWsPingRequest{}, std::chrono::milliseconds{10});
     EXPECT_FALSE(resp.ok);
-    ASSERT_TRUE(resp.error.has_value());
+    ASSERT_HAS_VALUE(resp.error);
     EXPECT_EQ(*resp.error, "request timed out");
 }
 

@@ -13,6 +13,7 @@
 // and transport-exception folding.
 
 #include "exchange/coinbase/rest_client.hpp"
+#include "assert_has_value.hpp"
 #include "coinbase_rest_example_json.hpp"
 #include "coinbase_account_example_json.hpp"
 
@@ -63,7 +64,7 @@ TEST(CoinbaseClient, PublicServerTime_RoundTripUnsigned) {
     // Public requests are not signed.
     EXPECT_EQ(captured.headers.find("CB-ACCESS-KEY"), captured.headers.end());
     ASSERT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_DOUBLE_EQ(resp.result->epoch, 1781887413.188);
 }
 
@@ -88,7 +89,7 @@ TEST(CoinbaseClient, PrivateAccounts_SignsAllFourHeaders) {
               detail::coinbase_sign(creds.api_secret, ts, method_str(captured.method),
                                     request_path(captured), captured.body));
     ASSERT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->accounts.size(), 2u);
 }
 
@@ -118,7 +119,7 @@ TEST(CoinbaseClient, PlaceOrder_PostBodySignedWithJsonContentType) {
     EXPECT_EQ(captured.headers.at("CB-ACCESS-SIGN"),
               detail::coinbase_sign(creds.api_secret, ts, "POST", "/orders", captured.body));
     ASSERT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->id, "d0c5a4f3-0000-4000-8000-000000000010");
 }
 
@@ -137,7 +138,7 @@ TEST(CoinbaseClient, CancelOrder_DeleteWithBareStringResult) {
     EXPECT_EQ(captured.method, HttpRequest::Method::DELETE);
     EXPECT_EQ(captured.path, "/orders/d0c5a4f3-0000-4000-8000-000000000010");
     ASSERT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->order_id, "d0c5a4f3-0000-4000-8000-000000000010");
 }
 

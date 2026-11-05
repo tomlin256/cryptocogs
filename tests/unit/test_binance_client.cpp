@@ -14,6 +14,7 @@
 // RestResponse<T>. No network or libcurl involved.
 
 #include "exchange/binance/rest_client.hpp"
+#include "assert_has_value.hpp"
 #include "binance_account_example_json.hpp"
 #include "binance_rest_example_json.hpp"
 
@@ -29,9 +30,11 @@ namespace fixtures = exchange::binance::rest::test;
 
 namespace {
 
-constexpr int64_t FIXED_TS = 1499827319559LL;
-const std::string kApiKey    = "test-key";
-const std::string kSecretKey = "test-secret";
+// Literals, not std::string: a namespace-scope std::string allocates in its initialiser, which
+// can throw (bugprone-throwing-static-initialization). Each use builds or compares a std::string.
+constexpr int64_t     FIXED_TS   = 1499827319559LL;
+constexpr const char* kApiKey    = "test-key";
+constexpr const char* kSecretKey = "test-secret";
 
 BinanceAuth make_fixed_auth() {
     return BinanceAuth{BinanceCredentials{kApiKey, kSecretKey},
@@ -69,7 +72,7 @@ TEST(BinanceClient, GetAccount_SignedRoundTrip) {
 
     EXPECT_TRUE(resp.ok);
     EXPECT_TRUE(resp.errors.empty());
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->uid, 354937868LL);
 }
 
@@ -105,7 +108,7 @@ TEST(BinanceClient, PostNewOrder_SignedRoundTrip) {
     auto resp = client.execute(req, auth);
 
     EXPECT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     ASSERT_EQ(resp.result->fills.size(), 2u);
     EXPECT_EQ(resp.result->status, exchange::OrderStatus::Filled);
 }
@@ -136,7 +139,7 @@ TEST(BinanceClient, DeleteCancelOrder_SignedRoundTrip) {
     auto resp = client.execute(req, auth);
 
     EXPECT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->status, exchange::OrderStatus::Canceled);
     EXPECT_EQ(resp.result->orig_client_order_id, "myOrder1");
 }
