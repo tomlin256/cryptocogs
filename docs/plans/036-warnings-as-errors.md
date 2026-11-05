@@ -396,11 +396,11 @@ Commit: `build: build with -Werror by default (step 6/7)`.
 (`CRYPTOCOGS_WARNINGS_AS_ERRORS`, declared at the top level only). The flags are applied per directory (`src/`, `tests/` after its last fetch,
 `tests/benchmarks/`): they reach the 77 units of this project (84 with the benchmarks), none of the 50 of a dependency's, and never a project
 that fetches cryptocogs. The twelve sites are fixed, and #24 with them. 526 tests pass on the Mac, in the container and in CI (run
-42073742216 on the last code commit; GCC 15.2, no warning in its log), two of them new: `test_warning_flags` (186 cases, 0.01 s) and
+42073742216 on the last code commit, and 42076077906 on the docs commit; GCC 15.2, no warning in either log), two of them new: `test_warning_flags` (186 cases, 0.01 s) and
 `test_warning_option` (three trees, four where google benchmark is present, 3 s). The workflows are unchanged: CI and the nightly sanitizer jobs
 are strict through the default, and the sanitizers workflow, dispatched twice, is green on the commit after the fix (run 42073767196, `asan`
 and `tsan`). Pushed as `82fb080` (step 2), `7839985` (3), `ecba792` (4), `5876c13` (6), `5fec847` (the tsan fix) and the Step 7 commit. No
-release: nothing in `include/`, the libraries or the package changed.
+release: nothing in `include/`, the libraries or the package changed. #47 and #24 are closed.
 
 Where the steps differ from the text above, which was left as written where it is history:
 
