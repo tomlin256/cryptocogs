@@ -38,7 +38,7 @@ std::string to_hex(const std::string& bytes);
 
 // ── Signing algorithm selector ────────────────────────────────────────────────
 
-enum class BinanceSignAlgorithm { HmacSha256, Rsa, Ed25519 };
+enum class BinanceSignAlgorithm : std::uint8_t { HmacSha256, Rsa, Ed25519 };
 
 // ── Credential bundle ────────────────────────────────────────────────────────
 

@@ -7,11 +7,28 @@
 // full license information.
 // =============================================================================
 
+#include "exchange/common/rest.hpp"
+#include "exchange/common/ws.hpp"
 #include "exchange/kraken/types.hpp"
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
+#include <type_traits>
+
 using exchange::OrderType;
+
+// plan 037 D1: the underlying type of the public enums is pinned; widening one changes the layout of the order-entry structs (#38).
+static_assert(std::is_same_v<std::underlying_type_t<exchange::Side>,                      std::uint8_t>);
+static_assert(std::is_same_v<std::underlying_type_t<exchange::OrderType>,                 std::uint8_t>);
+static_assert(std::is_same_v<std::underlying_type_t<exchange::TimeInForce>,               std::uint8_t>);
+static_assert(std::is_same_v<std::underlying_type_t<exchange::OrderStatus>,               std::uint8_t>);
+static_assert(std::is_same_v<std::underlying_type_t<exchange::rest::HttpRequest::Method>, std::uint8_t>);
+static_assert(std::is_same_v<std::underlying_type_t<exchange::ws::FrameKind>,             std::uint8_t>);
+static_assert(std::is_same_v<std::underlying_type_t<exchange::kraken::PriceType>,         std::uint8_t>);
+static_assert(std::is_same_v<std::underlying_type_t<exchange::kraken::TriggerReference>,  std::uint8_t>);
+static_assert(std::is_same_v<std::underlying_type_t<exchange::kraken::StpType>,           std::uint8_t>);
+static_assert(std::is_same_v<std::underlying_type_t<exchange::kraken::FeePreference>,     std::uint8_t>);
 
 namespace {
 

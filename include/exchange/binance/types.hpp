@@ -35,6 +35,7 @@
 #include "exchange/common/types.hpp"
 
 #include <nlohmann/json.hpp>
+#include <cstdint>
 #include <string>
 
 namespace exchange::binance {
@@ -80,7 +81,7 @@ OrderStatus binance_order_status_from_string(const std::string& s);
 
 // ── newOrderRespType (POST /api/v3/order) ────────────────────────────────────
 
-enum class BinanceOrderRespType { Ack, Result, Full };
+enum class BinanceOrderRespType : std::uint8_t { Ack, Result, Full };
 
 std::string binance_order_resp_type_to_string(BinanceOrderRespType v);
 

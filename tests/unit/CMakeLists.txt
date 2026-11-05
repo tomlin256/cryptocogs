@@ -64,6 +64,12 @@ if(CRYPTOCOGS_BUILD_KRAKEN)
     target_link_libraries(test_ws_responses kraken GTest::gtest_main)
     gtest_discover_tests(test_ws_responses)
 
+    # What a bare AddOrderRequest, SubscribeRequest and UnsubscribeRequest hold (their enum members have default
+    # initialisers), and the underlying type of the two enums in ws_api.hpp (plan 037, #46)
+    add_executable(test_kraken_ws_api_defaults test_kraken_ws_api_defaults.cpp)
+    target_link_libraries(test_kraken_ws_api_defaults kraken GTest::gtest_main)
+    gtest_discover_tests(test_kraken_ws_api_defaults)
+
     # OrderType to_string/from_string unit tests (generic vs. Kraken wire format)
     add_executable(test_order_type test_order_type.cpp)
     target_link_libraries(test_order_type kraken GTest::gtest_main)

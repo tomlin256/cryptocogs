@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <future>
 #include <stdexcept>
 #include <thread>
 
@@ -250,5 +251,64 @@ TEST(WsReconnectSession, BackoffResetsAfterSuccessfulReconnect) {
     session.scheduleReconnect("second drop");
     EXPECT_TRUE(waitFor([&]{ return connects.load() > connectsBeforeSecond; }, 500ms));
 
+    session.stop();
+}
+
+// ── A DisconnectFn that throws ────────────────────────────────────────────────
+//
+// reconnect_session.hpp says DisconnectFn must not throw. The two empty catch blocks around it, in stop() and in the worker
+// loop, defend that contract (they carry a NOLINT that says so): stop() runs from the destructor, which must not throw,
+// and a throw that escaped the worker thread would end the process. These tests are what keeps those blocks honest. Without
+// a catch, the destructor test and the worker test end the process (std::terminate) instead of failing politely.
+
+TEST(WsReconnectSession, StopContainsAThrowFromDisconnect) {
+    std::atomic<int> disconnects{0};
+
+    WsReconnectSession session(
+        []{},
+        [&]{ ++disconnects; throw std::runtime_error("disconnect failed"); },
+        kTestBackoff
+    );
+    session.start();
+
+    EXPECT_NO_THROW(session.stop());
+    EXPECT_EQ(disconnects.load(), 1);
+}
+
+TEST(WsReconnectSession, DestructorContainsAThrowFromDisconnect) {
+    std::atomic<int> disconnects{0};
+
+    {
+        WsReconnectSession session(
+            []{},
+            [&]{ ++disconnects; throw std::runtime_error("disconnect failed"); },
+            kTestBackoff
+        );
+        session.start();
+        // The destructor calls stop(), which calls the throwing disconnect once: a throw out of it would end the process.
+    }
+
+    EXPECT_EQ(disconnects.load(), 1);
+}
+
+// The worker thread calls DisconnectFn before every reconnect attempt. A throw there must neither end the thread nor
+// stop the reconnect: the next connect still happens.
+TEST(WsReconnectSession, WorkerContainsAThrowFromDisconnectAndStillReconnects) {
+    std::atomic<int> connects{0};
+    std::atomic<int> disconnects{0};
+    std::promise<void> reconnected;
+
+    WsReconnectSession session(
+        [&]{ if (++connects == 2) reconnected.set_value(); },   // the initial connect is 1, the reconnect is 2
+        [&]{ ++disconnects; throw std::runtime_error("disconnect failed"); },
+        kTestBackoff
+    );
+    session.start();
+    session.scheduleReconnect("dropped");
+
+    reconnected.get_future().get();   // returns once the worker has disconnected (throwing) and connected again
+
+    EXPECT_GE(disconnects.load(), 1);
+    EXPECT_EQ(connects.load(), 2);
     session.stop();
 }

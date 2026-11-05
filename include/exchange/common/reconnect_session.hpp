@@ -27,7 +27,7 @@
 //   );
 //   session.start();
 //   conn.set_on_close([&](std::string reason) {
-//       session.scheduleReconnect(std::move(reason));
+//       session.scheduleReconnect(reason);
 //   });
 //   // On shutdown:
 //   session.stop();
@@ -69,7 +69,7 @@ public:
     void stop();
 
     // Schedule a reconnect attempt.  Safe to call from any thread.
-    void scheduleReconnect(std::string reason = "");
+    void scheduleReconnect(const std::string& reason = "");
 
 private:
     ConnectFn                 connect_fn_;

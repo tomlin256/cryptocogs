@@ -36,6 +36,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <functional>
 #include <memory>
@@ -149,7 +150,7 @@ private:
 
 // ── Frame classification ─────────────────────────────────────────────────────
 
-enum class FrameKind { MethodResponse, PushMessage, Unknown };
+enum class FrameKind : std::uint8_t { MethodResponse, PushMessage, Unknown };
 
 struct FrameDescriptor {
     FrameKind kind{FrameKind::Unknown};

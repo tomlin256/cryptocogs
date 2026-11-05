@@ -18,6 +18,7 @@
 #include "exchange/common/rest.hpp"
 
 #include <gtest/gtest.h>
+#include <initializer_list>
 #include <string>
 
 using namespace exchange::kraken::rest;
@@ -163,4 +164,85 @@ TEST(KrakenAuth, Base64Decode_LongInputDecodesToExactBytes) {
                   "AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dzj6vH4/wYNFBsiKTA3PkVM"
                   "U1phaG92fYSLkpmgp661vA=="),
               expected);
+}
+
+// ── base64_encode / base64_decode — known answers ────────────────────────────
+//
+// The signature is base64(HMAC(base64_decode(secret), ...)), so a wrong shift in either helper changes every
+// signature. The vectors are RFC 4648 section 10, then bytes with the high bit set (0x80 and up), which are the bytes
+// the encoder's shifts must treat as unsigned. Each high-bit text was checked with the system `base64` and with
+// `openssl base64`, so none leans on this library's own encoder.
+
+static std::string b64_encode(const std::string& bytes) {
+    return detail::base64_encode(reinterpret_cast<const unsigned char*>(bytes.data()), bytes.size());
+}
+
+// The bytes of `v` as a string, so a vector can hold 0x00 and 0xFF.
+static std::string raw_bytes(std::initializer_list<unsigned char> v) {
+    std::string s;
+    for (const unsigned char b : v)
+        s.push_back(static_cast<char>(b));
+    return s;
+}
+
+TEST(KrakenAuth, Base64Encode_Rfc4648Vectors) {
+    EXPECT_EQ(b64_encode(""),       "");
+    EXPECT_EQ(b64_encode("f"),      "Zg==");
+    EXPECT_EQ(b64_encode("fo"),     "Zm8=");
+    EXPECT_EQ(b64_encode("foo"),    "Zm9v");
+    EXPECT_EQ(b64_encode("foob"),   "Zm9vYg==");
+    EXPECT_EQ(b64_encode("fooba"),  "Zm9vYmE=");
+    EXPECT_EQ(b64_encode("foobar"), "Zm9vYmFy");
+}
+
+TEST(KrakenAuth, Base64Decode_Rfc4648Vectors) {
+    EXPECT_EQ(detail::base64_decode(""),         "");
+    EXPECT_EQ(detail::base64_decode("Zg=="),     "f");
+    EXPECT_EQ(detail::base64_decode("Zm8="),     "fo");
+    EXPECT_EQ(detail::base64_decode("Zm9v"),     "foo");
+    EXPECT_EQ(detail::base64_decode("Zm9vYg=="), "foob");
+    EXPECT_EQ(detail::base64_decode("Zm9vYmE="), "fooba");
+    EXPECT_EQ(detail::base64_decode("Zm9vYmFy"), "foobar");
+}
+
+TEST(KrakenAuth, Base64Encode_HighBitBytes) {
+    EXPECT_EQ(b64_encode(raw_bytes({0xFF})),                   "/w==");
+    EXPECT_EQ(b64_encode(raw_bytes({0xFF, 0xFE})),             "//4=");
+    EXPECT_EQ(b64_encode(raw_bytes({0xFF, 0xFF, 0xFF})),       "////");
+    EXPECT_EQ(b64_encode(raw_bytes({0x80})),                   "gA==");
+    EXPECT_EQ(b64_encode(raw_bytes({0x80, 0x80, 0x80})),       "gICA");
+    EXPECT_EQ(b64_encode(raw_bytes({0x80, 0x00, 0x00})),       "gAAA");
+    EXPECT_EQ(b64_encode(raw_bytes({0x00, 0xFF, 0x80})),       "AP+A");
+    EXPECT_EQ(b64_encode(raw_bytes({0xFF, 0x00, 0xFF, 0x80})), "/wD/gA==");
+}
+
+TEST(KrakenAuth, Base64Decode_HighBitBytes) {
+    EXPECT_EQ(detail::base64_decode("/w=="),     raw_bytes({0xFF}));
+    EXPECT_EQ(detail::base64_decode("//4="),     raw_bytes({0xFF, 0xFE}));
+    EXPECT_EQ(detail::base64_decode("////"),     raw_bytes({0xFF, 0xFF, 0xFF}));
+    EXPECT_EQ(detail::base64_decode("gA=="),     raw_bytes({0x80}));
+    EXPECT_EQ(detail::base64_decode("gICA"),     raw_bytes({0x80, 0x80, 0x80}));
+    EXPECT_EQ(detail::base64_decode("gAAA"),     raw_bytes({0x80, 0x00, 0x00}));
+    EXPECT_EQ(detail::base64_decode("AP+A"),     raw_bytes({0x00, 0xFF, 0x80}));
+    EXPECT_EQ(detail::base64_decode("/wD/gA=="), raw_bytes({0xFF, 0x00, 0xFF, 0x80}));
+}
+
+// ── sign() — known answers ───────────────────────────────────────────────────
+//
+// API-Sign = base64(HMAC-SHA512(base64_decode(secret), uri_path + SHA256(nonce + post_body))). These values were computed
+// with `openssl dgst` and the system `base64`, not with this library, so they pin the whole path (both base64 helpers
+// included) to an outside answer. TEST_SECRET decodes to bytes above 0x7F, and so do the HMACs.
+TEST(KrakenAuth, Sign_KnownAnswers) {
+    const KrakenCredentials creds = make_creds();
+
+    EXPECT_EQ(creds.sign("/0/private/Balance", "1616492376594", "nonce=1616492376594"),
+              "1nH4vwR+8FHiYh1QT649xXkGd3JR3x0DWkgv3u9Ed/Qqv6KPtgQpEU4m+Emb/VgpEji3j1XNwI+HCbfXxmrTOg==");
+
+    EXPECT_EQ(creds.sign("/0/private/AddOrder", "1616492376594",
+                         "nonce=1616492376594&ordertype=limit&pair=XBTUSD&price=30000&type=buy&volume=1.25"),
+              "PpisNDhZ/IDRMvc96GT6oFk7JD6ZHvn4JM5i17ILN6SUlSr8KYY+issX7+dmLDblVP+yaDZzcg21+AOliLeuIg==");
+
+    EXPECT_EQ(creds.sign("/0/private/AddOrderBatch", "1616492376594",
+                         R"({"nonce":"1616492376594","orders":[],"pair":"XBTUSD"})"),
+              "dzZMVrzboYrTwmL07EwOkWy24cLDsc6KcQn/Izkj7pITZe1S9ozik9KgMXFfIaPJ3mmD3Igj6LcBps22ZfXVsQ==");
 }

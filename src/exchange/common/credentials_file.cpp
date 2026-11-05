@@ -11,10 +11,32 @@
 
 #include <cstdlib>    // std::getenv
 #include <stdexcept>
+#include <string>
+#include <string_view>
 
 #include <toml++/toml.hpp>
 
 namespace exchange::rest {
+
+namespace {
+
+// head + key + tail + filepath, built by appending onto one string. A chain of
+// operator+ makes a temporary string per link, and these messages are thrown from
+// the loop below (performance-inefficient-string-concatenation).
+std::string key_message(std::string_view   head,
+                        const std::string& key,
+                        std::string_view   tail,
+                        const std::string& filepath) {
+    std::string msg;
+    msg.reserve(head.size() + key.size() + tail.size() + filepath.size());
+    msg.append(head);
+    msg += key;
+    msg.append(tail);
+    msg += filepath;
+    return msg;
+}
+
+} // namespace
 
 std::vector<std::string> read_toml_credentials(
     const std::string&              name,
@@ -47,19 +69,19 @@ std::vector<std::string> read_toml_credentials(
     for (const auto& key : keys) {
         const auto node = tbl[key];
         if (!node) {
-            throw std::runtime_error("Missing key '" + key +
-                                     "' in credentials file: " + filepath);
+            throw std::runtime_error(
+                key_message("Missing key '", key, "' in credentials file: ", filepath));
         }
         // value<std::string>() yields a value only when the node is genuinely a
         // string (no int->string coercion), so a non-string entry is rejected.
         const auto value = node.value<std::string>();
         if (!value) {
-            throw std::runtime_error("Key '" + key +
-                                     "' in credentials file is not a string: " + filepath);
+            throw std::runtime_error(
+                key_message("Key '", key, "' in credentials file is not a string: ", filepath));
         }
         if (value->empty()) {
-            throw std::runtime_error("Key '" + key +
-                                     "' in credentials file is empty: " + filepath);
+            throw std::runtime_error(
+                key_message("Key '", key, "' in credentials file is empty: ", filepath));
         }
         out.push_back(*value);
     }

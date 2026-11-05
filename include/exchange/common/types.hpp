@@ -15,13 +15,14 @@
 
 #include "exchange/common/cxx_standard.hpp"
 
+#include <cstdint>
 #include <string>
 
 namespace exchange {
 
-enum class Side { Buy, Sell };
+enum class Side : std::uint8_t { Buy, Sell };
 
-enum class OrderType {
+enum class OrderType : std::uint8_t {
     Limit,
     Market,
     Iceberg,
@@ -34,9 +35,9 @@ enum class OrderType {
     SettlePosition
 };
 
-enum class TimeInForce { GTC, GTD, IOC, FOK };
+enum class TimeInForce : std::uint8_t { GTC, GTD, IOC, FOK };
 
-enum class OrderStatus {
+enum class OrderStatus : std::uint8_t {
     PendingNew,
     New,
     PartiallyFilled,

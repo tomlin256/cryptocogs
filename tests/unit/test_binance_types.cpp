@@ -7,15 +7,23 @@
 // full license information.
 // =============================================================================
 
+#include "exchange/binance/auth.hpp"
 #include "exchange/binance/types.hpp"
 
 #include <gtest/gtest.h>
+
+#include <cstdint>
+#include <type_traits>
 
 using exchange::OrderStatus;
 using exchange::OrderType;
 using exchange::Side;
 using exchange::TimeInForce;
 using namespace exchange::binance;
+
+// plan 037 D1: the underlying type of the public enums is pinned; widening one changes the layout of the order-entry structs (#38).
+static_assert(std::is_same_v<std::underlying_type_t<exchange::binance::BinanceOrderRespType>,       std::uint8_t>);
+static_assert(std::is_same_v<std::underlying_type_t<exchange::binance::rest::BinanceSignAlgorithm>, std::uint8_t>);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Side — uppercase wire format, distinct from the canonical lowercase

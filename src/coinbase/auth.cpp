@@ -31,9 +31,11 @@ std::string base64_encode(const unsigned char* data, size_t len) {
     std::string out;
     out.reserve(((len + 2) / 3) * 4);
     for (size_t i = 0; i < len; i += 3) {
-        unsigned int val = static_cast<unsigned char>(data[i]) << 16;
-        if (i + 1 < len) val |= static_cast<unsigned char>(data[i+1]) << 8;
-        if (i + 2 < len) val |= static_cast<unsigned char>(data[i+2]);
+        // Each byte is widened to unsigned before it is shifted: a shift of the
+        // promoted (signed) int is what bugprone-signed-bitwise objects to.
+        unsigned int val = static_cast<unsigned int>(data[i]) << 16;
+        if (i + 1 < len) val |= static_cast<unsigned int>(data[i+1]) << 8;
+        if (i + 2 < len) val |= static_cast<unsigned int>(data[i+2]);
         out.push_back(chars[(val >> 18) & 63]);
         out.push_back(chars[(val >> 12) & 63]);
         out.push_back(i + 1 < len ? chars[(val >> 6) & 63] : '=');
@@ -59,7 +61,8 @@ std::string base64_decode(const std::string& in) {
         val = (val << 6) + static_cast<unsigned int>(pos);
         bits += 6;
         if (bits >= 0) {
-            out.push_back(static_cast<char>((val >> bits) & 0xFF));
+            // bits is signed only because it starts below zero; it is 0, 2 or 4 here.
+            out.push_back(static_cast<char>((val >> static_cast<unsigned int>(bits)) & 0xFF));
             bits -= 8;
         }
     }

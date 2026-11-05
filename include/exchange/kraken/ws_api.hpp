@@ -76,8 +76,8 @@ struct KrakenWsCredentials {
 // ── 1. ADD ORDER ──────────────────────────────────────────────────────────────
 
 struct AddOrderRequest : TypedWsRequest<AddOrderResponse> {
-    OrderType   order_type;
-    Side        side;
+    OrderType   order_type{};   // {} = the first enumerator, so a bare request is defined
+    Side        side{};
     double      order_qty{0.0};
     std::string symbol;
     std::string token;
@@ -262,7 +262,7 @@ struct EditOrderResponse : BaseResponse {
 
 // ── 9. SUBSCRIPTIONS ─────────────────────────────────────────────────────────
 
-enum class SubscribeChannel {
+enum class SubscribeChannel : std::uint8_t {
     Ticker,
     Book,
     Level3,
@@ -276,7 +276,7 @@ enum class SubscribeChannel {
 std::string to_string(SubscribeChannel ch);
 
 struct SubscribeRequest : WsRequestBase {
-    SubscribeChannel channel;
+    SubscribeChannel channel{};
     std::optional<std::vector<std::string>> symbols;
     std::optional<std::string> token;
     std::optional<int32_t>     depth;
@@ -288,7 +288,7 @@ struct SubscribeRequest : WsRequestBase {
 };
 
 struct UnsubscribeRequest {
-    SubscribeChannel channel;
+    SubscribeChannel channel{};
     std::optional<std::vector<std::string>> symbols;
     std::optional<std::string> token;
     std::optional<int64_t> req_id;
@@ -538,7 +538,7 @@ struct PongMessage {
 
 // ── Message Dispatcher ────────────────────────────────────────────────────────
 
-enum class MessageKind {
+enum class MessageKind : std::uint8_t {
     AddOrderResponse,
     AmendOrderResponse,
     CancelOrderResponse,

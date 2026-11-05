@@ -22,6 +22,7 @@
 
 #include "exchange/common/cxx_standard.hpp"
 
+#include <cstdint>
 #include <map>
 #include <optional>
 #include <string>
@@ -32,7 +33,7 @@ namespace exchange::rest {
 // ── Prepared HTTP request ────────────────────────────────────────────────────
 
 struct HttpRequest {
-    enum class Method { GET, POST, DELETE };
+    enum class Method : std::uint8_t { GET, POST, DELETE };
     Method      method{Method::GET};
     std::string path;
     std::string query;   // URL-encoded query string (GET requests)

@@ -60,6 +60,18 @@ private:
     fs::path path_;
 };
 
+// The text of the std::runtime_error that read_toml_credentials throws for the file <dir>/<name> and `keys`. The call must
+// throw std::runtime_error (any other exception type escapes and fails the test); no throw is a failure, reported here.
+std::string error_text(const std::string& name, const TempDir& dir, const std::vector<std::string>& keys) {
+    try {
+        read_toml_credentials(name, ".x", dir.str(), keys);
+    } catch (const std::runtime_error& e) {
+        return e.what();
+    }
+    ADD_FAILURE() << "read_toml_credentials did not throw for " << name;
+    return {};
+}
+
 } // namespace
 
 TEST(ReadTomlCredentials, ReturnsRequestedKeysInOrder) {
@@ -116,6 +128,9 @@ TEST(ReadTomlCredentials, ThrowsOnMissingKey) {
     EXPECT_THROW(
         read_toml_credentials("partial", ".x", dir.str(), {"api_key", "api_secret"}),
         std::runtime_error);
+    // The full text: it names the key that is missing and the file, in that order.
+    EXPECT_EQ(error_text("partial", dir, {"api_key", "api_secret"}),
+              "Missing key 'api_secret' in credentials file: " + dir.str() + "/partial");
 }
 
 TEST(ReadTomlCredentials, ThrowsOnNonStringValue) {
@@ -123,6 +138,8 @@ TEST(ReadTomlCredentials, ThrowsOnNonStringValue) {
     dir.write("typed", "api_key = 12345\n");  // integer, not a string
     EXPECT_THROW(read_toml_credentials("typed", ".x", dir.str(), {"api_key"}),
                  std::runtime_error);
+    EXPECT_EQ(error_text("typed", dir, {"api_key"}),
+              "Key 'api_key' in credentials file is not a string: " + dir.str() + "/typed");
 }
 
 TEST(ReadTomlCredentials, ThrowsOnEmptyStringValue) {
@@ -130,6 +147,16 @@ TEST(ReadTomlCredentials, ThrowsOnEmptyStringValue) {
     dir.write("empty", "api_key = \"\"\n");
     EXPECT_THROW(read_toml_credentials("empty", ".x", dir.str(), {"api_key"}),
                  std::runtime_error);
+    EXPECT_EQ(error_text("empty", dir, {"api_key"}),
+              "Key 'api_key' in credentials file is empty: " + dir.str() + "/empty");
+}
+
+// The key in the message is the one that failed, not the first of the list: a later key reports its own name.
+TEST(ReadTomlCredentials, ErrorNamesTheKeyThatFailed) {
+    TempDir dir;
+    dir.write("second", "api_key = \"K\"\napi_secret = \"\"\n");
+    EXPECT_EQ(error_text("second", dir, {"api_key", "api_secret"}),
+              "Key 'api_secret' in credentials file is empty: " + dir.str() + "/second");
 }
 
 TEST(ReadTomlCredentials, ThrowsWhenHomeUnsetAndLocationEmpty) {

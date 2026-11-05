@@ -41,10 +41,13 @@ inline void WsReconnectSession::stop() {
     if (worker_.joinable())
         worker_.join();
 
-    try { disconnect_fn_(); } catch (...) {}
+    // DisconnectFn must not throw (reconnect_session.hpp). This catch defends that
+    // contract and is not an error path: stop() runs from the destructor, which
+    // must not throw, and the session has no error channel to report to.
+    try { disconnect_fn_(); } catch (...) {}  // NOLINT(bugprone-empty-catch)
 }
 
-inline void WsReconnectSession::scheduleReconnect(std::string /*reason*/) {
+inline void WsReconnectSession::scheduleReconnect(const std::string& /*reason*/) {
     if (stop_requested_.load(std::memory_order_relaxed)) return;
     {
         std::lock_guard<std::mutex> lk(mu_);
@@ -76,7 +79,10 @@ inline void WsReconnectSession::workerLoop() {
                 if (stop_requested_.load(std::memory_order_relaxed)) return;
             }
 
-            try { disconnect_fn_(); } catch (...) {}
+            // As in stop(): DisconnectFn must not throw, so this catch defends that
+            // contract. A throw that escaped would end this thread in std::terminate,
+            // and there is no error channel here, so the reconnect goes on.
+            try { disconnect_fn_(); } catch (...) {}  // NOLINT(bugprone-empty-catch)
 
             try {
                 connect_fn_();

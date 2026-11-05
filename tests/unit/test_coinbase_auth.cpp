@@ -30,6 +30,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
 #include <iomanip>
 #include <sstream>
 #include <string>
@@ -117,6 +118,94 @@ TEST(CoinbaseCrypto, Base64Decode_LongInputDecodesToExactBytes) {
                   "AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dzj6vH4/wYNFBsiKTA3PkVM"
                   "U1phaG92fYSLkpmgp661vA=="),
               expected);
+}
+
+// ── base64 — RFC 4648 vectors and high-bit bytes ─────────────────────────────
+//
+// CB-ACCESS-SIGN is base64(HMAC(base64_decode(secret), ...)), so a wrong shift in either helper changes every
+// signature. The vectors are RFC 4648 section 10, then bytes with the high bit set (0x80 and up), which are the bytes
+// the encoder's shifts must treat as unsigned. Each high-bit text was checked with the system `base64` and with
+// `openssl base64`, so none leans on this library's own encoder.
+
+namespace {
+
+std::string b64_encode(const std::string& bytes) {
+    return detail::base64_encode(reinterpret_cast<const unsigned char*>(bytes.data()), bytes.size());
+}
+
+// The bytes of `v` as a string, so a vector can hold 0x00 and 0xFF.
+std::string raw_bytes(std::initializer_list<unsigned char> v) {
+    std::string s;
+    for (const unsigned char b : v)
+        s.push_back(static_cast<char>(b));
+    return s;
+}
+
+} // namespace
+
+TEST(CoinbaseCrypto, Base64Encode_Rfc4648Vectors) {
+    EXPECT_EQ(b64_encode(""),       "");
+    EXPECT_EQ(b64_encode("f"),      "Zg==");
+    EXPECT_EQ(b64_encode("fo"),     "Zm8=");
+    EXPECT_EQ(b64_encode("foo"),    "Zm9v");
+    EXPECT_EQ(b64_encode("foob"),   "Zm9vYg==");
+    EXPECT_EQ(b64_encode("fooba"),  "Zm9vYmE=");
+    EXPECT_EQ(b64_encode("foobar"), "Zm9vYmFy");
+}
+
+TEST(CoinbaseCrypto, Base64Decode_Rfc4648Vectors) {
+    EXPECT_EQ(detail::base64_decode(""),         "");
+    EXPECT_EQ(detail::base64_decode("Zg=="),     "f");
+    EXPECT_EQ(detail::base64_decode("Zm8="),     "fo");
+    EXPECT_EQ(detail::base64_decode("Zm9v"),     "foo");
+    EXPECT_EQ(detail::base64_decode("Zm9vYg=="), "foob");
+    EXPECT_EQ(detail::base64_decode("Zm9vYmE="), "fooba");
+    EXPECT_EQ(detail::base64_decode("Zm9vYmFy"), "foobar");
+}
+
+TEST(CoinbaseCrypto, Base64Encode_HighBitBytes) {
+    EXPECT_EQ(b64_encode(raw_bytes({0xFF})),                   "/w==");
+    EXPECT_EQ(b64_encode(raw_bytes({0xFF, 0xFE})),             "//4=");
+    EXPECT_EQ(b64_encode(raw_bytes({0xFF, 0xFF, 0xFF})),       "////");
+    EXPECT_EQ(b64_encode(raw_bytes({0x80})),                   "gA==");
+    EXPECT_EQ(b64_encode(raw_bytes({0x80, 0x80, 0x80})),       "gICA");
+    EXPECT_EQ(b64_encode(raw_bytes({0x80, 0x00, 0x00})),       "gAAA");
+    EXPECT_EQ(b64_encode(raw_bytes({0x00, 0xFF, 0x80})),       "AP+A");
+    EXPECT_EQ(b64_encode(raw_bytes({0xFF, 0x00, 0xFF, 0x80})), "/wD/gA==");
+}
+
+TEST(CoinbaseCrypto, Base64Decode_HighBitBytes) {
+    EXPECT_EQ(detail::base64_decode("/w=="),     raw_bytes({0xFF}));
+    EXPECT_EQ(detail::base64_decode("//4="),     raw_bytes({0xFF, 0xFE}));
+    EXPECT_EQ(detail::base64_decode("////"),     raw_bytes({0xFF, 0xFF, 0xFF}));
+    EXPECT_EQ(detail::base64_decode("gA=="),     raw_bytes({0x80}));
+    EXPECT_EQ(detail::base64_decode("gICA"),     raw_bytes({0x80, 0x80, 0x80}));
+    EXPECT_EQ(detail::base64_decode("gAAA"),     raw_bytes({0x80, 0x00, 0x00}));
+    EXPECT_EQ(detail::base64_decode("AP+A"),     raw_bytes({0x00, 0xFF, 0x80}));
+    EXPECT_EQ(detail::base64_decode("/wD/gA=="), raw_bytes({0xFF, 0x00, 0xFF, 0x80}));
+}
+
+// ── coinbase_sign — known answers ────────────────────────────────────────────
+//
+// base64(HMAC-SHA256(base64_decode(secret), timestamp + method + path + body)), computed with `openssl dgst` and the
+// system `base64`, not with this library, so these pin the whole path (both base64 helpers included) to an outside
+// answer. The first two use TEST_SECRET (a 13-byte key of ASCII bytes); the last two use an 88-character secret that
+// decodes to 64 bytes, many of them above 0x7F, the shape of a real one.
+TEST(CoinbaseCrypto, CoinbaseSign_KnownAnswers) {
+    EXPECT_EQ(detail::coinbase_sign(TEST_SECRET, "1700000000", "GET", "/accounts", ""),
+              "tVu+MWNCUI5m8r+Gibb2PVUOtCZ9NLxFLyd2Lao7f4E=");
+    EXPECT_EQ(detail::coinbase_sign(TEST_SECRET, "1700000000", "POST", "/orders",
+                                    R"({"type":"limit","side":"buy","product_id":"BTC-USD"})"),
+              "nQY4QMutc29SjtT0quXw0/MuJxl4MdzKVArmJn4TTD8=");
+
+    const char* const long_secret =
+        "kQH5HW/8p1uGOVjbgWA7FunAmGO8lsSUXNsu3eow76sz84Q18fWxnyRzBHCd3pd5"
+        "nE9qa99HAZtuZuj6F1huXg==";
+    EXPECT_EQ(detail::coinbase_sign(long_secret, "1700000000", "GET", "/accounts", ""),
+              "o/cMCtzJhrVLMZB7mSvfTQT1yS5rZYn1A7SctbbyVJM=");
+    EXPECT_EQ(detail::coinbase_sign(long_secret, "1700000000", "POST", "/orders",
+                                    R"({"side":"buy","size":"0.001"})"),
+              "qBlWMi57VL+oZzQKf3jIZYgVRYZ++BQXEj6Iq76Wvrc=");
 }
 
 // ── coinbase_sign — composition ──────────────────────────────────────────────

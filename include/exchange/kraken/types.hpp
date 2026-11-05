@@ -49,13 +49,13 @@ using exchange::order_status_from_string;
 
 // ── Kraken-specific enumerations ─────────────────────────────────────────────
 
-enum class PriceType { Static, Pct, Quote };
+enum class PriceType : std::uint8_t { Static, Pct, Quote };
 
-enum class TriggerReference { Index, Last };
+enum class TriggerReference : std::uint8_t { Index, Last };
 
-enum class StpType { CancelNewest, CancelOldest, CancelBoth };
+enum class StpType : std::uint8_t { CancelNewest, CancelOldest, CancelBoth };
 
-enum class FeePreference { Base, Quote };
+enum class FeePreference : std::uint8_t { Base, Quote };
 
 // ── to_string / from_string for Kraken-specific enums (src/kraken/types.cpp) ──
 
