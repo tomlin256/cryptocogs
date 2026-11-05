@@ -372,3 +372,18 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
                      -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/clang_tidy_checks/check_clang_tidy_config.cmake)
 endif()
+
+#-------------------------------------------------------------------------------
+# Compiler warnings (plan 036, #47): plain cmake -P scripts
+#-------------------------------------------------------------------------------
+
+# The mapping in cmake/cryptocogs_warnings.cmake: which flags the project's own targets get for a compiler, for the top level or
+# a subproject, and with the option on or off. A plain script, so it runs in every tree: the flags themselves reach only the
+# targets of this project, and a regression in the mapping would be invisible until a compiler warned. Top level only, where the
+# checkout it reads is this project's own.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_test(NAME test_warning_flags
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/warning_checks/check_warning_flags.cmake)
+endif()
