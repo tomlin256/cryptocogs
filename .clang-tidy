@@ -1,0 +1,21 @@
+# The checks the editor's clangd shows and the clang_tidy_ tests hold the code to (plan 035, #34). This is the only list:
+# .clangd carries none. The tool is one LLVM major everywhere, and clang_tidy_version holds it (cmake/cryptocogs_clang_tidy.cmake).
+# WarningsAsErrors is not here: clangd would show every hint in the editor as an error. The tests pass --warnings-as-errors=*
+# themselves. test_clang_tidy_config holds this file.
+Checks: >-
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  performance-*,
+  cppcoreguidelines-pro-type-member-init
+
+# This project's own code, the public headers included, and not nlohmann/json, spdlog, googletest or the SDK, whose findings are
+# not ours. It is matched against the path of each header; the dependencies sit under _deps, which the exclusion keeps out even
+# where a dependency has a directory that the inclusion matches. Every header the checkout owns must match: test_clang_tidy_config.
+HeaderFilterRegex: '/(include/exchange|tests)/'
+ExcludeHeaderFilterRegex: '/_deps/'
+
+CheckOptions:
+  # A positive literal shift count (x >> 8) is not a signed operand. A signed variable still is one.
+  bugprone-signed-bitwise.IgnorePositiveIntegerLiterals: true

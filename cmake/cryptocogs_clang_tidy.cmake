@@ -19,6 +19,11 @@
 #   cryptocogs_clang_tidy_test_name  clang_tidy_<the path under the root>, the name of one unit's test.
 #   cryptocogs_clang_tidy_select     which of a list of files are units: the C++ sources under the root, less the fixtures.
 #
+# And the one that needs a project, cryptocogs_clang_tidy_add_tests, which reads the units from the targets and registers the
+# tests (test_clang_tidy_wiring covers it, with a stub project):
+#
+#   cryptocogs_clang_tidy_add_tests  the clang_tidy_ tests: one per unit, and the six that prove the gate bites.
+#
 # A lint gate that silently checks nothing passes, which is why every refusal is a FATAL_ERROR that names what it refused,
 # and why these functions are tested.
 
@@ -122,11 +127,13 @@ endfunction()
 # cryptocogs_clang_tidy_select(<root> <candidates> <out>)
 #
 # Sets <out> to the units among <candidates>, a list of absolute paths: the .cpp, .cc and .cxx files under <root>, each
-# once, sorted, less the two fixture directories under tests/ whose defects are deliberate (tests/clang_tidy_checks/canaries,
-# which the canaries read, and tests/sanitize_checks/canaries, which only the sanitizer trees compile). Paths are normalised
-# first, so a path with a dot segment is the file it names. Headers and template bodies are not units: clang-tidy reaches
-# them through the sources that include them. This is a filter and reads no disk, so the caller says where the candidates
-# come from: the targets of the project at configure time, and the compile database at test time.
+# once, sorted, less a dependency's sources, which sit under a directory called _deps (wherever its build tree is: the default
+# of a fetched dependency, and a source directory that was named into another tree's _deps), and less the two fixture
+# directories under tests/ whose defects are deliberate (tests/clang_tidy_checks/canaries, which the canaries read, and
+# tests/sanitize_checks/canaries, which only the sanitizer trees compile). Paths are normalised first, so a path with a dot
+# segment is the file it names. Headers and template bodies are not units: clang-tidy reaches them through the sources that
+# include them. This is a filter and reads no disk, so the caller says where the candidates come from: the targets of the
+# project at configure time, and the compile database at test time, each less what is generated into the build tree.
 #
 # No unit at all is a FATAL_ERROR, since a gate over nothing passes on nothing, and so are two units that would be one test
 # name: a_b/c.cpp and a/b_c.cpp are both clang_tidy_a_b_c, and a test dropped silently is a file nobody checks.
@@ -151,6 +158,13 @@ function(cryptocogs_clang_tidy_select root candidates out)
         endif()
         cmake_path(IS_PREFIX base "${path}" under_root)
         if(NOT under_root)
+            continue()
+        endif()
+        # A dependency's source: a directory called _deps on the way from the root, which is a name and not a substring.
+        set(relative "${path}")
+        cmake_path(RELATIVE_PATH relative BASE_DIRECTORY "${base}")
+        string(FIND "/${relative}/" "/_deps/" at_deps)
+        if(NOT at_deps EQUAL -1)
             continue()
         endif()
         set(in_fixtures FALSE)
@@ -182,4 +196,142 @@ function(cryptocogs_clang_tidy_select root candidates out)
         set(owner_${name} "${source}")
     endforeach()
     set(${out} "${selected}" PARENT_SCOPE)
+endfunction()
+
+# _cryptocogs_clang_tidy_walk(<directory> <out>)
+#
+# Sets <out> to the absolute paths of the sources of the targets made in <directory> and in every subdirectory below it, the
+# dependencies' included: the executables and the libraries (static, shared, module and object), not the interface ones and
+# not the custom ones. Which of them are this project's is cryptocogs_clang_tidy_select's to say, by where they are; the walk
+# only drops a source that is generated into the build tree, which the project does not own. A source is made absolute against
+# the directory of the target that names it. One that holds a generator expression cannot be read here and is left out;
+# clang_tidy_units is what notices a unit the walk missed. This needs a project (the targets exist only in a configure), so it
+# is the one part of the module that `cmake -P` cannot run, and test_clang_tidy_wiring covers it.
+function(_cryptocogs_clang_tidy_walk directory out)
+    set(build "${CMAKE_BINARY_DIR}")
+    cmake_path(NORMAL_PATH build)
+
+    set(sources "")
+    get_property(targets DIRECTORY "${directory}" PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(target IN LISTS targets)
+        get_target_property(type ${target} TYPE)
+        if(NOT type MATCHES "^(EXECUTABLE|STATIC_LIBRARY|SHARED_LIBRARY|MODULE_LIBRARY|OBJECT_LIBRARY)$")
+            continue()
+        endif()
+        get_target_property(target_sources ${target} SOURCES)
+        get_target_property(target_directory ${target} SOURCE_DIR)
+        if(NOT target_sources)
+            continue()
+        endif()
+        foreach(source IN LISTS target_sources)
+            if(source MATCHES "\\$<")
+                continue()
+            endif()
+            if(NOT IS_ABSOLUTE "${source}")
+                set(source "${target_directory}/${source}")
+            endif()
+            cmake_path(NORMAL_PATH source)
+            cmake_path(IS_PREFIX build "${source}" generated)
+            if(NOT generated)
+                list(APPEND sources "${source}")
+            endif()
+        endforeach()
+    endforeach()
+
+    get_property(subdirectories DIRECTORY "${directory}" PROPERTY SUBDIRECTORIES)
+    foreach(subdirectory IN LISTS subdirectories)
+        _cryptocogs_clang_tidy_walk("${subdirectory}" below)
+        list(APPEND sources ${below})
+    endforeach()
+    set(${out} "${sources}" PARENT_SCOPE)
+endfunction()
+
+# cryptocogs_clang_tidy_add_tests(<tool> <root> <extra>)
+#
+# Registers the tests below in the calling directory, for the tool cryptocogs_clang_tidy_tool resolved. An empty <tool>
+# registers nothing and copies nothing: that is the opt-in rule. <root> is the source root, where .clang-tidy and
+# tests/clang_tidy_checks/ are; <extra> is the caller's list of extra arguments. The compile database is the one in
+# PROJECT_BINARY_DIR. Nothing is built: clang-tidy reads that database and the sources, and the dependencies' headers are in
+# place by the end of the configure. The call comes after the last target of the project is made (the end of the root
+# CMakeLists.txt), because the units are read from the targets.
+#
+#   clang_tidy_<path>     one per unit: a .cpp that a target of this project compiles, named from its path under the root, so
+#                         that `ctest -R '^clang_tidy_src_binance_'` runs one adapter's. A unit that no target compiles is not
+#                         one, and an adapter that is switched off has no targets. D9 of plan 035 has the reasons.
+#   clang_tidy_version    the tool is LLVM CRYPTOCOGS_CLANG_TIDY_MAJOR. The Mac, the container and a CI job one day run one
+#                         major, and this is what stops them drifting apart unseen.
+#   clang_tidy_checks     .clang-tidy enables the families it should, and none of the checks it removes.
+#   clang_tidy_units      the registered units are exactly the units in the tree's compile database, at test time.
+#   clang_tidy_canary_*   three proofs that the gate bites, on fixtures that are in no compile database: a defect in the unit,
+#                         a defect in a header at this repo's kind of path, and the same defect in a header at a dependency's
+#                         kind of path, which must not be reported.
+#
+# Every run names the config file, so that the file clang_tidy_checks lists, the file the canaries read and the file the units
+# read are one file, whatever a subdirectory might hold later. A lint gate that silently checks nothing passes, which is why
+# the gate itself is tested.
+function(cryptocogs_clang_tidy_add_tests tool root extra)
+    if("${tool}" STREQUAL "")
+        return()
+    endif()
+
+    set(config "--config-file=${root}/.clang-tidy")
+    cryptocogs_clang_tidy_sdk("${APPLE}" "${CMAKE_OSX_SYSROOT}" sdk)
+    cryptocogs_clang_tidy_args("${extra}" "${sdk}" args)
+    _cryptocogs_clang_tidy_walk("${root}" candidates)
+    cryptocogs_clang_tidy_select("${root}" "${candidates}" units)
+
+    foreach(unit IN LISTS units)
+        cryptocogs_clang_tidy_test_name("${root}" "${unit}" name)
+        add_test(NAME ${name}
+                 COMMAND ${tool} -p ${PROJECT_BINARY_DIR} --quiet ${config} ${args} ${unit})
+    endforeach()
+
+    add_test(NAME clang_tidy_version COMMAND ${tool} --version)
+    set_tests_properties(clang_tidy_version PROPERTIES
+        PASS_REGULAR_EXPRESSION "LLVM version ${CRYPTOCOGS_CLANG_TIDY_MAJOR}\\.")
+
+    # The list prints sorted, so one expression asks for a check of each family, in order.
+    add_test(NAME clang_tidy_checks COMMAND ${tool} ${config} --list-checks)
+    set_tests_properties(clang_tidy_checks PROPERTIES
+        PASS_REGULAR_EXPRESSION
+            "bugprone-use-after-move.*cppcoreguidelines-pro-type-member-init.*performance-unnecessary-value-param"
+        FAIL_REGULAR_EXPRESSION
+            "bugprone-easily-swappable-parameters|bugprone-narrowing-conversions|readability-|modernize-")
+
+    # The units proof reads the database at test time, so it is handed the list as the registration made it.
+    string(REPLACE ";" "|" registered "${units}")
+    add_test(NAME clang_tidy_units
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${root}
+                     -DBUILD_DIR=${PROJECT_BINARY_DIR}
+                     "-DREGISTERED=${registered}"
+                     -P ${root}/tests/clang_tidy_checks/check_clang_tidy_units.cmake)
+
+    # The canary: one unit with a defect of its own, and two headers that carry the same defect at the two kinds of path the
+    # header filter must tell apart. The fixtures are copied under the build tree so that their paths are
+    # .../include/exchange/... and .../_deps/canary-src/tests/..., not tests/..., which the filter would admit whatever else it
+    # did. The dependency's path matches the filter's inclusion (/tests/), so only its exclusion keeps it out. All three tests
+    # run one command: the output has to show the unit's error, the header's error, and no word of the dependency header.
+    # "error:", not "warning:", is --warnings-as-errors biting; a check's name is followed by a comma or the bracket, because
+    # the flag appends ",-warnings-as-errors".
+    set(fixtures ${root}/tests/clang_tidy_checks/canaries)
+    set(canary ${PROJECT_BINARY_DIR}/clang_tidy_canary)
+    configure_file(${fixtures}/canary.cpp ${canary}/canary.cpp COPYONLY)
+    configure_file(${fixtures}/canary_own.hpp ${canary}/include/exchange/canary_own.hpp COPYONLY)
+    configure_file(${fixtures}/canary_dep.hpp ${canary}/_deps/canary-src/tests/canary_dep.hpp COPYONLY)
+    set(command
+        ${tool} ${config} ${args} ${canary}/canary.cpp -- -std=c++23
+        -I${canary}/include -I${canary}/_deps/canary-src/tests)
+    set(unit_error "canary\\.cpp:[0-9]+:[0-9]+: error: [^\n]*\\[bugprone-use-after-move[],]")
+    add_test(NAME clang_tidy_canary_source COMMAND ${command})
+    set_tests_properties(clang_tidy_canary_source PROPERTIES
+        PASS_REGULAR_EXPRESSION "${unit_error}")
+    add_test(NAME clang_tidy_canary_own_header COMMAND ${command})
+    set_tests_properties(clang_tidy_canary_own_header PROPERTIES
+        PASS_REGULAR_EXPRESSION
+            "include/exchange/canary_own\\.hpp:[0-9]+:[0-9]+: error: [^\n]*\\[performance-unnecessary-value-param[],]")
+    add_test(NAME clang_tidy_canary_dependency_header COMMAND ${command})
+    set_tests_properties(clang_tidy_canary_dependency_header PROPERTIES
+        PASS_REGULAR_EXPRESSION "${unit_error}"
+        FAIL_REGULAR_EXPRESSION "canary_dep\\.hpp")
 endfunction()

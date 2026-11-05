@@ -204,8 +204,9 @@ expect_rejected("test_name: a sibling directory that only shares the root's spel
 # ── cryptocogs_clang_tidy_select ────────────────────────────────────────────────────────────────────────────────────
 # One list with every case: C++ sources in the three spellings of the extension; one listed twice, and one listed again
 # by a path that normalises to it; a header and a template body (not sources); a C file (the project has none, and the
-# gate is for C++); the two fixture directories under tests/, whose defects are deliberate; a sibling directory that
-# only shares the root's spelling; and a file elsewhere.
+# gate is for C++); a dependency's sources, under a directory called _deps, in the build tree and not; a directory whose name only
+# contains _deps; the two fixture directories under tests/, whose defects are deliberate; a sibling directory that only shares
+# the root's spelling; and a file elsewhere.
 set(candidates
     "/r/tests/unit/test_y.cpp"
     "/r/src/kraken/types.cpp"
@@ -217,11 +218,14 @@ set(candidates
     "/r/include/exchange/common/types.hpp"
     "/r/src/exchange/common/ws_client.inl"
     "/r/src/legacy.c"
+    "/r/build/debug/_deps/x-src/x.cpp"
+    "/r/third_party/_deps/y.cpp"
+    "/r/src/my_deps/a.cpp"
     "/r/tests/clang_tidy_checks/canaries/canary.cpp"
     "/r/tests/sanitize_checks/canaries/canary_asan.cpp"
     "/r2/src/elsewhere.cpp"
     "/elsewhere/x.cpp")
-set(want "/r/src/kraken/auth.cpp;/r/src/kraken/types.cpp;/r/tests/examples/binance/e.cc;/r/tests/unit/test_x.cxx;/r/tests/unit/test_y.cpp")
+set(want "/r/src/kraken/auth.cpp;/r/src/kraken/types.cpp;/r/src/my_deps/a.cpp;/r/tests/examples/binance/e.cc;/r/tests/unit/test_x.cxx;/r/tests/unit/test_y.cpp")
 cryptocogs_clang_tidy_select("/r" "${candidates}" got)
 expect_equal("select: sources under the root, sorted, once each, less the fixtures" "${got}" "${want}")
 cryptocogs_clang_tidy_select("/r/" "${candidates}" got)

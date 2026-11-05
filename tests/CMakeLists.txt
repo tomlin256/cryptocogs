@@ -342,3 +342,33 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
                      -DSCRATCH_ROOT=${CMAKE_CURRENT_BINARY_DIR}/clang_tidy_checks
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/clang_tidy_checks/check_clang_tidy_module.cmake)
 endif()
+
+# The registration: an empty CRYPTOCOGS_CLANG_TIDY registers nothing, a tool registers the units of the targets and the six
+# tests that prove the gate bites, and the root refuses a tool it cannot run before it fetches a dependency. A stub project
+# does the registering and the real root is configured four times (a missing tool, the tests off, as a subproject, and with the
+# gate on over its real targets), over the dependency sources this build already fetched, so it needs no network and compiles
+# nothing. Top level only.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_test(NAME test_clang_tidy_wiring
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -DSCRATCH_ROOT=${CMAKE_CURRENT_BINARY_DIR}/clang_tidy_checks
+                     -DNLOHMANN_JSON_SRC=${nlohmann_json_SOURCE_DIR}
+                     -DTOMLPLUSPLUS_SRC=${tomlplusplus_SOURCE_DIR}
+                     -DIXWEBSOCKET_SRC=${ixwebsocket_SOURCE_DIR}
+                     -DGOOGLETEST_SRC=${googletest_SOURCE_DIR}
+                     -DBACKWARD_SRC=${backward_SOURCE_DIR}
+                     -DSPDLOG_SRC=${spdlog_SOURCE_DIR}
+                     -DCLI11_SRC=${cli11_SOURCE_DIR}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/clang_tidy_checks/check_clang_tidy_wiring.cmake)
+endif()
+
+# .clang-tidy and .clangd: the one list of checks that the editor and the gate share, the header filter that admits every
+# header the checkout owns and excludes _deps. It runs in every tree, because the editor reads .clang-tidy whether or not the
+# gate is on. Top level only.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_test(NAME test_clang_tidy_config
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/clang_tidy_checks/check_clang_tidy_config.cmake)
+endif()

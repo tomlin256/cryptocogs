@@ -107,6 +107,34 @@ if(_cryptocogs_sanitize_compile)
 endif()
 
 #-------------------------------------------------------------------------------
+# clang-tidy (opt-in; plan 035, #34)
+#
+#   -DCRYPTOCOGS_CLANG_TIDY=clang-tidy    the tool that holds the project's own sources to .clang-tidy: a command on PATH, or a path
+#   -DCRYPTOCOGS_CLANG_TIDY_ARGS="..."    extra arguments for every run, a list
+#
+# The default, empty, leaves the clang_tidy_ tests out and changes nothing. With a tool named, ctest runs it over every unit of the
+# project, one test each, and over the fixtures that prove the gate bites; the tests are registered at the end of this file, after
+# the last target is made, because the units are read from the targets. A tool that was asked for and cannot be run is an error,
+# never a gate that is silently absent, and so is a generator that writes no compile_commands.json, or the tests off. It is
+# resolved HERE, before the first dependency is fetched, so that a refusal needs no network (test_clang_tidy_wiring holds that).
+# Top level only: in a parent project's tree the variables are inert. cmake/cryptocogs_clang_tidy.cmake has the reasons.
+#-------------------------------------------------------------------------------
+
+set(CRYPTOCOGS_CLANG_TIDY "" CACHE STRING
+    "clang-tidy command that holds the project's sources to .clang-tidy; empty leaves the clang_tidy_ tests out")
+set(CRYPTOCOGS_CLANG_TIDY_ARGS "" CACHE STRING "Extra arguments for every clang-tidy run, a list")
+set(_cryptocogs_clang_tidy "")
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/cryptocogs_clang_tidy.cmake)
+    cryptocogs_clang_tidy_tool("${CRYPTOCOGS_CLANG_TIDY}" "${CMAKE_GENERATOR}" _cryptocogs_clang_tidy)
+    if(_cryptocogs_clang_tidy AND NOT CRYPTOCOGS_BUILD_TESTS)
+        message(FATAL_ERROR
+            "CRYPTOCOGS_CLANG_TIDY is set, and the clang_tidy_ tests are registered with the tests: turn "
+            "CRYPTOCOGS_BUILD_TESTS on")
+    endif()
+endif()
+
+#-------------------------------------------------------------------------------
 # Find OpenSSL
 #-------------------------------------------------------------------------------
 
@@ -225,6 +253,16 @@ if(CRYPTOCOGS_BUILD_BENCHMARKS)
 
     add_subdirectory(tests/benchmarks)
   endif()
+endif()
+
+#-------------------------------------------------------------------------------
+# clang-tidy tests (opt-in; plan 035, #34) — registered HERE, after the last target of the project is made: the units are
+# the sources of the targets (D9), and clang_tidy_units fails if a target is made after this call. Nothing is registered unless
+# CRYPTOCOGS_CLANG_TIDY named a tool (above).
+#-------------------------------------------------------------------------------
+
+if(_cryptocogs_clang_tidy)
+    cryptocogs_clang_tidy_add_tests("${_cryptocogs_clang_tidy}" "${CMAKE_CURRENT_SOURCE_DIR}" "${CRYPTOCOGS_CLANG_TIDY_ARGS}")
 endif()
 
 #-------------------------------------------------------------------------------

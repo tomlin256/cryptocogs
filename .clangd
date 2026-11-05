@@ -3,15 +3,7 @@ CompileFlags:
   # edits this line. A tree has a compile_commands.json once it has been configured.
   CompilationDatabase: build/debug-macos-arm64
 
-Diagnostics:
-  ClangTidy:
-    Add:
-      - bugprone-*
-      - performance-*
-      - cppcoreguidelines-pro-type-member-init
-    Remove:
-      - bugprone-easily-swappable-parameters
-      - bugprone-narrowing-conversions
+# The clang-tidy checks are in .clang-tidy (plan 035), which clangd reads too: one list serves the editor and the gate.
 
 InlayHints:
   Enabled: Yes
