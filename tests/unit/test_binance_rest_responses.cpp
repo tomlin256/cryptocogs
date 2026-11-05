@@ -10,6 +10,7 @@
 #include "exchange/binance/rest_api.hpp"
 #include "binance_account_example_json.hpp"
 #include "binance_rest_example_json.hpp"
+#include "assert_has_value.hpp"
 
 #include <algorithm>
 #include <gtest/gtest.h>
@@ -292,15 +293,15 @@ TEST(BinanceRestResponses, NewOrder_ResultShape) {
     auto r = BinanceNewOrderResponse::from_json(j);
     EXPECT_EQ(r.symbol, "BTCUSDT");
     EXPECT_EQ(r.order_id, 28LL);
-    ASSERT_TRUE(r.price.has_value());
+    ASSERT_HAS_VALUE(r.price);
     EXPECT_DOUBLE_EQ(*r.price, 0.0);
-    ASSERT_TRUE(r.orig_qty.has_value());
+    ASSERT_HAS_VALUE(r.orig_qty);
     EXPECT_DOUBLE_EQ(*r.orig_qty, 10.0);
-    ASSERT_TRUE(r.executed_qty.has_value());
+    ASSERT_HAS_VALUE(r.executed_qty);
     EXPECT_DOUBLE_EQ(*r.executed_qty, 10.0);
-    ASSERT_TRUE(r.orig_quote_order_qty.has_value());
+    ASSERT_HAS_VALUE(r.orig_quote_order_qty);
     EXPECT_DOUBLE_EQ(*r.orig_quote_order_qty, 0.0);
-    ASSERT_TRUE(r.cummulative_quote_qty.has_value());
+    ASSERT_HAS_VALUE(r.cummulative_quote_qty);
     EXPECT_DOUBLE_EQ(*r.cummulative_quote_qty, 10.0);
     EXPECT_EQ(r.status, exchange::OrderStatus::Filled);
     EXPECT_EQ(r.time_in_force, exchange::TimeInForce::GTC);

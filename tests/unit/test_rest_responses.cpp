@@ -9,6 +9,7 @@
 
 #include "exchange/kraken/rest_api.hpp"
 #include "exchange/kraken/types.hpp"
+#include "assert_has_value.hpp"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
@@ -26,7 +27,7 @@ TEST(RestEnvelope, OkResponseSetsOkTrue) {
     auto resp = exchange::kraken::parse_rest_response<ServerTime>(j);
     EXPECT_TRUE(resp.ok);
     EXPECT_TRUE(resp.errors.empty());
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->unixtime, 1700000000);
 }
 
@@ -141,7 +142,7 @@ TEST(AddOrderResult, ParsesOptionalClose) {
         "txid": ["OABC12-DEFG34-HIJKL5"]
     })");
     auto r = AddOrderResult::from_json(j);
-    ASSERT_TRUE(r.descr_close.has_value());
+    ASSERT_HAS_VALUE(r.descr_close);
     EXPECT_EQ(*r.descr_close, "close position");
 }
 
@@ -191,14 +192,14 @@ TEST(CancelOrderResult, ParsesCount) {
 TEST(FeePreferenceParsing, Base) {
     auto j = json::parse(R"({"fee_preference":"base"})");
     auto p = exchange::kraken::OrderParams::from_json(j);
-    ASSERT_TRUE(p.fee_preference.has_value());
+    ASSERT_HAS_VALUE(p.fee_preference);
     EXPECT_EQ(*p.fee_preference, exchange::kraken::FeePreference::Base);
 }
 
 TEST(FeePreferenceParsing, Quote) {
     auto j = json::parse(R"({"fee_preference":"quote"})");
     auto p = exchange::kraken::OrderParams::from_json(j);
-    ASSERT_TRUE(p.fee_preference.has_value());
+    ASSERT_HAS_VALUE(p.fee_preference);
     EXPECT_EQ(*p.fee_preference, exchange::kraken::FeePreference::Quote);
 }
 
@@ -220,21 +221,21 @@ TEST(FeePreferenceParsing, InvalidValueThrows) {
 TEST(StpTypeParsing, CancelNewest) {
     auto j = json::parse(R"({"order_type":"limit","side":"buy","symbol":"BTC/USD","stp_type":"cancel_newest"})");
     auto p = exchange::kraken::OrderParams::from_json(j);
-    ASSERT_TRUE(p.stp_type.has_value());
+    ASSERT_HAS_VALUE(p.stp_type);
     EXPECT_EQ(*p.stp_type, exchange::kraken::StpType::CancelNewest);
 }
 
 TEST(StpTypeParsing, CancelOldest) {
     auto j = json::parse(R"({"order_type":"limit","side":"buy","symbol":"BTC/USD","stp_type":"cancel_oldest"})");
     auto p = exchange::kraken::OrderParams::from_json(j);
-    ASSERT_TRUE(p.stp_type.has_value());
+    ASSERT_HAS_VALUE(p.stp_type);
     EXPECT_EQ(*p.stp_type, exchange::kraken::StpType::CancelOldest);
 }
 
 TEST(StpTypeParsing, CancelBoth) {
     auto j = json::parse(R"({"order_type":"limit","side":"buy","symbol":"BTC/USD","stp_type":"cancel_both"})");
     auto p = exchange::kraken::OrderParams::from_json(j);
-    ASSERT_TRUE(p.stp_type.has_value());
+    ASSERT_HAS_VALUE(p.stp_type);
     EXPECT_EQ(*p.stp_type, exchange::kraken::StpType::CancelBoth);
 }
 

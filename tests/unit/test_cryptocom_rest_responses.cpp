@@ -29,7 +29,11 @@ template<typename Result>
 Result parse(const char* fixture) {
     auto resp = parse_cryptocom_response<Result>(200, json::parse(fixture));
     EXPECT_TRUE(resp.ok);
-    EXPECT_TRUE(resp.result.has_value());
+    // A plain check, not ASSERT_HAS_VALUE: this helper returns a value, and a fatal assertion returns void.
+    if (!resp.result.has_value()) {
+        ADD_FAILURE() << "resp.result has no value";
+        return Result{};
+    }
     return resp.result.value();
 }
 } // namespace

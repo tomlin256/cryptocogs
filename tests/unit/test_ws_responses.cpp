@@ -13,6 +13,7 @@
 // implementations stay in sync with the actual wire format.
 
 #include "exchange/kraken/ws_api.hpp"
+#include "assert_has_value.hpp"
 #include "ws_client_example_json.hpp"
 
 #include <gtest/gtest.h>
@@ -142,11 +143,11 @@ TEST(ParseSubscribeResponse, FieldsFromSampleJson) {
     EXPECT_TRUE(r.success);
     // No req_id — the outbound subscribe request did not include one.
     EXPECT_FALSE(r.req_id.has_value());
-    ASSERT_TRUE(r.channel.has_value());
+    ASSERT_HAS_VALUE(r.channel);
     EXPECT_EQ(r.channel.value(), "ticker");
-    ASSERT_TRUE(r.symbol.has_value());
+    ASSERT_HAS_VALUE(r.symbol);
     EXPECT_EQ(r.symbol.value(), "BTC/USD");
-    ASSERT_TRUE(r.time_in.has_value());
+    ASSERT_HAS_VALUE(r.time_in);
     EXPECT_EQ(r.time_in.value(), "2026-03-15T11:25:20.538603Z");
 }
 
@@ -191,7 +192,7 @@ TEST(ParseBookMessage, FieldsFromSampleJson) {
     ASSERT_EQ(d.bids.size(), 10u);
     EXPECT_DOUBLE_EQ(d.bids[0].price, 71770.3);
     EXPECT_DOUBLE_EQ(d.bids[0].qty, 0.03228444);
-    ASSERT_TRUE(d.checksum.has_value());
+    ASSERT_HAS_VALUE(d.checksum);
     EXPECT_EQ(d.checksum.value(), 2552662837u);
 }
 
@@ -234,7 +235,7 @@ TEST(ParseOHLCMessage, FieldsFromSampleJson) {
     EXPECT_DOUBLE_EQ(d.volume, 0.06060006);
     EXPECT_EQ(d.trades, 14);
     EXPECT_EQ(d.interval_begin, "2026-03-15T11:26:00.000000000Z");
-    ASSERT_TRUE(d.interval.has_value());
+    ASSERT_HAS_VALUE(d.interval);
     EXPECT_EQ(d.interval.value(), 1);
 }
 
@@ -252,15 +253,15 @@ TEST(ParseInstrumentMessage, FieldsFromSampleJson) {
     const auto& a = m.assets[0];
     EXPECT_EQ(a.id, "BTC");
     EXPECT_EQ(a.status, "enabled");
-    ASSERT_TRUE(a.precision.has_value());
+    ASSERT_HAS_VALUE(a.precision);
     EXPECT_EQ(a.precision.value(), 10);
-    ASSERT_TRUE(a.precision_display.has_value());
+    ASSERT_HAS_VALUE(a.precision_display);
     EXPECT_EQ(a.precision_display.value(), 5);
-    ASSERT_TRUE(a.borrowable.has_value());
+    ASSERT_HAS_VALUE(a.borrowable);
     EXPECT_TRUE(a.borrowable.value());
-    ASSERT_TRUE(a.collateral_value.has_value());
+    ASSERT_HAS_VALUE(a.collateral_value);
     EXPECT_DOUBLE_EQ(a.collateral_value.value(), 1.0);
-    ASSERT_TRUE(a.margin_rate.has_value());
+    ASSERT_HAS_VALUE(a.margin_rate);
     EXPECT_DOUBLE_EQ(a.margin_rate.value(), 0.02);
 
     // pairs
@@ -275,15 +276,15 @@ TEST(ParseInstrumentMessage, FieldsFromSampleJson) {
     EXPECT_DOUBLE_EQ(p.price_increment, 0.1);
     EXPECT_DOUBLE_EQ(p.cost_min, 0.5);
     EXPECT_EQ(p.margin_initial, 20);
-    ASSERT_TRUE(p.position_limit_long.has_value());
+    ASSERT_HAS_VALUE(p.position_limit_long);
     EXPECT_EQ(p.position_limit_long.value(), 250);
-    ASSERT_TRUE(p.position_limit_short.has_value());
+    ASSERT_HAS_VALUE(p.position_limit_short);
     EXPECT_EQ(p.position_limit_short.value(), 250);
-    ASSERT_TRUE(p.has_index.has_value());
+    ASSERT_HAS_VALUE(p.has_index);
     EXPECT_TRUE(p.has_index.value());
-    ASSERT_TRUE(p.cost_precision.has_value());
+    ASSERT_HAS_VALUE(p.cost_precision);
     EXPECT_EQ(p.cost_precision.value(), 5);
-    ASSERT_TRUE(p.qty_precision.has_value());
+    ASSERT_HAS_VALUE(p.qty_precision);
     EXPECT_EQ(p.qty_precision.value(), 10);
 }
 
@@ -312,21 +313,21 @@ TEST(ParseExecutionsMessage, FieldsFromSampleJson) {
     EXPECT_DOUBLE_EQ(d.cost, 5000.0);
     EXPECT_EQ(d.order_status, "filled");
     EXPECT_EQ(d.timestamp, "2026-03-15T12:00:00.000Z");
-    ASSERT_TRUE(d.fee.has_value());
+    ASSERT_HAS_VALUE(d.fee);
     EXPECT_DOUBLE_EQ(d.fee.value(), 2.5);
-    ASSERT_TRUE(d.fee_currency.has_value());
+    ASSERT_HAS_VALUE(d.fee_currency);
     EXPECT_EQ(d.fee_currency.value(), "USD");
-    ASSERT_TRUE(d.liquidity_ind.has_value());
+    ASSERT_HAS_VALUE(d.liquidity_ind);
     EXPECT_EQ(d.liquidity_ind.value(), "m");
-    ASSERT_TRUE(d.fee_ccy_pref.has_value());
+    ASSERT_HAS_VALUE(d.fee_ccy_pref);
     EXPECT_EQ(d.fee_ccy_pref.value(), "fciq");
-    ASSERT_TRUE(d.limit_price.has_value());
+    ASSERT_HAS_VALUE(d.limit_price);
     EXPECT_DOUBLE_EQ(d.limit_price.value(), 50000.0);
-    ASSERT_TRUE(d.time_in_force.has_value());
+    ASSERT_HAS_VALUE(d.time_in_force);
     EXPECT_EQ(d.time_in_force.value(), "GTC");
-    ASSERT_TRUE(d.post_only.has_value());
+    ASSERT_HAS_VALUE(d.post_only);
     EXPECT_FALSE(d.post_only.value());
-    ASSERT_TRUE(d.margin.has_value());
+    ASSERT_HAS_VALUE(d.margin);
     EXPECT_FALSE(d.margin.value());
 }
 
@@ -341,11 +342,11 @@ TEST(ParseExecutionsMessage, MultiElementFeesArraySums) {
     auto m = exchange::kraken::ws::ExecutionsMessage::from_json(json::parse(jsonStr));
     ASSERT_EQ(m.data.size(), 1u);
     const auto& d = m.data[0];
-    ASSERT_TRUE(d.fee.has_value());
+    ASSERT_HAS_VALUE(d.fee);
     EXPECT_DOUBLE_EQ(d.fee.value(), 2.5);
-    ASSERT_TRUE(d.fee_currency.has_value());
+    ASSERT_HAS_VALUE(d.fee_currency);
     EXPECT_EQ(d.fee_currency.value(), "USD");
-    ASSERT_TRUE(d.liquidity_ind.has_value());
+    ASSERT_HAS_VALUE(d.liquidity_ind);
     EXPECT_EQ(d.liquidity_ind.value(), "t");
 }
 
@@ -360,9 +361,9 @@ TEST(ParseExecutionsMessage, LegacySingularFeeFallback) {
     auto m = exchange::kraken::ws::ExecutionsMessage::from_json(json::parse(jsonStr));
     ASSERT_EQ(m.data.size(), 1u);
     const auto& d = m.data[0];
-    ASSERT_TRUE(d.fee.has_value());
+    ASSERT_HAS_VALUE(d.fee);
     EXPECT_DOUBLE_EQ(d.fee.value(), 2.5);
-    ASSERT_TRUE(d.fee_currency.has_value());
+    ASSERT_HAS_VALUE(d.fee_currency);
     EXPECT_EQ(d.fee_currency.value(), "USD");
     EXPECT_FALSE(d.liquidity_ind.has_value());
 }
@@ -391,7 +392,7 @@ TEST(ParseBalancesMessage, FieldsFromSampleJson) {
 TEST(ParsePongMessage, FieldsFromSampleJson) {
     auto m = exchange::kraken::ws::PongMessage::from_json(json::parse(kPongJson));
     EXPECT_EQ(m.method, "pong");
-    ASSERT_TRUE(m.req_id.has_value());
+    ASSERT_HAS_VALUE(m.req_id);
     EXPECT_EQ(m.req_id.value(), 42);
 }
 
@@ -403,13 +404,13 @@ TEST(ParseAddOrderResponse, FieldsFromSampleJson) {
     auto r = exchange::kraken::ws::AddOrderResponse::from_json(json::parse(kAddOrderResponseJson));
     EXPECT_EQ(r.method, "add_order");
     EXPECT_TRUE(r.success);
-    ASSERT_TRUE(r.req_id.has_value());
+    ASSERT_HAS_VALUE(r.req_id);
     EXPECT_EQ(r.req_id.value(), 2);
-    ASSERT_TRUE(r.order_id.has_value());
+    ASSERT_HAS_VALUE(r.order_id);
     EXPECT_EQ(r.order_id.value(), "ORDER-001");
-    ASSERT_TRUE(r.cl_ord_id.has_value());
+    ASSERT_HAS_VALUE(r.cl_ord_id);
     EXPECT_EQ(r.cl_ord_id.value(), "my-order-1");
-    ASSERT_TRUE(r.order_userref.has_value());
+    ASSERT_HAS_VALUE(r.order_userref);
     EXPECT_EQ(r.order_userref.value(), 12345);
 }
 
@@ -421,11 +422,11 @@ TEST(ParseAmendOrderResponse, FieldsFromSampleJson) {
     auto r = exchange::kraken::ws::AmendOrderResponse::from_json(json::parse(kAmendOrderResponseJson));
     EXPECT_EQ(r.method, "amend_order");
     EXPECT_TRUE(r.success);
-    ASSERT_TRUE(r.req_id.has_value());
+    ASSERT_HAS_VALUE(r.req_id);
     EXPECT_EQ(r.req_id.value(), 3);
-    ASSERT_TRUE(r.order_id.has_value());
+    ASSERT_HAS_VALUE(r.order_id);
     EXPECT_EQ(r.order_id.value(), "ORDER-001");
-    ASSERT_TRUE(r.cl_ord_id.has_value());
+    ASSERT_HAS_VALUE(r.cl_ord_id);
     EXPECT_EQ(r.cl_ord_id.value(), "my-order-1");
 }
 
@@ -437,9 +438,9 @@ TEST(ParseCancelOrderResponse, FieldsFromSampleJson) {
     auto r = exchange::kraken::ws::CancelOrderResponse::from_json(json::parse(kCancelOrderResponseJson));
     EXPECT_EQ(r.method, "cancel_order");
     EXPECT_TRUE(r.success);
-    ASSERT_TRUE(r.req_id.has_value());
+    ASSERT_HAS_VALUE(r.req_id);
     EXPECT_EQ(r.req_id.value(), 4);
-    ASSERT_TRUE(r.orders_cancelled.has_value());
+    ASSERT_HAS_VALUE(r.orders_cancelled);
     ASSERT_EQ(r.orders_cancelled->size(), 1u);
     EXPECT_EQ((*r.orders_cancelled)[0].order_id, "ORDER-001");
     EXPECT_TRUE((*r.orders_cancelled)[0].success);
@@ -453,9 +454,9 @@ TEST(ParseCancelAllResponse, FieldsFromSampleJson) {
     auto r = exchange::kraken::ws::CancelAllResponse::from_json(json::parse(kCancelAllResponseJson));
     EXPECT_EQ(r.method, "cancel_all");
     EXPECT_TRUE(r.success);
-    ASSERT_TRUE(r.req_id.has_value());
+    ASSERT_HAS_VALUE(r.req_id);
     EXPECT_EQ(r.req_id.value(), 5);
-    ASSERT_TRUE(r.count.has_value());
+    ASSERT_HAS_VALUE(r.count);
     EXPECT_EQ(r.count.value(), 3);
 }
 
@@ -468,11 +469,11 @@ TEST(ParseCancelOnDisconnectResponse, FieldsFromSampleJson) {
         json::parse(kCancelOnDisconnectResponseJson));
     EXPECT_EQ(r.method, "cancel_after");
     EXPECT_TRUE(r.success);
-    ASSERT_TRUE(r.req_id.has_value());
+    ASSERT_HAS_VALUE(r.req_id);
     EXPECT_EQ(r.req_id.value(), 6);
-    ASSERT_TRUE(r.current_time.has_value());
+    ASSERT_HAS_VALUE(r.current_time);
     EXPECT_EQ(r.current_time.value(), "2026-03-15T12:00:00.000Z");
-    ASSERT_TRUE(r.trigger_time.has_value());
+    ASSERT_HAS_VALUE(r.trigger_time);
     EXPECT_EQ(r.trigger_time.value(), "2026-03-15T12:01:00.000Z");
 }
 
@@ -484,14 +485,15 @@ TEST(ParseBatchAddResponse, FieldsFromSampleJson) {
     auto r = exchange::kraken::ws::BatchAddResponse::from_json(json::parse(kBatchAddResponseJson));
     EXPECT_EQ(r.method, "batch_add");
     EXPECT_TRUE(r.success);
-    ASSERT_TRUE(r.req_id.has_value());
+    ASSERT_HAS_VALUE(r.req_id);
     EXPECT_EQ(r.req_id.value(), 7);
-    ASSERT_TRUE(r.orders.has_value());
+    ASSERT_HAS_VALUE(r.orders);
     ASSERT_EQ(r.orders->size(), 2u);
-    EXPECT_EQ((*r.orders)[0].order_id, "ORDER-A");
-    EXPECT_TRUE((*r.orders)[0].success);
-    ASSERT_TRUE((*r.orders)[0].cl_ord_id.has_value());
-    EXPECT_EQ((*r.orders)[0].cl_ord_id.value(), "batch-1");
+    const auto& first = (*r.orders)[0];
+    EXPECT_EQ(first.order_id, "ORDER-A");
+    EXPECT_TRUE(first.success);
+    ASSERT_HAS_VALUE(first.cl_ord_id);
+    EXPECT_EQ(first.cl_ord_id.value(), "batch-1");
     EXPECT_EQ((*r.orders)[1].order_id, "ORDER-B");
     EXPECT_TRUE((*r.orders)[1].success);
 }
@@ -504,9 +506,9 @@ TEST(ParseBatchCancelResponse, FieldsFromSampleJson) {
     auto r = exchange::kraken::ws::BatchCancelResponse::from_json(json::parse(kBatchCancelResponseJson));
     EXPECT_EQ(r.method, "batch_cancel");
     EXPECT_TRUE(r.success);
-    ASSERT_TRUE(r.req_id.has_value());
+    ASSERT_HAS_VALUE(r.req_id);
     EXPECT_EQ(r.req_id.value(), 8);
-    ASSERT_TRUE(r.orders_cancelled.has_value());
+    ASSERT_HAS_VALUE(r.orders_cancelled);
     EXPECT_EQ(r.orders_cancelled.value(), 2);
 }
 
@@ -518,12 +520,12 @@ TEST(ParseEditOrderResponse, FieldsFromSampleJson) {
     auto r = exchange::kraken::ws::EditOrderResponse::from_json(json::parse(kEditOrderResponseJson));
     EXPECT_EQ(r.method, "edit_order");
     EXPECT_TRUE(r.success);
-    ASSERT_TRUE(r.req_id.has_value());
+    ASSERT_HAS_VALUE(r.req_id);
     EXPECT_EQ(r.req_id.value(), 9);
-    ASSERT_TRUE(r.order_id.has_value());
+    ASSERT_HAS_VALUE(r.order_id);
     EXPECT_EQ(r.order_id.value(), "ORDER-002");
-    ASSERT_TRUE(r.original_order_id.has_value());
+    ASSERT_HAS_VALUE(r.original_order_id);
     EXPECT_EQ(r.original_order_id.value(), "ORDER-001");
-    ASSERT_TRUE(r.cl_ord_id.has_value());
+    ASSERT_HAS_VALUE(r.cl_ord_id);
     EXPECT_EQ(r.cl_ord_id.value(), "edit-1");
 }

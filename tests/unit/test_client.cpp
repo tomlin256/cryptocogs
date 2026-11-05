@@ -8,6 +8,7 @@
 // =============================================================================
 
 #include "exchange/kraken/rest_client.hpp"
+#include "assert_has_value.hpp"
 
 #include <gtest/gtest.h>
 #include <cstdlib>
@@ -42,7 +43,7 @@ TEST(KrakenRestClient, PublicExecute_CallsBuildAndParsesResult) {
     auto resp = client.execute(GetServerTimeRequest{});
     ASSERT_TRUE(resp.ok);
     EXPECT_TRUE(resp.errors.empty());
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->unixtime, 1700000000);
     EXPECT_EQ(resp.result->rfc1123, "Mon, 14 Nov 2023 00:00:00 +0000");
 }
@@ -86,7 +87,7 @@ TEST(KrakenRestClient, PublicExecute_Ticker) {
     req.pairs = {"XBTUSD"};
     auto resp = client.execute(req);
     ASSERT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     ASSERT_EQ(resp.result->tickers.count("XBTUSD"), 1u);
     EXPECT_DOUBLE_EQ(resp.result->tickers.at("XBTUSD").last, 30000.50);
 }
@@ -108,7 +109,7 @@ TEST(KrakenRestClient, PrivateExecute_SendsPostWithAuthHeaders) {
 
     auto resp = client.execute(GetAccountBalanceRequest{}, dummy_creds());
     ASSERT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_DOUBLE_EQ(resp.result->balances.at("XXBT"), 1.5);
     EXPECT_DOUBLE_EQ(resp.result->balances.at("ZUSD"), 10000.0);
 }
@@ -136,7 +137,7 @@ TEST(KrakenRestClient, PrivateExecute_AddOrder) {
 
     auto resp = client.execute(req, dummy_creds());
     ASSERT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->descr_order, "buy 0.001 XBTUSD @ limit 30000");
     ASSERT_EQ(resp.result->txids.size(), 1u);
     EXPECT_EQ(resp.result->txids[0], "OABC12-DEFG34-HIJKL5");

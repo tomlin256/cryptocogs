@@ -11,6 +11,7 @@
 // envelope helper.
 
 #include "exchange/coinbase/types.hpp"
+#include "assert_has_value.hpp"
 
 #include <gtest/gtest.h>
 
@@ -103,7 +104,7 @@ struct FakeResult {
 TEST(CoinbaseEnvelope, SuccessStatus_ParsesResult) {
     auto resp = parse_coinbase_response<FakeResult>(200, json{{"value", 42}});
     EXPECT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->value, 42);
     EXPECT_TRUE(resp.errors.empty());
 }

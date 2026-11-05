@@ -11,6 +11,7 @@
 // envelope helper.
 
 #include "exchange/cryptocom/types.hpp"
+#include "assert_has_value.hpp"
 
 #include <gtest/gtest.h>
 
@@ -111,7 +112,7 @@ TEST(CryptoComEnvelope, Success_Code0_ParsesInnerResult) {
         200, json{{"id", 1}, {"method", "public/get-tickers"}, {"code", 0},
                   {"result", {{"value", 42}}}});
     EXPECT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->value, 42);
     EXPECT_TRUE(resp.errors.empty());
 }
