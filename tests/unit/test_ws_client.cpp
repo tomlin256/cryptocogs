@@ -948,6 +948,45 @@ TEST(WsErrorIsolation, MethodFromJsonThrowResolvesErrorNoCrash) {
     ASSERT_TRUE(resp.error.has_value());
 }
 
+// The MessageIdentifier is supplied by the adapter and runs on the transport's receive thread like everything else on this
+// path, so a throw from it must be contained too (plan 034): report the frame like any other malformed one, drop it, and go on.
+TEST(WsErrorIsolation, ThrowingIdentifierIsContained) {
+    auto conn = std::make_shared<MockWsConnection>();
+    auto eh   = std::make_shared<RecordingErrorHandler>();
+
+    // The Kraken identifier, except that it throws on a frame marked "poison".
+    const auto identifier = [](const json& j) -> exchange::ws::FrameDescriptor {
+        if (j.contains("poison"))
+            throw std::runtime_error("identifier boom");
+        return exchange::kraken::ws::kraken_frame_descriptor(j);
+    };
+    auto client = exchange::ws::make_exchange_ws_client(conn, identifier, eh);
+    conn->fire_open();
+
+    const std::string poisoned = R"({"poison":true})";
+    EXPECT_NO_THROW(conn->inject_message(poisoned));
+    ASSERT_EQ(eh->calls.size(), 1u);
+    EXPECT_EQ(eh->calls[0].raw, poisoned);
+    EXPECT_EQ(eh->calls[0].what, "identifier boom");
+
+    // The client goes on dispatching: a request made now still resolves.
+    exchange::kraken::ws::AddOrderRequest req;
+    req.order_type = exchange::OrderType::Market;
+    req.side       = exchange::Side::Sell;
+    req.order_qty  = 0.1;
+    req.symbol     = "BTC/USD";
+    req.token      = "tok";
+    auto fut = client->execute_async(req);
+    ASSERT_EQ(conn->sent().size(), 1u);
+    const int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
+    conn->inject_message(make_add_order_response(id, true, "ORDER-AFTER"));
+
+    const auto resp = fut.get();
+    EXPECT_TRUE(resp.ok);
+    ASSERT_TRUE(resp.result.has_value());
+    EXPECT_EQ(resp.result->order_id.value_or(""), "ORDER-AFTER");
+}
+
 TEST(WsErrorIsolation, ThrowingPushCallbackIsContained) {
     auto conn   = std::make_shared<MockWsConnection>();
     auto eh     = std::make_shared<CountingErrorHandler>();

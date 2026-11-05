@@ -9,6 +9,7 @@
 
 #include "exchange/common/ws_client.hpp"
 
+#include <optional>
 #include <stdexcept>
 
 namespace exchange::ws {
@@ -90,7 +91,22 @@ void ExchangeWsClient::on_raw_message(const std::string& raw) {
         return;
     }
 
-    const auto desc = identifier_(j);
+    // The identifier is supplied by the adapter and runs on this thread like the handlers below, so a throw from it ends the
+    // process the same way and is contained the same way: report the frame, drop it and go on (plan 034).
+    const std::optional<FrameDescriptor> classified = [&]() -> std::optional<FrameDescriptor> {
+        try {
+            return identifier_(j);
+        } catch (const std::exception& e) {
+            error_handler_->on_malformed_frame(raw, e);
+        } catch (...) {
+            const std::runtime_error e("non-std::exception thrown by the MessageIdentifier");
+            error_handler_->on_malformed_frame(raw, e);
+        }
+        return std::nullopt;
+    }();
+    if (!classified)
+        return;
+    const FrameDescriptor& desc = *classified;
 
     // A dispatched handler/callback runs user-supplied from_json + callbacks,
     // any of which can throw (unexpected field type, std::stod on a non-number,
