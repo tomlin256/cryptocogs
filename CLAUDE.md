@@ -40,6 +40,9 @@ each request type to its exact response type — no casts, no stringly-typed key
 ```
 cryptocogs/
 ├── CMakeLists.txt                       # Top-level build; fetches deps; CRYPTOCOGS_BUILD_* options
+├── .clang-tidy                          # The one list of clang-tidy checks: the editor's clangd reads it, and so does the opt-in gate (plan 035)
+├── cmake/                               # CMake modules, each tested apart from the root by a cmake -P check: cryptocogs_platform.cmake (plan 028),
+│                                        #   cryptocogs_sanitize.cmake (plan 032), cryptocogs_clang_tidy.cmake (plan 035); cryptocogsConfig.cmake.in
 ├── include/
 │   ├── exchange/
 │   │   ├── common/                      # Exchange-agnostic scaffold — exchange::, ::rest::, ::ws::
@@ -121,6 +124,7 @@ cryptocogs/
 │       └── heartbeat_connection.cpp  ws.cpp #   heartbeat decorator; feed events + descriptor + factories (plan 020 §2)
 └── tests/
     ├── CMakeLists.txt                   # Fetches spdlog/CLI11/backward-cpp; wires examples + unit tests
+    ├── clang_tidy_checks/               # The opt-in clang-tidy step: cmake -P checks (module, wiring, config, units) + canaries/ fixtures (plan 035)
     ├── examples/
     │   ├── public_rest.cpp              # Fetch recent trades (no credentials)
     │   ├── private_rest.cpp             # Get WS token from ~/.kraken/default
@@ -207,6 +211,8 @@ cryptocogs/
 | `CRYPTOCOGS_BUILD_CRYPTOCOM` | `ON` | Build the Crypto.com adapter (`libcryptocom.a`) and its tests/examples |
 | `CRYPTOCOGS_BUILD_TESTS` | `ON` | Build unit tests and example programs |
 | `CRYPTOCOGS_SANITIZE` | `OFF` | `asan` (AddressSanitizer + UBSan) or `tsan` (ThreadSanitizer) for the whole tree, the fetched dependencies included; any other value is a configure error. See [Sanitizers](#sanitizers) ([plan 032](docs/plans/032-sanitizer-option-and-presets.md)) |
+| `CRYPTOCOGS_CLANG_TIDY` | empty | A clang-tidy command on `PATH`, or a path: registers the `clang_tidy_` tests over the project's own sources (one per unit, plus the tests that prove the gate bites). Empty registers nothing; a tool that cannot be run, the tests off, or a generator that writes no `compile_commands.json` is a configure error. See [clang-tidy (opt-in)](#clang-tidy-opt-in) ([plan 035](docs/plans/035-clang-tidy-opt-in-test-step.md)) |
+| `CRYPTOCOGS_CLANG_TIDY_ARGS` | empty | Extra arguments for every clang-tidy run, a list |
 | `CRYPTOCOGS_INSTALL` | top-level: `ON` | Generate `install()` rules + the `cryptocogs` CMake package config ([plan 012](docs/plans/012-install-and-package-config.md)). Defaults off when cryptocogs is a `FetchContent` subproject |
 
 The four exchange flags are independent: e.g. `-DCRYPTOCOGS_BUILD_KRAKEN=OFF
@@ -307,6 +313,58 @@ adds `detect_leaks=1`, which macOS cannot do; `TSAN_OPTIONS=halt_on_error=1:seco
   no report); `tsan` failed two tests on both, the two races in the tests that [#27](https://github.com/tomlin256/cryptocogs/issues/27)
   and [#28](https://github.com/tomlin256/cryptocogs/issues/28) record, and nothing else. Both are fixed ([plan 033](docs/plans/033-tsan-races-in-the-tests.md)):
   the Mac's `tsan` tree passes 514 of 514.
+
+### clang-tidy (opt-in)
+
+`-DCRYPTOCOGS_CLANG_TIDY=<tool>` registers clang-tidy as ctest tests over the project's own sources
+([plan 035](docs/plans/035-clang-tidy-opt-in-test-step.md)). The default, empty, registers nothing and changes nothing: the build,
+`ctest` and CI are as they were, apart from three tests that need no clang-tidy (`test_clang_tidy_module`,
+`test_clang_tidy_wiring`, `test_clang_tidy_config`). Nothing is built: clang-tidy reads the tree's `compile_commands.json`, so
+configure the tree and run the tests. The variable stays in that tree's cache, so a plain `ctest` there then runs them too.
+
+```bash
+cmake --preset debug-macos-arm64 -DCRYPTOCOGS_CLANG_TIDY=clang-tidy
+ctest --preset debug-macos-arm64 -R '^clang_tidy_' -j8                  # about 20 s on the Mac; -j6 in the container
+ctest --preset debug-macos-arm64 -R '^clang_tidy_src_binance_' -j8      # one adapter: the name is the path under the repo
+cmake --preset debug-macos-arm64 -DCRYPTOCOGS_CLANG_TIDY=               # off again
+```
+
+- **Red until [#46](https://github.com/tomlin256/cryptocogs/issues/46) is done.** Turned on, 72 of the 77 per-file tests fail on the
+  Mac (329 findings, 237 of them `bugprone-unchecked-optional-access` in tests and examples): that is the measurement, not a
+  defect of the gate, and #46 is the record of it and the work of clearing it. The six tests that prove the gate pass.
+- **The tests.** `clang_tidy_<path>`, one per unit; `clang_tidy_version` (the tool is LLVM 23); `clang_tidy_checks` (the config
+  enables the families it should and none that it removes); `clang_tidy_units` (the registered units are exactly the units in
+  the tree's compile database); and three canaries, `clang_tidy_canary_*`, on fixtures in `tests/clang_tidy_checks/canaries/`
+  that are in no compile database: a defect in a unit, the same in a header under `include/exchange/`, and the same under a
+  `_deps/` path, which must *not* be reported. They prove that `.clang-tidy` is found, that `--warnings-as-errors` bites, and
+  that the header filter admits this project's headers and refuses a dependency's. *A lint gate that silently checks nothing
+  passes*, which is why the gate itself is tested; `test_clang_tidy_wiring` also configures the real root with the gate on
+  (the tool `sh`, never run), so the registration is exercised in every tree.
+- **The units come from the targets.** A unit is a `.cpp` that a target of this project compiles, read at configure time, so a
+  new adapter needs nothing, an adapter that is switched off has no units (a Crypto.com-only tree registers 31 tests, one with
+  `CRYPTOCOGS_BUILD_BENCHMARKS=ON` 90), and a file no target compiles is not one. The registration is the last thing the
+  root `CMakeLists.txt` does: `test_clang_tidy_config` holds that it follows the last `add_subdirectory`, and `clang_tidy_units`
+  fails if a target was made after it. A dependency's sources (anything under a `_deps` directory) and anything generated into
+  the build tree are never units.
+- **One list of checks, `.clang-tidy`.** The editor's clangd reads it too (shown with an LSP probe of Homebrew's clangd 23.1.4:
+  the same 101 hints with `.clangd`'s list gone), so `.clangd` carries none. clangd leaves out the checks it knows to be slow, so
+  the gate reports more than the editor: `bugprone-unchecked-optional-access` and `bugprone-signed-bitwise` never reach it. The editor
+  shows three hints that no unit reports, in the header-only `ix_ws_connection.hpp` ([#46](https://github.com/tomlin256/cryptocogs/issues/46)).
+  `HeaderFilterRegex` admits `include/exchange` and `tests`, `ExcludeHeaderFilterRegex` keeps `_deps` out, and
+  `test_clang_tidy_config` holds that every header the checkout owns matches. It has no `WarningsAsErrors` (clangd would show
+  every hint as an error): the tests pass `--warnings-as-errors=*`, and `-Wno-error=deprecated-declarations`, which is inert until
+  the build carries `-Werror` ([#47](https://github.com/tomlin256/cryptocogs/issues/47)) and then keeps clang-tidy 23 from
+  stopping on the SDK's libc++. Every run names the config file, so a `.clang-tidy` added in a subdirectory cannot change what
+  one part of the tree is held to.
+- **One LLVM major, 23.** Homebrew's `llvm` on the Mac (keg-only: link `clang-tidy` and `clangd` into `/opt/homebrew/bin`) and
+  clang-tidy 23 from apt.llvm.org in the `ubuntu-dev` container; `clang_tidy_version` fails on any other. Moving to another is
+  one commit: `CRYPTOCOGS_CLANG_TIDY_MAJOR` in `cmake/cryptocogs_clang_tidy.cmake`, and whatever the new major reports. On the
+  Mac the SDK is taken from `xcrun --show-sdk-path`, because Homebrew's clang has its own compiled in and the build uses the
+  system's. A unit peaks at about 0.5 GB, which is why the container (7 GB) runs `-j6`.
+- **Fix a finding.** `NOLINT(<check>)` is for a tool that is wrong or cannot see an invariant, by name and with a comment that
+  says which. `tests/clang_tidy_checks/canaries/` holds deliberate defects and is in no compile database.
+- **No CI job yet.** A job with 72 red units gates nothing; when the findings are cleared it is small: `clang-tidy-23` from
+  apt.llvm.org, configure only, `ctest -R '^clang_tidy_'`.
 
 ### Common build commands
 
@@ -410,7 +468,7 @@ green, and it has no caches.
 ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure and a 120 s timeout per test
 ```
 
-There are twenty-seven test executables (510 tests, plus eleven `cmake -P` checks that are listed after the table — 521 in
+There are twenty-seven test executables (510 tests, plus fourteen `cmake -P` checks that are listed after the table — 524 in
 ctest) — nine Kraken/common, six Binance, six Coinbase, six Crypto.com:
 
 | Binary | Source | What it tests |
@@ -443,7 +501,7 @@ ctest) — nine Kraken/common, six Binance, six Coinbase, six Crypto.com:
 | `<tree>/bin/test_cryptocom_client` | `test_cryptocom_client.cpp` | `CryptoComRestClient::execute()` signed-envelope round-trip via mock performer |
 | `<tree>/bin/test_cryptocom_ws_client` | `test_cryptocom_ws_client.cpp` | `HeartbeatResponder` auto-reply, and its callback outliving the responder (a frame and a heartbeat after it is destroyed, heap and stack, no reference cycle; plan 034), + id-correlated subscribe/ack/push lifecycle with `MockWsConnection` |
 
-The eleven `cmake -P` checks need no build and finish in seconds; they are registered at the top level, in every tree:
+The fourteen `cmake -P` checks need no build and finish in seconds; they are registered at the top level, in every tree:
 
 | Test | Script | What it holds |
 |---|---|---|
@@ -458,9 +516,13 @@ The eleven `cmake -P` checks need no build and finish in seconds; they are regis
 | `test_ci_paths` | `tests/ci_checks/check_paths.cmake` | the `paths-ignore` lists under the workflow's `push` and `pull_request` triggers are equal, each entry names an existing file or `<dir>/**`, and no entry covers a file that a check reads or a CMake or C++ source (plan 031) |
 | `test_sanitize_flags` | `tests/sanitize_checks/check_sanitize_flags.cmake` | the `CRYPTOCOGS_SANITIZE` mode → options mapping in `cmake/cryptocogs_sanitize.cmake`: `OFF`, `asan` and `tsan` give exactly their options, and each near miss (`ASAN`, `thread`, `ON`, …) is refused naming the value and the modes (plan 032) |
 | `test_sanitize_option` | `tests/sanitize_checks/check_sanitize_option.cmake` | the option in the root `CMakeLists.txt` reaches the project's targets: it configures the real project offline with no option and with each mode, and reads the `compile_commands.json` each writes (plan 032) |
+| `test_clang_tidy_module` | `tests/clang_tidy_checks/check_clang_tidy_module.cmake` | the helpers in `cmake/cryptocogs_clang_tidy.cmake`: the tool (empty is off; a name or a path; a generator that writes no `compile_commands.json` is refused), the macOS SDK (against stand-in `xcrun` scripts), the arguments and their order, the test names from paths, and the selection of units; every refusal names what it refused (plan 035) |
+| `test_clang_tidy_wiring` | `tests/clang_tidy_checks/check_clang_tidy_wiring.cmake` | the registration: a stub project over a tree of targets (empty registers nothing; the units are the targets' sources and not a dependency's, a generated file's or an orphan's), and the real root configured four ways (a missing tool, the tests off, as a subproject, and with the gate on, where `clang_tidy_units` runs) (plan 035) |
+| `test_clang_tidy_config` | `tests/clang_tidy_checks/check_clang_tidy_config.cmake` | `.clang-tidy` admits every header the checkout owns and excludes `_deps`, has no `WarningsAsErrors`; `.clangd` carries no second list; the root registers the tests after its last `add_subdirectory` (plan 035) |
 
 A tree configured with `CRYPTOCOGS_SANITIZE` adds the tests that prove its options are live (`sanitizer_canary_*` and
-`test_sanitizer_coverage`; see [Sanitizers](#sanitizers)).
+`test_sanitizer_coverage`; see [Sanitizers](#sanitizers)), and one configured with `CRYPTOCOGS_CLANG_TIDY` adds the `clang_tidy_*`
+tests (83 in the default tree; see [clang-tidy (opt-in)](#clang-tidy-opt-in)).
 
 Tests do **not** require network access or credentials — all I/O is mocked, except `test_ix_ws_connection`, which talks to a
 server of its own on 127.0.0.1 (a port it finds free; nothing leaves the machine).
@@ -468,7 +530,7 @@ The flag matrix splits cleanly: each exchange flag drops its own suite. A
 Crypto.com-only tree (`-DCRYPTOCOGS_BUILD_KRAKEN=OFF -DCRYPTOCOGS_BUILD_BINANCE=OFF
 -DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 120 gtests — the 92-test Crypto.com suite plus the
 exchange-agnostic 11 `TickPrice`, 8 `read_toml_credentials`, 5 `MockWsConnection` and 4 `IxWsConnection` tests, which build
-in any tree — and the eleven `cmake -P` checks: 131 in ctest.
+in any tree — and the fourteen `cmake -P` checks: 134 in ctest.
 
 ### Test suite breakdown
 

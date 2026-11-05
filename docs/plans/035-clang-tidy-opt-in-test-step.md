@@ -1,10 +1,11 @@
 # Plan 035 — clang-tidy as an opt-in test step
 
-**Status: Approved (2026-11-05), with one change, to D10.** Rob: *"D10 -- i want warnings as errors, but the rest is approved (create
+**Status: Done (2026-11-05). Approved the same day with one change, to D10.** Rob: *"D10 -- i want warnings as errors, but the rest is approved (create
 follow up gh issue for fixing the 329 issues found)"*. D1 to D9 and D11 stand as written. D10 now passes the deprecation override, and
 the build's own warnings as errors are [#47](https://github.com/tomlin256/cryptocogs/issues/47), planned as plan 036 after this one,
 which was Rob's choice from the three ways D10 could go. The follow-up issue for the 329 findings is
-[#46](https://github.com/tomlin256/cryptocogs/issues/46), opened at approval. The Progress table at the end records each step.
+[#46](https://github.com/tomlin256/cryptocogs/issues/46), opened at approval. The Progress table at the end records each step, and the
+Outcome says where the steps differ from this text.
 
 Closes [#34](https://github.com/tomlin256/cryptocogs/issues/34).
 
@@ -415,10 +416,58 @@ first comment equal what the gate printed on both platforms (any that differ are
 | 1 Start from green | Done | No commit. Mac, `debug-macos-arm64`: configure prints only the two CMake deprecation notices that #26 tracks (backward-cpp, CLI11) and exits 0, the build was up to date, ctest 521 of 521 in 36 s. Container, `debug-linux-arm64`: the same two notices, the build recompiled the two newest tests with no compiler warning in 1 min 50 s, ctest 521 of 521 in 12 s, and its compile database now has all 77 units. |
 | 2 The module, test first | Done | `build: add cmake/cryptocogs_clang_tidy.cmake and the test that holds it (step 2/6)`. `test_clang_tidy_module` was red first (the module did not exist), then green in 0.2 s. 42 hand-made mutants of the module, each run through the test on a scratch copy, are all killed by the assertion meant to catch them. The first pass left two alive, the root's `NORMAL_PATH` dropped in `test_name` and in `select`, because no case spelled the root with dot segments; two (`/x/../r/.`) were added and both are killed. Mac: configure output identical to Step 1's, build up to date with no warning, ctest 522 of 522 in 21 s. Container: the same, 522 of 522 in 24 s. |
 | 3 The configuration and the gate | Done | `build: add .clang-tidy and the opt-in clang_tidy_ tests (step 3/6)`. **Gate off:** configure output identical to Step 1's, build with no warning, ctest 524 of 524, `ctest -N` lists no `clang_tidy_` test, and the compile database is byte-identical to the one before. **Gate on, Mac** (`debug-macos-arm64`): 83 registered, 607 in all; the six proofs pass; 5 units green and 72 red, twice, identically, in 20 s at `-j8`; the gate's own log digests to 329 sites, no `clang-diagnostic`, and no red unit without a finding. A Crypto.com-only tree registers 31 and a benchmarks tree 90, and `clang_tidy_units` passes in both. A tool no host has stops the configure with `CRYPTOCOGS_CLANG_TIDY=<value> is not a command or a path this host can run`, and so do the tests off. **The editor:** flywheel's `clangd_hints.py` with Homebrew clangd 23.1.4 over 145 files of a scratch copy publishes the same 101 hints with `.clangd`'s list gone and `.clang-tidy` in place as with the list and no `.clang-tidy`, and 32 with neither (clangd's own 26 `unused-includes` and the six `-Wunused-result`): clangd reads `.clang-tidy`. **Hand-made changes**, each on a scratch copy: M1 to M12 fail what the table says (M1: 77 units red; M2 and M4: 38 red; M3: the units unchanged; M5: 0 red, the vacuity; M6: the two green includers turn red and exactly the 11 includers report the seed; M11: unchanged, all 127 database entries carrying the flag; M12: 65 units with `clang-diagnostic-deprecated-declarations`); and C1 to C12 (`.clang-tidy`, `.clangd`, the root) and W1 to W17 (the module's registration and the root) fail `test_clang_tidy_config` and `test_clang_tidy_wiring`. **Differs from the plan:** M10 found the walk's directory rules redundant and not enough: a dependency named into another tree's `_deps` inside the checkout (what the wiring test's real-root case does) is under the root and not under its own build tree. The walk now recurses everywhere and `select` drops anything under a `_deps`, so M10 is three changes (10a to 10c); the wiring test gained that real-root case (gate on, over the real targets, so the root's own call is exercised in every tree), and W17 survived until it also read `CTestTestfile.cmake` (ctest finds a bare command name on its PATH, so the listing cannot tell a resolved tool); and `test_clang_tidy_config` holds that the call follows the root's last `add_subdirectory`. |
-| 4 The Linux half | Pending | |
-| 5 Record the findings in a new issue | Pending | |
-| 6 Docs, the sibling check, and close | Pending | |
+| 4 The Linux half | Done | No commit. Container (`ubuntu-dev`, `debug-linux-arm64`, Ubuntu LLVM 23.1.6, GCC 13.3), `-j6`: gate off, 524 of 524 (the configure printed nothing new and the build no warning); gate on, 83 registered, 607 in all, the six proofs pass, and 5 units are green and 72 red, the same tests as on the Mac, twice identically, in 55 s and 37 s; 328 sites, every one also a Mac site, and the Mac's one extra is `include/exchange/common/ws_client.inl:119:25` (`bugprone-exception-escape`); no compile error, and no red unit without a finding. A clang-tidy process held about 0.5 GB while six ran. Gate off again: 524. CI for step 3 (run 42029447037, Linux x86_64, GCC 15.2): 524 of 524, the three new tests included, the dependency cache missed as expected, 1 min 8 s. |
+| 5 Record the findings in a new issue | Done | No code. #46 was opened at approval from the scratch baseline, and the gate's own output made two changes to it: on the Mac the sites are the same 329 (file, line, column and check), and in the container the refreshed tree gives 72 of 77 units and 328 sites, where the stale tree had given 70 of 75 and 327 (the Mac-only sites are one, not two). Its "Blocked by #34" line now names the commit that landed the gate (`a94b0e1`) and its first comment is regenerated from the gate's own list. #34 and #38 have comments that link it. |
+| 6 Docs, the sibling check, and close | Done | `docs: say how to run clang-tidy (step 6/6)`: `CLAUDE.md` (the `clang-tidy (opt-in)` subsection, the layout and option rows, the test tables and counts: 524 in ctest, 134 in a Crypto.com-only tree) and `README.md` (the two commands; its stale test count is #31's). **Sibling check, read only, neither repo edited:** [flywheel-dag#65](https://github.com/tomlin256/flywheel-dag/issues/65) (with `FLYWHEEL_DAG_BUILD_EXAMPLES=OFF` its glob registers 35 units against 33 in the database, `examples/aad.cpp` and `examples/quickstart.cpp`; equal at the defaults) and [flywheel#220](https://github.com/tomlin256/flywheel/issues/220) (three hand-made changes to the root pass a wiring test that configures the real root only for refusals; its 221 units equal the database today). |
 
 ## Outcome
 
-Written when the plan is done.
+**Done 2026-11-05.** `-DCRYPTOCOGS_CLANG_TIDY=clang-tidy` registers 83 tests in the default tree: the six that prove the gate and one per
+unit of the 77 that the targets compile (a Crypto.com-only tree registers 31, one with the benchmarks 90). Unset, which is the
+default, it registers none, and the default build, `ctest` and CI are unchanged apart from three tests that need no clang-tidy: 524 on
+the Mac, 524 in the container, and 524 in CI (run 42029447037, Linux x86_64, GCC 15.2). The gate is not enabled anywhere: no CI job, no
+preset, and the variable is off in both trees. Its findings are the baseline in
+[#46](https://github.com/tomlin256/cryptocogs/issues/46), 329 sites with 72 of the 77 units red, and the build's own warnings as errors
+are [#47](https://github.com/tomlin256/cryptocogs/issues/47), plan 036, to be written next. Pushed as `e6ee97b` (step 2), `a94b0e1`
+(step 3) and the step 6 commit.
+
+Where the steps differ from the text above, which was left as written where it is history:
+
+- **D10 changed at approval.** The override `-Wno-error=deprecated-declarations` is in every run. M11 and M12 show it is not dead: with the
+  build carrying `-Werror=deprecated-declarations` the gate is unchanged (5 green, 72 red, 329 sites), and without the override 65 of the
+  77 units stop on `char_traits<unsigned char>` in the SDK's libc++, which is flywheel-dag#60's finding reproduced here.
+- **The walk and the selection moved.** The plan had the walk skip directories that are not the project's. M10 showed that rule redundant
+  and not enough: the wiring test's real-root case names the dependencies' sources into this build's `_deps`, which is inside the
+  checkout and outside the child's own build tree. The walk now recurses everywhere and drops only what is generated into the build
+  tree; `cryptocogs_clang_tidy_select` drops anything under a `_deps` directory, by name and not by substring. M10 is three hand-made
+  changes (10a to 10c), each caught by the stub project's dependencies, one per rule.
+- **The wiring test gained a case**, the real root with the gate on (the tool `sh`, never run; seven dependency sources named in; about
+  2 s), so that the root's own call is exercised in every tree. W15 (the call removed), W16 (the extras not passed) and W17 (the
+  unresolved name passed) all pass a wiring test without it, which was measured, and W17 passed the listing from `ctest
+  --show-only=json-v1` too: ctest finds a bare command name on its own `PATH`, so the test reads the `CTestTestfile.cmake` the configure
+  wrote. flywheel#220 carries this to flywheel.
+- **`test_clang_tidy_config` gained a rule**: the root's call follows its last `add_subdirectory`, so a directory added after it is not
+  left out in a tree that has the gate off.
+- **The container's tree was stale** when the baseline was measured (75 units: it lacked the two newest tests), so #46 opened with 70 of
+  75 and 327 for Linux. Refreshed, it is 72 of 77 and 328, the same tests red as on the Mac, and the Mac-only sites are one:
+  `include/exchange/common/ws_client.inl:119:25` (`bugprone-exception-escape`).
+- **The editor.** Homebrew clangd 23.1.4 over 145 files publishes the same 101 hints with `.clang-tidy` and no list in `.clangd` as with
+  the list and no `.clang-tidy`, and 32 with neither (clangd's own 26 `unused-includes` and the six `-Wunused-result`): clangd reads
+  `.clang-tidy`. The editor shows 68 clang-tidy hints by line, 65 of them at sites the gate reports too (the position differs by
+  a few columns, which is clangd's range against clang-tidy's location); `bugprone-unchecked-optional-access` and
+  `bugprone-signed-bitwise` never reach it. The other three are in `include/exchange/common/ix_ws_connection.hpp` (lines 49, 168
+  and 169), a header-only file that the gate never reports, even with `--header-filter='.*'` through the six units that include it;
+  a standalone parse is the likely difference, and it was not investigated (a note in #46).
+- **Mutants.** 42 of the module (all killed; two survived until a root spelled with dot segments was added), M1 to M12 of the gate, C1
+  to C12 of `.clang-tidy`, `.clangd` and the root, and W1 to W17 of the registration and the root.
+
+What this does not settle:
+
+- **The 329 sites**: [#46](https://github.com/tomlin256/cryptocogs/issues/46), planned and done in a fresh session. #38's ABI question about
+  the 14 `performance-enum-size` sites comes first for those.
+- **The build's warnings as errors** (D10): [#47](https://github.com/tomlin256/cryptocogs/issues/47), plan 036: nine warnings in two
+  files today (six are #24), the placement of the flags across a root and a `tests/` that both fetch dependencies, a test that holds
+  both halves, and CI turning the option on. It needs your approval as a plan before any of it starts.
+- **A CI job** (D4) and **wider checks** (D3), once the gate is green.
+- **Two sibling issues**, [flywheel-dag#65](https://github.com/tomlin256/flywheel-dag/issues/65) and
+  [flywheel#220](https://github.com/tomlin256/flywheel/issues/220), for you to take or leave.

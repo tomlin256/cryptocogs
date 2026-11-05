@@ -590,6 +590,15 @@ ctest --preset release-macos-arm64                     # a tree made with the pr
 ctest --test-dir build --output-on-failure                # the tree the quick start made
 ```
 
+clang-tidy runs as tests too, off until a configure names the tool. It is LLVM 23: `brew install llvm` on a Mac (keg-only, so link
+its `clang-tidy` and `clangd` into a directory on your `PATH`), `clang-tidy-23` from [apt.llvm.org](https://apt.llvm.org) on Ubuntu.
+The tests are red until [#46](https://github.com/tomlin256/cryptocogs/issues/46) is done; `CLAUDE.md` says what each one proves.
+
+```bash
+cmake --preset debug-macos-arm64 -DCRYPTOCOGS_CLANG_TIDY=clang-tidy
+ctest --preset debug-macos-arm64 -R '^clang_tidy_' -j8
+```
+
 Tests require no network access or credentials — all I/O is mocked. **312 tests**
 across twelve executables (six Kraken/common, six Binance):
 
