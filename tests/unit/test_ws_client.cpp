@@ -13,6 +13,7 @@
 //   - Inject inbound server frames (conn->inject_message(...))
 //   - Simulate connection open/close (conn->fire_open() / fire_close())
 
+#include "assert_has_value.hpp"
 #include "exchange/kraken/ws_client.hpp"
 #include "mock_ws_connection.hpp"
 
@@ -195,7 +196,7 @@ TEST(ExecuteAsync, ResolvesOnMatchingSuccessResponse) {
 
     auto resp = fut.get();
     EXPECT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->order_id.value_or(""), "ORDER-XYZ");
 }
 
@@ -218,6 +219,7 @@ TEST(ExecuteAsync, ResolvesOnErrorResponse) {
     auto resp = fut.get();
     EXPECT_FALSE(resp.ok);
     EXPECT_EQ(resp.error.value_or(""), "EOrder:Insufficient funds");
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_FALSE(resp.result->order_id.has_value());
 }
 
@@ -250,6 +252,8 @@ TEST(ExecuteAsync, TwoRequestsInFlightResolvedInReverseOrder) {
     auto resp1 = fut1.get();
     auto resp2 = fut2.get();
 
+    ASSERT_HAS_VALUE(resp1.result);
+    ASSERT_HAS_VALUE(resp2.result);
     EXPECT_EQ(resp1.result->order_id.value_or(""), "ORDER-A");
     EXPECT_EQ(resp2.result->order_id.value_or(""), "ORDER-B");
 }
@@ -284,6 +288,7 @@ TEST(Execute, BlocksUntilResponse) {
     injector.join();
 
     EXPECT_TRUE(resp.ok);
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->order_id.value_or(""), "ORDER-SYNC");
 }
 
@@ -800,7 +805,7 @@ TEST(Disconnect, CallbackFiredOnClose) {
     auto [client, conn] = make_test_client();
 
     std::atomic<int> fired{0};
-    client->set_on_disconnect([&](std::string) { ++fired; });
+    client->set_on_disconnect([&](const std::string&) { ++fired; });
 
     conn->fire_close();
 
@@ -811,7 +816,7 @@ TEST(Disconnect, CallbackNotFiredBeforeClose) {
     auto [client, conn] = make_test_client();
 
     std::atomic<int> fired{0};
-    client->set_on_disconnect([&](std::string) { ++fired; });
+    client->set_on_disconnect([&](const std::string&) { ++fired; });
 
     EXPECT_EQ(fired.load(), 0);
 }
@@ -820,7 +825,7 @@ TEST(Disconnect, CallbackFiredOnlyOnce) {
     auto [client, conn] = make_test_client();
 
     std::atomic<int> fired{0};
-    client->set_on_disconnect([&](std::string) { ++fired; });
+    client->set_on_disconnect([&](const std::string&) { ++fired; });
 
     conn->fire_close();
     conn->fire_close();
@@ -841,7 +846,7 @@ TEST(Disconnect, ConnectedFlagClearedBeforeCallbackFires) {
     // The disconnect callback should observe connected_ already false.
     // We verify this indirectly: the callback fires only after close.
     bool cb_fired = false;
-    client->set_on_disconnect([&](std::string) { cb_fired = true; });
+    client->set_on_disconnect([&](const std::string&) { cb_fired = true; });
 
     EXPECT_FALSE(cb_fired);
     conn->fire_close();
@@ -950,7 +955,7 @@ TEST(WsErrorIsolation, MethodFromJsonThrowResolvesErrorNoCrash) {
 
     const auto resp = fut.get();
     EXPECT_FALSE(resp.ok);
-    ASSERT_TRUE(resp.error.has_value());
+    ASSERT_HAS_VALUE(resp.error);
 }
 
 // The MessageIdentifier is supplied by the adapter and runs on the transport's receive thread like everything else on this
@@ -988,7 +993,7 @@ TEST(WsErrorIsolation, ThrowingIdentifierIsContained) {
 
     const auto resp = fut.get();
     EXPECT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->order_id.value_or(""), "ORDER-AFTER");
 }
 

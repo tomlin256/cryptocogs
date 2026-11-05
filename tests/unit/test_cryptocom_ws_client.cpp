@@ -18,6 +18,7 @@
 
 #include "exchange/cryptocom/heartbeat_connection.hpp"
 #include "exchange/cryptocom/ws.hpp"
+#include "assert_has_value.hpp"
 #include "callback_probe.hpp"
 #include "cryptocom_ws_example_json.hpp"
 #include "mock_ws_connection.hpp"
@@ -68,7 +69,7 @@ TEST(CryptoComWsChannels, Helpers) {
 TEST(CryptoComWsDescriptor, SubscribeAck_IsMethodResponseById) {
     auto d = cryptocom_frame_descriptor(json::parse(fx::SUBSCRIBE_ACK));
     EXPECT_EQ(d.kind, FrameKind::MethodResponse);
-    ASSERT_TRUE(d.correlation_id.has_value());
+    ASSERT_HAS_VALUE(d.correlation_id);
     EXPECT_EQ(*d.correlation_id, "1");
     EXPECT_TRUE(d.route_key.empty());
 }
@@ -83,7 +84,7 @@ TEST(CryptoComWsDescriptor, Update_IsPushRoutedBySubscription) {
 TEST(CryptoComWsDescriptor, AuthReply_IsMethodResponseById) {
     auto d = cryptocom_frame_descriptor(json::parse(fx::AUTH_RESPONSE));
     EXPECT_EQ(d.kind, FrameKind::MethodResponse);
-    ASSERT_TRUE(d.correlation_id.has_value());
+    ASSERT_HAS_VALUE(d.correlation_id);
     EXPECT_EQ(*d.correlation_id, "1");
 }
 
@@ -107,7 +108,7 @@ TEST(CryptoComWsAck, SuccessFromResult) {
     auto a = CryptoComSubscribeAck::from_json(json::parse(fx::SUBSCRIBE_ACK));
     EXPECT_TRUE(a.success);
     EXPECT_FALSE(a.error.has_value());
-    ASSERT_TRUE(a.id.has_value());
+    ASSERT_HAS_VALUE(a.id);
     EXPECT_EQ(*a.id, 1);
     EXPECT_EQ(a.channel, "ticker");
     EXPECT_EQ(a.subscription, "ticker.BTC_USD");
@@ -124,7 +125,7 @@ TEST(CryptoComWsAck, ErrorCode_NotSuccess) {
     auto a = CryptoComSubscribeAck::from_json(
         json::parse(R"({"id":3,"method":"subscribe","code":40003})"));
     EXPECT_FALSE(a.success);
-    ASSERT_TRUE(a.error.has_value());
+    ASSERT_HAS_VALUE(a.error);
     EXPECT_NE(a.error->find("40003"), std::string::npos);
 }
 

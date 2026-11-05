@@ -14,6 +14,7 @@
 
 #include "exchange/cryptocom/rest_client.hpp"
 
+#include "assert_has_value.hpp"
 #include "cryptocom_account_example_json.hpp"
 #include "cryptocom_rest_example_json.hpp"
 
@@ -30,14 +31,19 @@ using json = nlohmann::json;
 namespace fx = cryptocom_fixtures;
 
 namespace {
-const CryptoComCredentials CREDS{"my-key", "my-secret"};
+// A function-local static, built on first use: a namespace-scope const would allocate in its static initialiser, which can throw
+// (bugprone-throwing-static-initialization).
+const CryptoComCredentials& creds() {
+    static const CryptoComCredentials c{"my-key", "my-secret"};
+    return c;
+}
 
 // Recompute the body's sig from its own id/params/nonce — pins client signing.
 void expect_sig_matches(const json& body, const std::string& method) {
     ASSERT_TRUE(body.contains("sig"));
     EXPECT_EQ(body.at("sig"),
-              CREDS.sign(method, body.at("id").get<int64_t>(),
-                         body.at("params"), body.at("nonce").get<int64_t>()));
+              creds().sign(method, body.at("id").get<int64_t>(),
+                           body.at("params"), body.at("nonce").get<int64_t>()));
 }
 } // namespace
 
@@ -59,7 +65,7 @@ TEST(CryptoComClient, PublicTickers_RoundTripUnsigned) {
     EXPECT_EQ(captured.query, "instrument_name=BTC_USD");
     EXPECT_TRUE(captured.body.empty());  // public requests are unsigned
     ASSERT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     ASSERT_EQ(resp.result->tickers.size(), 1u);
     EXPECT_EQ(resp.result->tickers[0].instrument_name, "BTC_USD");
 }
@@ -73,7 +79,7 @@ TEST(CryptoComClient, PrivateUserBalance_SignsEnvelope) {
         return HttpResponse{200, std::string(fx::USER_BALANCE)};
     });
 
-    auto resp = client.execute(CryptoComUserBalanceRequest{}, CREDS);
+    auto resp = client.execute(CryptoComUserBalanceRequest{}, creds());
 
     EXPECT_EQ(captured.method, HttpRequest::Method::POST);
     EXPECT_EQ(captured.path, "/exchange/v1/private/user-balance");
@@ -82,7 +88,7 @@ TEST(CryptoComClient, PrivateUserBalance_SignsEnvelope) {
     EXPECT_EQ(body.at("method"), "private/user-balance");
     expect_sig_matches(body, "private/user-balance");
     ASSERT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     ASSERT_EQ(resp.result->data.size(), 1u);
     EXPECT_EQ(resp.result->data[0].instrument_name, "USD");
 }
@@ -102,14 +108,14 @@ TEST(CryptoComClient, PrivateCreateOrder_SignsAndParses) {
     req.quantity        = "0.001";
     req.time_in_force   = TimeInForce::GTC;
 
-    auto resp = client.execute(req, CREDS);
+    auto resp = client.execute(req, creds());
 
     auto body = json::parse(captured.body);
     EXPECT_EQ(body.at("method"), "private/create-order");
     EXPECT_EQ(body.at("params").at("instrument_name"), "BTC_USD");
     expect_sig_matches(body, "private/create-order");
     ASSERT_TRUE(resp.ok);
-    ASSERT_TRUE(resp.result.has_value());
+    ASSERT_HAS_VALUE(resp.result);
     EXPECT_EQ(resp.result->order_id, "18342311");
 }
 
@@ -125,7 +131,7 @@ TEST(CryptoComClient, AppErrorCode_MapsToEnvelopeError) {
     req.instrument_name = "BTC_USD";
     req.price           = "1";
     req.quantity        = "1";
-    auto resp = client.execute(req, CREDS);
+    auto resp = client.execute(req, creds());
 
     EXPECT_FALSE(resp.ok);
     EXPECT_FALSE(resp.result.has_value());
@@ -152,8 +158,8 @@ TEST(CryptoComClient, AssignsUniqueCorrelationIds) {
         return HttpResponse{200, std::string(fx::USER_BALANCE)};
     });
 
-    client.execute(CryptoComUserBalanceRequest{}, CREDS);
-    client.execute(CryptoComUserBalanceRequest{}, CREDS);
+    client.execute(CryptoComUserBalanceRequest{}, creds());
+    client.execute(CryptoComUserBalanceRequest{}, creds());
 
     ASSERT_EQ(ids.size(), 2u);
     EXPECT_NE(ids[0], ids[1]);

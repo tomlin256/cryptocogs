@@ -22,7 +22,12 @@ using json = nlohmann::json;
 using M = HttpRequest::Method;
 
 namespace {
-const CryptoComCredentials CREDS{"test-api-key", "test-secret"};
+// A function-local static, built on first use: a namespace-scope const would allocate in its static initialiser, which can throw
+// (bugprone-throwing-static-initialization).
+const CryptoComCredentials& creds() {
+    static const CryptoComCredentials c{"test-api-key", "test-secret"};
+    return c;
+}
 }  // namespace
 
 // ── Public endpoints ──────────────────────────────────────────────────────────
@@ -111,19 +116,19 @@ void expect_signed_envelope(const HttpRequest& r, const std::string& method) {
     EXPECT_EQ(r.headers.at("Content-Type"), "application/json");
     auto body = json::parse(r.body);
     EXPECT_EQ(body.at("method"), method);
-    EXPECT_EQ(body.at("api_key"), CREDS.api_key);
+    EXPECT_EQ(body.at("api_key"), creds().api_key);
     ASSERT_TRUE(body.contains("id"));
     ASSERT_TRUE(body.contains("nonce"));
     ASSERT_TRUE(body.contains("params"));
     ASSERT_TRUE(body.contains("sig"));
-    const std::string sig = CREDS.sign(method, body.at("id").get<int64_t>(),
-                                       body.at("params"), body.at("nonce").get<int64_t>());
+    const std::string sig = creds().sign(method, body.at("id").get<int64_t>(),
+                                         body.at("params"), body.at("nonce").get<int64_t>());
     EXPECT_EQ(body.at("sig"), sig);
 }
 } // namespace
 
 TEST(CryptoComRestRequests, UserBalance_EmptyParams) {
-    auto r = CryptoComUserBalanceRequest{}.build(CREDS);
+    auto r = CryptoComUserBalanceRequest{}.build(creds());
     expect_signed_envelope(r, "private/user-balance");
     auto body = json::parse(r.body);
     EXPECT_TRUE(body.at("params").is_object());
@@ -141,7 +146,7 @@ TEST(CryptoComRestRequests, CreateLimitOrder_ParamsAndSig) {
     req.time_in_force   = TimeInForce::GTC;
     req.client_oid      = "abc-123";
 
-    auto r = req.build(CREDS);
+    auto r = req.build(creds());
     expect_signed_envelope(r, "private/create-order");
     auto body = json::parse(r.body);
     EXPECT_EQ(body.at("id").get<int64_t>(), 42);
@@ -167,7 +172,7 @@ TEST(CryptoComRestRequests, CreateLimitOrder_PostOnly_SetsExecInstArray) {
     req.time_in_force   = TimeInForce::GTC;
     req.exec_inst       = {EXEC_INST_POST_ONLY};
 
-    auto r = req.build(CREDS);
+    auto r = req.build(creds());
     expect_signed_envelope(r, "private/create-order");
     auto body = json::parse(r.body);
     const auto& p = body.at("params");
@@ -181,7 +186,7 @@ TEST(CryptoComRestRequests, CreateMarketBuy_NotionalNoPrice) {
     req.type            = OrderType::Market;
     req.notional        = "150.00";
 
-    auto body = json::parse(req.build(CREDS).body);
+    auto body = json::parse(req.build(creds()).body);
     const auto& p = body.at("params");
     EXPECT_EQ(p.at("type"),     "MARKET");
     EXPECT_EQ(p.at("notional"), "150.00");
@@ -192,7 +197,7 @@ TEST(CryptoComRestRequests, CreateMarketBuy_NotionalNoPrice) {
 TEST(CryptoComRestRequests, CancelOrder) {
     CryptoComCancelOrderRequest req;
     req.order_id = "18342311";
-    auto r = req.build(CREDS);
+    auto r = req.build(creds());
     expect_signed_envelope(r, "private/cancel-order");
     EXPECT_EQ(json::parse(r.body).at("params").at("order_id"), "18342311");
 }
@@ -200,7 +205,7 @@ TEST(CryptoComRestRequests, CancelOrder) {
 TEST(CryptoComRestRequests, GetOrderDetail) {
     CryptoComGetOrderDetailRequest req;
     req.order_id = "18342311";
-    auto body = json::parse(req.build(CREDS).body);
+    auto body = json::parse(req.build(creds()).body);
     EXPECT_EQ(body.at("method"), "private/get-order-detail");
     EXPECT_EQ(body.at("params").at("order_id"), "18342311");
 }
@@ -208,7 +213,7 @@ TEST(CryptoComRestRequests, GetOrderDetail) {
 TEST(CryptoComRestRequests, GetOpenOrders_WithInstrument) {
     CryptoComGetOpenOrdersRequest req;
     req.instrument_name = "BTC_USD";
-    auto body = json::parse(req.build(CREDS).body);
+    auto body = json::parse(req.build(creds()).body);
     EXPECT_EQ(body.at("method"), "private/get-open-orders");
     EXPECT_EQ(body.at("params").at("instrument_name"), "BTC_USD");
 }
@@ -217,7 +222,7 @@ TEST(CryptoComRestRequests, GetTrades_LimitSerialisedAsString) {
     CryptoComGetTradesRequest req;
     req.instrument_name = "BTC_USD";
     req.limit           = 20;
-    auto body = json::parse(req.build(CREDS).body);
+    auto body = json::parse(req.build(creds()).body);
     const auto& p = body.at("params");
     EXPECT_EQ(p.at("instrument_name"), "BTC_USD");
     EXPECT_TRUE(p.at("limit").is_string());  // numbers serialised as strings

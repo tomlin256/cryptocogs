@@ -104,6 +104,7 @@ TEST(MockWsConnection, ConcurrentSendsLoseNothingAndKeepEachThreadsOrder) {
     MockWsConnection conn;
 
     std::vector<std::thread> senders;
+    senders.reserve(static_cast<std::size_t>(threads));
     for (int t = 0; t < threads; ++t) {
         senders.emplace_back([&conn, t] {
             for (int k = 0; k < per_thread; ++k) {
