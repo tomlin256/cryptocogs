@@ -111,7 +111,10 @@ void BM_OnRawMessage_AggTradePush(benchmark::State& state) {
 
     const int64_t id = json::parse(conn->sent()[0]).at("id").get<int64_t>();
     conn->inject_message(make_ack(id));
-    fut.get();
+    if (!fut.get().first.ok) {
+        state.SkipWithError("the subscribe ack failed");
+        return;
+    }
 
     const std::string pushed = wrap(sub_req.stream, fixtures::kAggTradeJson);
     for (auto _ : state) {

@@ -171,10 +171,10 @@ TEST(ExecuteAsync, SendsRequestWithInjectedReqId) {
     EXPECT_TRUE(j.contains("req_id"));
     EXPECT_EQ(j["method"], "add_order");
 
-    // Satisfy the future to avoid broken-promise at shutdown.
+    // Satisfy the future to avoid broken-promise at shutdown, and check the reply it was given.
     int64_t id = j["req_id"].get<int64_t>();
     conn->inject_message(make_add_order_response(id));
-    fut.get();
+    EXPECT_TRUE(fut.get().ok);
 }
 
 TEST(ExecuteAsync, ResolvesOnMatchingSuccessResponse) {
@@ -532,7 +532,7 @@ TEST(PreConnectionQueue, MessagesQueuedBeforeOpen) {
     // Satisfy future.
     int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_add_order_response(id));
-    fut.get();
+    EXPECT_TRUE(fut.get().ok);
 }
 
 TEST(PreConnectionQueue, FlushedInOrder) {
@@ -572,8 +572,8 @@ TEST(PreConnectionQueue, FlushedInOrder) {
     // Satisfy futures.
     conn->inject_message(make_add_order_response(j1["req_id"].get<int64_t>()));
     conn->inject_message(make_add_order_response(j2["req_id"].get<int64_t>()));
-    fut1.get();
-    fut2.get();
+    EXPECT_TRUE(fut1.get().ok);
+    EXPECT_TRUE(fut2.get().ok);
 }
 
 TEST(PreConnectionQueue, DirectSendWhenAlreadyConnected) {
@@ -595,7 +595,7 @@ TEST(PreConnectionQueue, DirectSendWhenAlreadyConnected) {
 
     int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_add_order_response(id));
-    fut.get();
+    EXPECT_TRUE(fut.get().ok);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -709,7 +709,7 @@ TEST(WsErrorHandler, NotInvokedOnValidPushFrame) {
     auto fut = client->subscribe_async(sub_req, [](const exchange::kraken::ws::TickerMessage&) {});
     int64_t id = json::parse(conn->sent()[0])["req_id"].get<int64_t>();
     conn->inject_message(make_subscribe_ack(id));
-    fut.get();
+    EXPECT_TRUE(fut.get().first.ok);
 
     conn->inject_message(make_ticker_push());
 

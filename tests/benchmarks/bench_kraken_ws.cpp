@@ -121,7 +121,10 @@ void BM_OnRawMessage_TickerPush(benchmark::State& state) {
     ack["success"]            = true;
     ack["result"]["channel"]  = "ticker";
     conn->inject_message(ack.dump());
-    fut.get();
+    if (!fut.get().first.ok) {
+        state.SkipWithError("the subscribe ack failed");
+        return;
+    }
 
     for (auto _ : state) {
         conn->inject_message(kTickerSnapshotJson);

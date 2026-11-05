@@ -33,7 +33,7 @@ std::string http_send(const exchange::kraken::rest::HttpRequest& req) {
 // ============================================================
 // Hypothetical WebSocket send helper
 // ============================================================
-void ws_send(const json& msg, exchange::kraken::ws::KrakenWsCredentials& creds) {
+void ws_send(const json& msg, [[maybe_unused]] exchange::kraken::ws::KrakenWsCredentials& creds) {
     std::cout << "[WS SEND] " << msg << "\n";
 }
 
@@ -194,11 +194,19 @@ int main(int argc, char* argv[]) {
 
     {
         // BatchAdd – build shared OrderParams vector, use for both REST and WS
+        // (Built by assignment: a designated-initialiser list that leaves members out draws
+        // -Wmissing-field-initializers from GCC, and -Wmissing-designated-field-initializers from clang 23.)
+        auto limit_buy = [](double price) {
+            OrderParams p;
+            p.order_type  = OrderType::Limit;
+            p.side        = Side::Buy;
+            p.order_qty   = 0.5;
+            p.limit_price = TickPrice::from(price, 1);
+            return p;
+        };
         std::vector<OrderParams> ops;
-        ops.push_back({ .order_type = OrderType::Limit, .side = Side::Buy,
-                         .order_qty = 0.5, .limit_price = TickPrice::from(26000.0, 1) });
-        ops.push_back({ .order_type = OrderType::Limit, .side = Side::Buy,
-                         .order_qty = 0.5, .limit_price = TickPrice::from(25500.0, 1) });
+        ops.push_back(limit_buy(26000.0));
+        ops.push_back(limit_buy(25500.0));
 
         // REST
         rest::AddOrderBatchRequest rest_batch;
