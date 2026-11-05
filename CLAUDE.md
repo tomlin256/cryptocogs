@@ -156,6 +156,8 @@ cryptocogs/
         ├── ws_client_example_json.hpp
         ├── mock_ws_connection.hpp        # Shared MockWsConnection (Kraken + Binance + Coinbase + Crypto.com WS tests)
         ├── test_mock_ws_connection.cpp   # MockWsConnection's locked outbound log: sent(), wait_for_sent(), release_waiters() (exchange-agnostic)
+        ├── callback_probe.hpp            # CallbackProbe — finds a callback called after it was destroyed (test_ix_ws_connection, test_cryptocom_ws_client)
+        ├── test_ix_ws_connection.cpp     # IxWsConnection vs a loopback ix::WebSocketServer: its destructor stops the socket before the callbacks die (exchange-agnostic)
         ├── test_binance_auth.cpp         # BinanceAuth HMAC-SHA256 signing
         ├── test_binance_types.cpp        # Binance enum converters
         ├── test_binance_rest_requests.cpp / test_binance_rest_responses.cpp
@@ -408,8 +410,8 @@ green, and it has no caches.
 ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure and a 120 s timeout per test
 ```
 
-There are twenty-six test executables (501 tests, plus eleven `cmake -P` checks that are listed after the table — 512 in
-ctest) — eight Kraken/common, six Binance, six Coinbase, six Crypto.com:
+There are twenty-seven test executables (510 tests, plus eleven `cmake -P` checks that are listed after the table — 521 in
+ctest) — nine Kraken/common, six Binance, six Coinbase, six Crypto.com:
 
 | Binary | Source | What it tests |
 |---|---|---|
@@ -421,6 +423,7 @@ ctest) — eight Kraken/common, six Binance, six Coinbase, six Crypto.com:
 | `<tree>/bin/test_order_type` | `test_order_type.cpp` | Generic (`exchange::to_string`) vs. Kraken (`kraken_order_type_to_string`) wire formats |
 | `<tree>/bin/test_ws_reconnect_session` | `test_ws_reconnect_session.cpp` | `WsReconnectSession` start/stop/backoff/reconnect — deterministic, no real sleeps |
 | `<tree>/bin/test_mock_ws_connection` | `test_mock_ws_connection.cpp` | `MockWsConnection`'s locked outbound log — `sent()` is an ordered copy, `wait_for_sent` and `release_waiters` wake in either thread order, concurrent sends are all kept (exchange-agnostic; [plan 033](docs/plans/033-tsan-races-in-the-tests.md)) |
+| `<tree>/bin/test_ix_ws_connection` | `test_ix_ws_connection.cpp` | `IxWsConnection` against a loopback `ix::WebSocketServer` (real sockets on 127.0.0.1, no sleeps): dropping an open connection stops the socket before any callback is destroyed, `disconnect()` then drop delivers no second `Close`, a never-connected one is dropped harmlessly (exchange-agnostic; [plan 034](docs/plans/034-transport-callback-lifetimes.md)) |
 | `<tree>/bin/test_binance_auth` | `test_binance_auth.cpp` | `BinanceAuth` HMAC-SHA256 signing + header injection |
 | `<tree>/bin/test_binance_types` | `test_binance_types.cpp` | Binance enum converters (incl. canonical FOK time-in-force) |
 | `<tree>/bin/test_binance_rest_requests` | `test_binance_rest_requests.cpp` | Each Binance REST request builds the correct path/query/body |
@@ -438,7 +441,7 @@ ctest) — eight Kraken/common, six Binance, six Coinbase, six Crypto.com:
 | `<tree>/bin/test_cryptocom_rest_requests` | `test_cryptocom_rest_requests.cpp` | Each Crypto.com REST request builds the right path/query (public) or signed envelope (private) |
 | `<tree>/bin/test_cryptocom_rest_responses` | `test_cryptocom_rest_responses.cpp` | `from_json` field assertions (market live + private synthetic fixtures) |
 | `<tree>/bin/test_cryptocom_client` | `test_cryptocom_client.cpp` | `CryptoComRestClient::execute()` signed-envelope round-trip via mock performer |
-| `<tree>/bin/test_cryptocom_ws_client` | `test_cryptocom_ws_client.cpp` | `HeartbeatResponder` auto-reply + id-correlated subscribe/ack/push lifecycle with `MockWsConnection` |
+| `<tree>/bin/test_cryptocom_ws_client` | `test_cryptocom_ws_client.cpp` | `HeartbeatResponder` auto-reply, and its callback outliving the responder (a frame and a heartbeat after it is destroyed, heap and stack, no reference cycle; plan 034), + id-correlated subscribe/ack/push lifecycle with `MockWsConnection` |
 
 The eleven `cmake -P` checks need no build and finish in seconds; they are registered at the top level, in every tree:
 
@@ -459,12 +462,13 @@ The eleven `cmake -P` checks need no build and finish in seconds; they are regis
 A tree configured with `CRYPTOCOGS_SANITIZE` adds the tests that prove its options are live (`sanitizer_canary_*` and
 `test_sanitizer_coverage`; see [Sanitizers](#sanitizers)).
 
-Tests do **not** require network access or credentials — all I/O is mocked.
+Tests do **not** require network access or credentials — all I/O is mocked, except `test_ix_ws_connection`, which talks to a
+server of its own on 127.0.0.1 (a port it finds free; nothing leaves the machine).
 The flag matrix splits cleanly: each exchange flag drops its own suite. A
 Crypto.com-only tree (`-DCRYPTOCOGS_BUILD_KRAKEN=OFF -DCRYPTOCOGS_BUILD_BINANCE=OFF
--DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 112 gtests — the 88-test Crypto.com suite plus the
-exchange-agnostic 11 `TickPrice`, 8 `read_toml_credentials` and 5 `MockWsConnection` tests, which build
-in any tree — and the eleven `cmake -P` checks: 123 in ctest.
+-DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 120 gtests — the 92-test Crypto.com suite plus the
+exchange-agnostic 11 `TickPrice`, 8 `read_toml_credentials`, 5 `MockWsConnection` and 4 `IxWsConnection` tests, which build
+in any tree — and the eleven `cmake -P` checks: 131 in ctest.
 
 ### Test suite breakdown
 
@@ -480,6 +484,8 @@ in any tree — and the eleven `cmake -P` checks: 123 in ctest.
 | `test_tick_price.cpp` | `TickPrice::str()` produces exact decimals — including the floating-point-noise repro case |
 | `test_ws_reconnect_session.cpp` | `WsReconnectSession` start/stop/backoff/reconnect callbacks, driven by synchronous step injection (no `sleep_for`) |
 | `test_mock_ws_connection.cpp` | `MockWsConnection`'s outbound log is safe from a second thread: `sent()` copies in order, `wait_for_sent` returns when satisfied whichever thread gets there first, `release_waiters` frees a waiter, 400 concurrent sends are all kept in per-thread order — no sleeps |
+| `test_ix_ws_connection.cpp` | The `IxWsConnection` destructor stops the socket (and so joins the I/O thread) before it destroys the callbacks; a `CallbackProbe` counts any call that follows a destruction. ixwebsocket skips the final `Close` when `stop()` lands between two iterations of its loop (about 4 in 100 runs here), so no assertion depends on a `Close` and the one test that needs one repeats the attempt until it had one |
+| `test_ws_client.cpp` (`WsErrorIsolation`) | A throw from a handler, a push callback or the `MessageIdentifier` is contained on the receive thread: the frame is reported through the error handler and dropped, and the client goes on |
 
 ---
 
@@ -1192,6 +1198,13 @@ public:
 ```
 
 `IxWsConnection` (in `exchange/common/ix_ws_connection.hpp` — it has no Kraken-specific logic and moved to the common layer wholesale) implements this using ixwebsocket. Unit tests inject `MockWsConnection` instead — no network required.
+
+**Connection lifetime** ([plan 034](docs/plans/034-transport-callback-lifetimes.md), #39 and #43). The transport calls its callbacks from its own I/O thread, so a callback must never outlive what it calls:
+
+- `~IxWsConnection()` calls `ws_.stop()` first, which joins the I/O thread, *before* any member is destroyed. Members die in reverse order and `ws_` is declared before the four callbacks, so without the destructor the callbacks were destroyed while the thread could still call them: the Release `ws_client_example` died at exit in every run (#39). A final `on_close` may run on the I/O thread while the destructor runs, exactly as in `disconnect()`, so whatever the callbacks capture must outlive the connection. ixwebsocket skips that `Close` when `stop()` lands between two iterations of its loop, so it is not guaranteed.
+- The teardown for a long-lived consumer is: build the `IxWsConnection` yourself and keep it, wrap it with the conn-based factory, and on the way out call `conn->disconnect()` first (no callback can run, or hold a reference, afterwards), then release the client and the connection in either order. `ws_client_example` does this with a small `Session` class. The URL-based `make_exchange_ws_client` is for short single-shot calls; the self-join it can cause (the I/O thread dropping the last reference to the connection) is documented in the header and is *not* fixed.
+- A decorator that installs a callback on an inner connection (`HeartbeatResponder`) must not capture `this`: the inner connection can outlive it. The callback owns a small immutable `Relay` (the forward callback and a `weak_ptr` to the inner connection) and goes on working for as long as the connection keeps it (#43). Weak, because the callback lives inside that connection.
+- A destroyed `std::function` is still callable in practice (libc++ and libstdc++ do not clear it) and a sanitizer may not see the call, so tests of this class use `tests/unit/callback_probe.hpp`: callbacks own a token whose destruction is counted, and every call records whether a destruction preceded it. ASan's defaults stay silent on #39; `ASAN_OPTIONS=max_free_fill_size=4096:free_fill_byte=221` made it report ([#45](https://github.com/tomlin256/cryptocogs/issues/45) tracks why CI did not catch it).
 
 `IWsErrorHandler` / `RateLimitedWsErrorHandler` (also in `exchange::ws::`) are an optional strategy for surfacing malformed-frame and connection-error events without flooding logs — `RateLimitedWsErrorHandler` logs at most once per configurable interval (default 60 s), tracking a dropped-event count in between. Pass a `shared_ptr<IWsErrorHandler>` to `make_kraken_ws_client` / `make_exchange_ws_client` to opt in; it defaults to `nullptr` (silent).
 

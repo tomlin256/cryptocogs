@@ -24,16 +24,48 @@
 //   ws_client_example instrument
 
 #include "exchange/kraken/ws_client.hpp"        // KrakenWsClient, Kraken WS types, kraken_frame_descriptor
-#include "exchange/common/ix_ws_connection.hpp" // IxWsConnection + make_exchange_ws_client(url, …)
+#include "exchange/common/ix_ws_connection.hpp" // IxWsConnection
 
 #include <CLI/CLI.hpp>
 #include <spdlog/spdlog.h>
 
 #include <chrono>
 #include <cstdlib>
+#include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Session — a connection and the client built over it, torn down in the documented order
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// A long-lived consumer builds the connection itself and keeps it (see ix_ws_connection.hpp, which also explains why the
+// URL factory is only for short single-shot calls). The teardown it asks for is disconnect() first: that joins the I/O
+// thread, so no callback can run afterwards and nothing can drop the last reference to a socket on the I/O thread. The
+// client and the connection can then go in either order. A Session does this on every way out of a run_* function,
+// including the early return after a failed ack.
+
+class Session {
+public:
+    explicit Session(std::string_view url = exchange::kraken::ws::PUBLIC_WS_URL)
+        : conn_(std::make_shared<exchange::ws::IxWsConnection>(std::string(url)))
+        , client_(exchange::kraken::ws::make_kraken_ws_client(conn_)) {
+        conn_->connect();
+    }
+
+    ~Session() { conn_->disconnect(); }
+
+    Session(const Session&)            = delete;
+    Session& operator=(const Session&) = delete;
+
+    exchange::kraken::ws::KrakenWsClient* operator->() const { return client_.get(); }
+
+private:
+    std::shared_ptr<exchange::ws::IxWsConnection>         conn_;
+    std::shared_ptr<exchange::kraken::ws::KrakenWsClient> client_;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ticker
@@ -42,12 +74,12 @@
 static void run_ticker(const std::string& symbol) {
     spdlog::info("=== Ticker subscription: {} ===", symbol);
 
-    auto client = exchange::ws::make_exchange_ws_client(std::string(exchange::kraken::ws::PUBLIC_WS_URL), exchange::kraken::ws::kraken_frame_descriptor);
+    Session session;
 
     exchange::kraken::ws::TickerSubscribeRequest sub_req;
     sub_req.symbols = std::vector<std::string>{symbol};
 
-    auto [ack, handle] = client->subscribe(
+    auto [ack, handle] = session->subscribe(
         sub_req,
         [](const exchange::kraken::ws::TickerMessage& msg) {
             for (const auto& d : msg.data)
@@ -70,15 +102,11 @@ static void run_ticker(const std::string& symbol) {
 
     // ── Connection reuse demo ─────────────────────────────────────────────────
     spdlog::info("Demonstrating connection reuse with a second KrakenWsClient…");
-    auto raw_conn = std::make_shared<exchange::ws::IxWsConnection>(
-                        std::string(exchange::kraken::ws::PUBLIC_WS_URL));
-    auto client2  = exchange::kraken::ws::make_kraken_ws_client(
-                        std::static_pointer_cast<exchange::ws::IWsConnection>(raw_conn));
-    raw_conn->connect();
+    Session session2;
 
     exchange::kraken::ws::TickerSubscribeRequest sub2;
     sub2.symbols = std::vector<std::string>{symbol};
-    auto [ack2, handle2] = client2->subscribe(
+    auto [ack2, handle2] = session2->subscribe(
         sub2,
         [](const exchange::kraken::ws::TickerMessage& msg) {
             for (const auto& d : msg.data)
@@ -104,13 +132,13 @@ static void run_book(const std::string& symbol, std::optional<int> depth) {
     spdlog::info("=== Book subscription: {} depth={} ===",
                  symbol, depth.value_or(10));
 
-    auto client = exchange::ws::make_exchange_ws_client(std::string(exchange::kraken::ws::PUBLIC_WS_URL), exchange::kraken::ws::kraken_frame_descriptor);
+    Session session;
 
     exchange::kraken::ws::BookSubscribeRequest sub_req;
     sub_req.symbols = std::vector<std::string>{symbol};
     if (depth) sub_req.depth = *depth;
 
-    auto [ack, handle] = client->subscribe(
+    auto [ack, handle] = session->subscribe(
         sub_req,
         [](const exchange::kraken::ws::BookMessage& msg) {
             for (const auto& d : msg.data) {
@@ -150,12 +178,12 @@ static void run_book(const std::string& symbol, std::optional<int> depth) {
 static void run_trade(const std::string& symbol) {
     spdlog::info("=== Trade subscription: {} ===", symbol);
 
-    auto client = exchange::ws::make_exchange_ws_client(std::string(exchange::kraken::ws::PUBLIC_WS_URL), exchange::kraken::ws::kraken_frame_descriptor);
+    Session session;
 
     exchange::kraken::ws::TradeSubscribeRequest sub_req;
     sub_req.symbols = std::vector<std::string>{symbol};
 
-    auto [ack, handle] = client->subscribe(
+    auto [ack, handle] = session->subscribe(
         sub_req,
         [](const exchange::kraken::ws::TradeMessage& msg) {
             for (const auto& d : msg.data)
@@ -184,13 +212,13 @@ static void run_ohlc(const std::string& symbol, std::optional<int> interval) {
     spdlog::info("=== OHLC subscription: {} interval={}m ===",
                  symbol, interval.value_or(1));
 
-    auto client = exchange::ws::make_exchange_ws_client(std::string(exchange::kraken::ws::PUBLIC_WS_URL), exchange::kraken::ws::kraken_frame_descriptor);
+    Session session;
 
     exchange::kraken::ws::OHLCSubscribeRequest sub_req;
     sub_req.symbols = std::vector<std::string>{symbol};
     if (interval) sub_req.interval = *interval;
 
-    auto [ack, handle] = client->subscribe(
+    auto [ack, handle] = session->subscribe(
         sub_req,
         [](const exchange::kraken::ws::OHLCMessage& msg) {
             for (const auto& d : msg.data)
@@ -220,12 +248,12 @@ static void run_ohlc(const std::string& symbol, std::optional<int> interval) {
 static void run_instrument() {
     spdlog::info("=== Instrument subscription ===");
 
-    auto client = exchange::ws::make_exchange_ws_client(std::string(exchange::kraken::ws::PUBLIC_WS_URL), exchange::kraken::ws::kraken_frame_descriptor);
+    Session session;
 
     exchange::kraken::ws::InstrumentSubscribeRequest sub_req;
     // No symbols field for this channel — server sends all instruments.
 
-    auto [ack, handle] = client->subscribe(
+    auto [ack, handle] = session->subscribe(
         sub_req,
         [](const exchange::kraken::ws::InstrumentMessage& msg) {
             spdlog::info("[instrument/{}] {} asset(s), {} pair(s)",

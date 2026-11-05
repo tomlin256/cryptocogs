@@ -147,12 +147,18 @@ private:
 //   1. build the IxWsConnection itself and keep a shared_ptr to it,
 //   2. wrap it with make_exchange_ws_client(conn, identifier, error_handler),
 //   3. register callbacks, then call conn->connect(),
-//   4. on teardown: release the client, then call conn->disconnect() — which
-//      joins the I/O thread on the *caller's* thread — and only then drop conn.
+//   4. on teardown: call conn->disconnect() first — it joins the I/O thread on
+//      the *caller's* thread, so no callback can run, or hold a reference, once
+//      it returns — and only then release the client and conn, in either order.
 //
-// After disconnect() returns, no callback can still hold a reference, so the
-// socket is guaranteed to be destroyed on the caller's thread. (Downstream:
-// flywheel issue #83, where this killed long-running monitors.)
+// After disconnect() returns, the socket is guaranteed to be destroyed on the
+// caller's thread. (Downstream: flywheel issue #83, where this killed long-running
+// monitors.)
+//
+// Dropping conn without disconnect() is safe as well, as long as the drop happens
+// on a thread of your own: ~IxWsConnection() stops the socket before it destroys
+// the callbacks (plan 034, #39). What it cannot do is stop the socket from the I/O
+// thread itself, which is the self-join described above.
 //
 // This overload remains fine for short-lived, single-shot request/response use
 // where no callback can be in flight at teardown.
