@@ -137,13 +137,15 @@ endif()
 #-------------------------------------------------------------------------------
 # Compiler warnings (plan 036, #47)
 #
-#   -DCRYPTOCOGS_WARNINGS_AS_ERRORS=ON    -Werror on the project's own targets
+#   -DCRYPTOCOGS_WARNINGS_AS_ERRORS=OFF    do not make warnings errors (the default is ON)
 #
-# The project's own targets compile with -Wall -Wextra -Wpedantic -Werror=deprecated-declarations, and with -Werror when the option
-# is on (cmake/cryptocogs_warnings.cmake has the flags and the reasons). They reach this project's targets only: never a
-# dependency's, and never a project that fetches this one, which keeps its own flags (the option is declared at the top level
-# only, so a consumer's cache never shows a switch that does nothing). A newer compiler's new warning is an error once the option
-# is on; the fix is the code, or one narrow suppression with a comment that names the compiler bug (CLAUDE.md has the rule).
+# The project's own targets compile with -Wall -Wextra -Wpedantic -Werror=deprecated-declarations and, by default, -Werror
+# (cmake/cryptocogs_warnings.cmake has the flags and the reasons), so every build is strict: yours, CI's and the sanitizer jobs'.
+# The flags reach this project's targets only: never a dependency's, and never a project that fetches this one, which keeps its own
+# (the option is declared at the top level only, so a consumer's cache never shows a switch that does nothing). A newer compiler's
+# new warning is an error: the fix is the code, or one narrow suppression with a comment that names the compiler bug (CLAUDE.md has
+# the rule). OFF is the way out for a build that cannot wait for the fix; the deprecation error stays. An existing tree keeps the
+# value it was configured with (the cache holds it): cmake --preset <tree> -UCRYPTOCOGS_WARNINGS_AS_ERRORS adopts the default.
 #
 # This block only works out the list. add_compile_options reaches the targets created after it, in its directory and below, and this
 # project fetches its dependencies in two files (this one and tests/CMakeLists.txt) with add_subdirectory(src) between them, so a
@@ -157,7 +159,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/cryptocogs_warnings.cmake)
 set(_cryptocogs_top_level OFF)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(_cryptocogs_top_level ON)
-    option(CRYPTOCOGS_WARNINGS_AS_ERRORS "Make every compiler warning an error in this project's own targets" OFF)
+    option(CRYPTOCOGS_WARNINGS_AS_ERRORS "Make every compiler warning an error in this project's own targets" ON)
 endif()
 cryptocogs_warning_flags("${CMAKE_CXX_COMPILER_ID}" "${_cryptocogs_top_level}" "${CRYPTOCOGS_WARNINGS_AS_ERRORS}"
                          _cryptocogs_warning_options)

@@ -50,9 +50,10 @@ if(NOT want_flags)
     return()
 endif()
 
-# The default of CRYPTOCOGS_WARNINGS_AS_ERRORS in the root. Plan 036 lands the flags with it off (step 4) and turns it on
-# (step 6): this line and the root change together, and the test is red between them on purpose.
-set(DEFAULT_WERROR OFF)
+# The default of CRYPTOCOGS_WARNINGS_AS_ERRORS in the root, which this test holds: on (plan 036, D2), so that every build is
+# strict, CI's and the sanitizer jobs' included, and no workflow has to ask for it. Changing the root's default without this
+# line fails the test, and so does the other way round.
+set(DEFAULT_WERROR ON)
 if(DEFAULT_WERROR)
     set(OTHER_WERROR OFF)
 else()
