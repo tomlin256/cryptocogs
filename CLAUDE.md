@@ -42,7 +42,8 @@ cryptocogs/
 ├── CMakeLists.txt                       # Top-level build; fetches deps; CRYPTOCOGS_BUILD_* options
 ├── .clang-tidy                          # The one list of clang-tidy checks: the editor's clangd reads it, and so does the opt-in gate (plan 035)
 ├── cmake/                               # CMake modules, each tested apart from the root by a cmake -P check: cryptocogs_platform.cmake (plan 028),
-│                                        #   cryptocogs_sanitize.cmake (plan 032), cryptocogs_clang_tidy.cmake (plan 035); cryptocogsConfig.cmake.in
+│                                        #   cryptocogs_sanitize.cmake (plan 032), cryptocogs_clang_tidy.cmake (plan 035), cryptocogs_warnings.cmake (plan 036);
+│                                        #   cryptocogsConfig.cmake.in
 ├── include/
 │   ├── exchange/
 │   │   ├── common/                      # Exchange-agnostic scaffold — exchange::, ::rest::, ::ws::
@@ -125,6 +126,7 @@ cryptocogs/
 └── tests/
     ├── CMakeLists.txt                   # Fetches spdlog/CLI11/backward-cpp; wires examples + unit tests
     ├── clang_tidy_checks/               # The opt-in clang-tidy step: cmake -P checks (module, wiring, config, units) + canaries/ fixtures (plan 035)
+    ├── warning_checks/                  # The warning flags: cmake -P checks of the mapping and of where the flags land (plan 036)
     ├── examples/
     │   ├── public_rest.cpp              # Fetch recent trades (no credentials)
     │   ├── private_rest.cpp             # Get WS token from ~/.kraken/default
@@ -210,6 +212,7 @@ cryptocogs/
 | `CRYPTOCOGS_BUILD_COINBASE` | `ON` | Build the Coinbase adapter (`libcoinbase.a`) and its tests/examples |
 | `CRYPTOCOGS_BUILD_CRYPTOCOM` | `ON` | Build the Crypto.com adapter (`libcryptocom.a`) and its tests/examples |
 | `CRYPTOCOGS_BUILD_TESTS` | `ON` | Build unit tests and example programs |
+| `CRYPTOCOGS_WARNINGS_AS_ERRORS` | top-level: `ON` | `-Werror` on the project's own targets, on top of the warning flags they always have. Declared at the top level only, so a project that fetches cryptocogs keeps its own flags. See [Compiler warnings](#compiler-warnings) ([plan 036](docs/plans/036-warnings-as-errors.md)) |
 | `CRYPTOCOGS_SANITIZE` | `OFF` | `asan` (AddressSanitizer + UBSan) or `tsan` (ThreadSanitizer) for the whole tree, the fetched dependencies included; any other value is a configure error. See [Sanitizers](#sanitizers) ([plan 032](docs/plans/032-sanitizer-option-and-presets.md)) |
 | `CRYPTOCOGS_CLANG_TIDY` | empty | A clang-tidy command on `PATH`, or a path: registers the `clang_tidy_` tests over the project's own sources (one per unit, plus the tests that prove the gate bites). Empty registers nothing; a tool that cannot be run, the tests off, or a generator that writes no `compile_commands.json` is a configure error. See [clang-tidy (opt-in)](#clang-tidy-opt-in) ([plan 035](docs/plans/035-clang-tidy-opt-in-test-step.md)) |
 | `CRYPTOCOGS_CLANG_TIDY_ARGS` | empty | Extra arguments for every clang-tidy run, a list |
@@ -352,10 +355,12 @@ cmake --preset debug-macos-arm64 -DCRYPTOCOGS_CLANG_TIDY=               # off ag
   shows three hints that no unit reports, in the header-only `ix_ws_connection.hpp` ([#46](https://github.com/tomlin256/cryptocogs/issues/46)).
   `HeaderFilterRegex` admits `include/exchange` and `tests`, `ExcludeHeaderFilterRegex` keeps `_deps` out, and
   `test_clang_tidy_config` holds that every header the checkout owns matches. It has no `WarningsAsErrors` (clangd would show
-  every hint as an error): the tests pass `--warnings-as-errors=*`, and `-Wno-error=deprecated-declarations`, which is inert until
-  the build carries `-Werror` ([#47](https://github.com/tomlin256/cryptocogs/issues/47)) and then keeps clang-tidy 23 from
-  stopping on the SDK's libc++. Every run names the config file, so a `.clang-tidy` added in a subdirectory cannot change what
-  one part of the tree is held to.
+  every hint as an error): the tests pass `--warnings-as-errors=*`, and `-Wno-error=deprecated-declarations`, which keeps clang-tidy
+  23 from stopping on the SDK's libc++ now that the build carries `-Werror=deprecated-declarations` and `-Werror`
+  ([Compiler warnings](#compiler-warnings)): without it 65 of the 77 units stop on nlohmann/json's `char_traits<unsigned char>`.
+  Every run names the config file, so a `.clang-tidy` added in a subdirectory cannot change what one part of the tree is held to.
+  Because `-Werror` is in the compile commands, the gate also reports a compiler warning in the project's own code, as a
+  `clang-diagnostic-*` error (clang 23 has some that Apple clang 21 lacks); the tree has none today.
 - **One LLVM major, 23.** Homebrew's `llvm` on the Mac (keg-only: link `clang-tidy` and `clangd` into `/opt/homebrew/bin`) and
   clang-tidy 23 from apt.llvm.org in the `ubuntu-dev` container; `clang_tidy_version` fails on any other. Moving to another is
   one commit: `CRYPTOCOGS_CLANG_TIDY_MAJOR` in `cmake/cryptocogs_clang_tidy.cmake`, and whatever the new major reports. On the
@@ -365,6 +370,59 @@ cmake --preset debug-macos-arm64 -DCRYPTOCOGS_CLANG_TIDY=               # off ag
   says which. `tests/clang_tidy_checks/canaries/` holds deliberate defects and is in no compile database.
 - **No CI job yet.** A job with 72 red units gates nothing; when the findings are cleared it is small: `clang-tidy-23` from
   apt.llvm.org, configure only, `ctest -R '^clang_tidy_'`.
+
+### Compiler warnings
+
+The project's own targets compile with `-Wall -Wextra -Wpedantic -Werror=deprecated-declarations` and, by default, `-Werror`
+([plan 036](docs/plans/036-warnings-as-errors.md)), so every build is strict: yours, CI's and the nightly sanitizer jobs'. The
+tree is warning-free on Apple clang 21 and on GCC 13.3 (debug and release, with the sanitizers and with the benchmarks),
+and on GCC 15.2 (release, asan and tsan: CI's compiler). `-DCRYPTOCOGS_WARNINGS_AS_ERRORS=OFF` is the way out for a build that cannot wait for the fix of a newer compiler's new
+warning; the deprecation error stays. The flags are the top level's alone: a project that fetches cryptocogs keeps its own, and the
+option is not even declared there. flywheel-dag has the same flags ([flywheel-dag#67](https://github.com/tomlin256/flywheel-dag/issues/67)
+asks for the same default).
+
+```bash
+cmake --preset debug-macos-arm64 -UCRYPTOCOGS_WARNINGS_AS_ERRORS    # an existing tree keeps the value it was configured with; this adopts the default
+cmake --preset debug-macos-arm64 -DCRYPTOCOGS_WARNINGS_AS_ERRORS=OFF   # relax it
+```
+
+- **Fix a warning, never silence it.** The one exception is a confirmed compiler false positive: silence it at that one site, for
+  that one compiler, with a comment naming the bug. A warning that comes from a dependency's header in one of our units is cured by
+  marking that dependency `SYSTEM` in its `FetchContent_Declare` (one line), not by a flag. Turning a warning off for the whole
+  build needs Rob's OK first.
+- **What the compilers disagree about.** Apple clang's libc++ marks `std::future::get` `[[nodiscard]]` and libstdc++ does not, so a
+  discarded `fut.get()` warns on the Mac only; GCC 13 warns about a designated-initialiser list that leaves members out
+  (`-Wmissing-field-initializers`) and clang 23 about the same (`-Wmissing-designated-field-initializers`), which Apple clang 21 does
+  not. GCC 15 at `-O2` under ThreadSanitizer reports the destructor of a local whose `std::optional<std::string>` is never engaged as
+  `-Wmaybe-uninitialized` (a false positive, GCC's family of them with `std::optional`: PR 109561, PR 121173); Release, ASan and GCC 13 do
+  not, and the four tests in `test_ws_client.cpp` that hit it move the request into `subscribe_async` instead of copying it.
+  Build the whole tree on both Apple clang and GCC before a push that adds code, and see GCC 15 (CI's) locally in a throwaway
+  container, **each configuration the workflows build** (`release-`, `asan-` and `tsan-linux-…`; a Release tree alone missed the tsan
+  failure above): `docker run -d -v ~/src:/work:ro ubuntu:26.04 sleep infinity`, `g++ cmake make git libssl-dev
+  libcurl4-openssl-dev zlib1g-dev` from apt, `-S /work/cryptocogs -B /tmp/x/<preset name>` with `-DCMAKE_BUILD_TYPE=…
+  -DCRYPTOCOGS_SANITIZE=…` as the preset sets them and `-DFETCHCONTENT_SOURCE_DIR_<DEP>=/work/cryptocogs/build/debug-linux-arm64/_deps/<dep>-src`
+  for the seven dependencies, built with `-- -k` to list every failure (47 s for the Release tree at `-j8`). On an Apple-silicon
+  host that container compiles the tsan tree but its tests die with `SIGILL` at the first thread (aarch64 libtsan on Docker
+  Desktop's kernel); only CI runs them.
+- **Where the flags go, and the rule for a new directory.** `cmake/cryptocogs_warnings.cmake` has the flags (GNU, Clang and
+  AppleClang; any other compiler gets none) and `test_warning_flags` pins them. The root only works the list out:
+  `add_compile_options` reaches the targets created after it, in its directory and below, and the dependencies are fetched in two
+  files with `add_subdirectory(src)` between them, so a call in the root either reaches the dependencies (a call before them puts
+  `-Wpedantic` on all 50 of their units) or misses `src/` (a call after the root's last one misses its 29 units). **Each directory of
+  the project's own targets applies the list itself, as its first act and after any dependency it fetches**: `src/`, `tests/` (after
+  its last fetch, which is why `example_backward` is made after the fetches) and `tests/benchmarks/`. A directory that the root adds
+  does the same; one that `tests/` adds after its own call inherits the flags. A fetch added to `tests/CMakeLists.txt` goes above its call.
+- **The tests.** `test_warning_flags` (`cmake -P`, 186 cases: the exact flags and their order, the option and the top-level flag by
+  CMake's rules for `if()`, near-miss compiler ids). `test_warning_option` configures the real root into scratch trees over the
+  dependency sources the running build has (no network, nothing compiled) and reads each `compile_commands.json`: with no option
+  (every unit of the project has the four flags and `-Werror`, the default being held here, in CI's tree too) and with `=OFF` (no
+  `-Werror`), no dependency unit has `-Wpedantic` or `-Werror=deprecated-declarations` (they stand for the whole list; a dependency
+  that sets `-Werror` for itself, as google benchmark does, cannot be told from a leak), at least one unit sits under each of
+  `src/`, `tests/unit/` and `tests/examples/`; as a subproject of a parent project with an executable of its own (no flag on any
+  unit, the option not in the parent's cache, `CMAKE_CXX_FLAGS` untouched, no `INTERFACE_COMPILE_OPTIONS` on a library); and with
+  the benchmarks where the tree has google benchmark. *A gate that silently stops applying passes CI*, which is why the gate is
+  tested; it was shown to bite by 15 hand-made changes (the placement, an `INTERFACE` option, a cached
+  `CMAKE_CXX_FLAGS`, a directory with no call, the default), and the mapping by 23 more (each flag, their order, each compiler).
 
 ### Common build commands
 
@@ -438,6 +496,10 @@ compiler and CMake versions, and `ubuntu-latest` hands out more than one CMake a
   and `CLAUDE.md` under both `push` and `pull_request`. A run starts unless every changed path matches, so a path that nobody
   named runs CI. `README.md` is not named, because `test_cmake_floor` reads it. `test_ci_paths` fails when the two lists differ,
   when an entry names no file, and when an entry covers a file that a check reads or a CMake or C++ source.
+- **The build is strict, and neither workflow says so** ([plan 036](docs/plans/036-warnings-as-errors.md)):
+  `CRYPTOCOGS_WARNINGS_AS_ERRORS` defaults to `ON`, so GCC 15.2's warnings fail the build, and `test_warning_option` (which runs in
+  CI's tree) fails if the default changes. The flags went in a commit before the default (run 42067692222: GCC 15.2 at `-O3`, flags on,
+  `-Werror` off, no warning in the log), so that the compiler's opinion was read before it could fail anything.
 
 The second workflow, `.github/workflows/sanitizers.yml` ([plan 032](docs/plans/032-sanitizer-option-and-presets.md)), runs the `asan`
 and `tsan` trees of [Sanitizers](#sanitizers). It is separate, so that a red sanitizer run cannot mask whether the normal gate is
@@ -459,6 +521,10 @@ green, and it has no caches.
 - **TSan's mapping.** The tsan job logs the runner's `vm.mmap_rnd_bits` and lowers it to 28 only if it is higher, because a kernel
   that randomises `mmap` beyond that can stop ThreadSanitizer at start-up. The kernel of 2026-11-04 (7.0.0-1017-azure) has no such
   sysctl, so the step did nothing there.
+- **Strict too.** The default `-Werror` applies to both modes, `-O2` and instrumented, which is where GCC's false positives are likeliest:
+  the first dispatch after the default changed (run 42070614384) failed `tsan` on one, in four tests of `test_ws_client.cpp`
+  ([Compiler warnings](#compiler-warnings)), and the dispatch after the fix (run 42073767196) was green in both modes: `asan` 129
+  units and 529 tests, `tsan` 128 and 528, GCC 15.2, no warning in either log.
 
 ---
 
@@ -468,7 +534,7 @@ green, and it has no caches.
 ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure and a 120 s timeout per test
 ```
 
-There are twenty-seven test executables (510 tests, plus fourteen `cmake -P` checks that are listed after the table — 524 in
+There are twenty-seven test executables (510 tests, plus sixteen `cmake -P` checks that are listed after the table — 526 in
 ctest) — nine Kraken/common, six Binance, six Coinbase, six Crypto.com:
 
 | Binary | Source | What it tests |
@@ -501,7 +567,7 @@ ctest) — nine Kraken/common, six Binance, six Coinbase, six Crypto.com:
 | `<tree>/bin/test_cryptocom_client` | `test_cryptocom_client.cpp` | `CryptoComRestClient::execute()` signed-envelope round-trip via mock performer |
 | `<tree>/bin/test_cryptocom_ws_client` | `test_cryptocom_ws_client.cpp` | `HeartbeatResponder` auto-reply, and its callback outliving the responder (a frame and a heartbeat after it is destroyed, heap and stack, no reference cycle; plan 034), + id-correlated subscribe/ack/push lifecycle with `MockWsConnection` |
 
-The fourteen `cmake -P` checks need no build and finish in seconds; they are registered at the top level, in every tree:
+The sixteen `cmake -P` checks need no build and finish in seconds (`test_warning_option` takes about 3 s); they are registered at the top level, in every tree:
 
 | Test | Script | What it holds |
 |---|---|---|
@@ -519,6 +585,8 @@ The fourteen `cmake -P` checks need no build and finish in seconds; they are reg
 | `test_clang_tidy_module` | `tests/clang_tidy_checks/check_clang_tidy_module.cmake` | the helpers in `cmake/cryptocogs_clang_tidy.cmake`: the tool (empty is off; a name or a path; a generator that writes no `compile_commands.json` is refused), the macOS SDK (against stand-in `xcrun` scripts), the arguments and their order, the test names from paths, and the selection of units; every refusal names what it refused (plan 035) |
 | `test_clang_tidy_wiring` | `tests/clang_tidy_checks/check_clang_tidy_wiring.cmake` | the registration: a stub project over a tree of targets (empty registers nothing; the units are the targets' sources and not a dependency's, a generated file's or an orphan's), and the real root configured four ways (a missing tool, the tests off, as a subproject, and with the gate on, where `clang_tidy_units` runs) (plan 035) |
 | `test_clang_tidy_config` | `tests/clang_tidy_checks/check_clang_tidy_config.cmake` | `.clang-tidy` admits every header the checkout owns and excludes `_deps`, has no `WarningsAsErrors`; `.clangd` carries no second list; the root registers the tests after its last `add_subdirectory` (plan 035) |
+| `test_warning_flags` | `tests/warning_checks/check_warning_flags.cmake` | the mapping in `cmake/cryptocogs_warnings.cmake` (compiler, top level, option → flags): GNU, Clang and AppleClang give the four flags, and `-Werror` last with the option; any other compiler, a near-miss id, or a subproject gives none; the option and the top-level flag are true and false by the rules of `if()`; 186 cases (plan 036) |
+| `test_warning_option` | `tests/warning_checks/check_warning_option.cmake` | the flags reach the project's own targets and nothing else: it configures the real root offline into scratch trees (no option, `=OFF`, as a subproject of a parent project, and with the benchmarks where the tree has google benchmark) and reads each `compile_commands.json`; it holds the default of `CRYPTOCOGS_WARNINGS_AS_ERRORS` too (plan 036) |
 
 A tree configured with `CRYPTOCOGS_SANITIZE` adds the tests that prove its options are live (`sanitizer_canary_*` and
 `test_sanitizer_coverage`; see [Sanitizers](#sanitizers)), and one configured with `CRYPTOCOGS_CLANG_TIDY` adds the `clang_tidy_*`
@@ -530,7 +598,7 @@ The flag matrix splits cleanly: each exchange flag drops its own suite. A
 Crypto.com-only tree (`-DCRYPTOCOGS_BUILD_KRAKEN=OFF -DCRYPTOCOGS_BUILD_BINANCE=OFF
 -DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 120 gtests — the 92-test Crypto.com suite plus the
 exchange-agnostic 11 `TickPrice`, 8 `read_toml_credentials`, 5 `MockWsConnection` and 4 `IxWsConnection` tests, which build
-in any tree — and the fourteen `cmake -P` checks: 134 in ctest.
+in any tree — and the sixteen `cmake -P` checks: 136 in ctest.
 
 ### Test suite breakdown
 
@@ -1509,6 +1577,7 @@ Place the banner before `#pragma once` (for headers) or before the first `#inclu
 ## Coding conventions
 
 - **C++23** throughout (plan 029; no C++23 language or library feature is adopted yet); use structured bindings, `if constexpr`, `std::optional`, `std::string_view` where appropriate.
+- **The build is strict** ([Compiler warnings](#compiler-warnings), plan 036): the project's own targets compile with `-Wall -Wextra -Wpedantic -Werror` and the tree has no warning on Apple clang or GCC. Fix a warning, never silence it; a confirmed compiler false positive is silenced at one site, for one compiler, with a comment naming the bug. A new directory of targets applies the flags itself (the rule is in [Compiler warnings](#compiler-warnings)).
 - **Every public header refuses to compile below C++23.** `exchange/common/cxx_standard.hpp` holds the `#error` (it tests for newer than C++20, because GCC 13 reports 202100L for `-std=c++23`), and the seven headers that include no other `exchange/` header include it first: `common/{credentials_file,tick_price,types,ws,rest,reconnect_session}.hpp` and `cryptocom/auth.hpp`. A new public header either includes one of them or includes the guard itself; `test_standard_guard` preprocesses every `include/exchange/*/*.hpp` at `-std=c++17` and `-std=c++20` and fails, naming it, for one that does not stop at the guard. A library added to `src/` carries `target_compile_features(<name> PUBLIC cxx_std_23)`, and `test_standard_requirement` fails for one whose consumers would be compiled at another standard.
 - All optional fields on request and response structs use `std::optional<T>`. Only set them when needed; omitted fields are not serialised.
 - JSON serialisation uses `to_json()` / `from_json()` static methods on each struct. Prefer `j.value("key", default)` over `j.at("key")` for fields that may be absent in responses.

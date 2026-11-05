@@ -335,9 +335,15 @@ OpenSSL, and libcurl, so you do not name those yourself.
 | `CRYPTOCOGS_BUILD_KRAKEN` | `ON` | Build the Kraken adapter + its tests/examples |
 | `CRYPTOCOGS_BUILD_BINANCE` | `ON` | Build the Binance adapter + its tests/examples |
 | `CRYPTOCOGS_BUILD_TESTS` | `ON` | Build unit tests and example programs |
+| `CRYPTOCOGS_WARNINGS_AS_ERRORS` | `ON` (top level only) | `-Werror` on cryptocogs's own targets, on top of `-Wall -Wextra -Wpedantic`; a project that fetches cryptocogs keeps its own flags |
 
 The two exchange flags are independent — `-DCRYPTOCOGS_BUILD_KRAKEN=OFF` builds a
 Binance-only tree, and vice versa.
+
+A build of cryptocogs itself is strict: its own targets compile with `-Wall -Wextra -Wpedantic` and `-Werror` on GCC and Clang, and
+none of it reaches a dependency or a project that fetches it. `-DCRYPTOCOGS_WARNINGS_AS_ERRORS=OFF` takes `-Werror` off, for a build
+where a newer compiler's new warning would otherwise stop you before it is fixed. A build tree keeps the value it was configured
+with; `cmake --preset <tree> -UCRYPTOCOGS_WARNINGS_AS_ERRORS` sets it back to the default.
 
 ### CMake (FetchContent)
 
