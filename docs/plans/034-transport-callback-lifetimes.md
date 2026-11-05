@@ -1,13 +1,16 @@
 # Plan 034 — Transport callbacks must not outlive what they call
 
-**Status:** In progress. Rob approved the plan as written on 2026-11-05, so D1 to D8 stand at the defaults below. The first draft
-covered #39 only; #43 was folded in at his request before approval.
+**Status:** Done (2026-11-05). Rob approved the plan as written, so D1 to D8 stood at the defaults below. The first draft covered #39
+only; #43 was folded in at his request before approval. Steps 0 to 5 are done: #39 and #43 are fixed and closed, the Release
+`ws_client_example` exits 0 five times in five, and every sanitizer tree, local and in CI, is green.
 
 Closes [#39](https://github.com/tomlin256/cryptocogs/issues/39) and [#43](https://github.com/tomlin256/cryptocogs/issues/43).
 
 **Raised along the way:** [#44](https://github.com/tomlin256/cryptocogs/issues/44), a valid frame whose `method` is not a string makes
-`HeartbeatResponder` throw on the I/O thread (found with the #43 reproducer; its own issue).
-**Not here:** #44; the self-join when the I/O thread drops the last reference to an `IxWsConnection` (documented in
+`HeartbeatResponder` throw on the I/O thread (found with the #43 reproducer; its own issue); and
+[#45](https://github.com/tomlin256/cryptocogs/issues/45), why the CI sanitizers did not spot either bug (the follow-up Rob asked for
+when he approved this plan).
+**Not here:** #44 and #45; the self-join when the I/O thread drops the last reference to an `IxWsConnection` (documented in
 `ix_ws_connection.hpp`, unchanged by this plan); the Binance examples' use of the URL factory.
 
 ## Problem
@@ -289,3 +292,68 @@ this plan, unproven on the self-join path. A tag (D6).
 - **Five live runs are weak evidence** against a heap-layout bug (baseline: 3 of 3 bad). The deterministic tests are the proof; the
   runs are the user-visible symptom.
 - **I read the unit-test rule as covering library code.** The example has no test for want of a network, and says so (Step 4).
+
+## Outcome
+
+All six steps are done and pushed, with every default of D1 to D8 standing. Measured on the Mac (Apple clang 21.0.0, CMake 4.4.5,
+Unix Makefiles, 12 cores) and on `ubuntu-latest` (GCC 15.2.0). #39 and #43 were closed by the commits that say `Closes`.
+
+**Step 0** (`d0ba872`). Approved as written. #39 and #43 link the plan, and the plan links both and #44. At approval you also asked
+for a follow-up on why the CI sanitizers had not spotted either bug: that is [#45](https://github.com/tomlin256/cryptocogs/issues/45),
+which collected the evidence below (the free-fill ASan run, and this plan's tests run against the unfixed sources).
+
+**Step 1** (`60a9788`). `test_ix_ws_connection` was red on the old header (the regression test failed **300 of 300** runs, the other
+three passed) and green after the destructor (**600 of 600** runs of the whole binary). Two hand-made changes to the header, 300 runs
+each: `close()` instead of `stop()` red 300 of 300; `ws_` declared last with no destructor green 300 of 300. The first Linux run was
+green (CI run 42013031900, 516 of 516, GCC 15.2.0).
+
+**Step 2** (`f6521dc`). Red first in the debug tree: `ForwardsAFrameAfterTheResponderIsDestroyed` and
+`AnswersAHeartbeatAfterTheResponderIsDestroyed` died with a SegFault, `ForwardsAFrameAfterAStackResponderIsDestroyed` failed (the
+callback was destroyed with the responder, then called), and the guard passed, as planned. Green after. Hand-made changes, three runs
+each: the relay holding the connection strongly turned the guard and the `make_shared` forward test red; a relay that drops the
+heartbeat reply turned the heartbeat test and the existing `AnswersAndSwallows` red. The default tree: 520 of 520.
+
+**Step 3** (`161cff2`). `WsErrorIsolation.ThrowingIdentifierIsContained` was red (the `std::runtime_error` escaped `inject_message`,
+and the error handler saw nothing) and green after the `try`/`catch`. 521 of 521.
+
+**Step 4** (`ec7c8b4`). `ws_client_example` builds a `Session` per connection in all five `run_*` functions; the header says
+`disconnect()` first; `CLAUDE.md` says twenty-seven executables, 510 tests, 521 in ctest. The Crypto.com-only count was taken from a
+tree built for the purpose (offline, from the fetched sources) and then removed: **120 gtests, 131 in ctest, all green**; the
+document had 112 and 123, before the four `IxWsConnection` tests (they build in every tree) and the four new Crypto.com ones.
+
+**Step 5.**
+
+- **Live Kraken.** Five Release runs of `ws_client_example ticker BTC/USD`, one at a time, 3 s apart: **five exits of 0**. Each log has
+  `Subscribed`, ticker lines on both connections, and `Reused-connection subscription cancelled`, so none was a silent 429. Baseline the
+  same morning: exit 137, exit 137, a hang.
+- **Live Crypto.com.** `cryptocom_ws_client_example ticker BTC_USD --seconds 35`: exit 0, 57 ticker lines over 34.5 s. The stream
+  went on past 30 s, where the server drops a client that has not answered its heartbeat; the heartbeat frame itself is swallowed by
+  the responder, so I did not see it.
+- **Sanitizer trees, after the push.** `asan-macos-arm64` **524 of 524** with CI's options and no report; `tsan-macos-arm64` **523 of
+  523** and no report; the eleven new or touched tests (`IxWsConnectionTest`, `CryptoComHeartbeat`, `ThrowingIdentifierIsContained`)
+  passed `ctest --repeat until-fail:50` under TSan with `halt_on_error=1`, the first ixwebsocket threads in that tree.
+- **The tests against the unfixed sources, under ASan with CI's options** (for #45): the three #43 tests abort (heap-use-after-free,
+  stack-use-after-scope, heap-use-after-free); the #39 test fails 20 of 20 runs through the probe with **no ASan report at all**.
+- **CI.** The main workflow was green for every push (`60a9788`, `f6521dc`, `161cff2`, `ec7c8b4`). The sanitizers workflow, dispatched
+  one mode at a time on `ec7c8b4`: `asan` run 42015292214 green, **524 of 524** in 7 min 29 s; `tsan` run 42016393346 green, **523 of
+  523** in 6 min 23 s, no report in either; the new tests ran in both. That is the Linux run of #39's test under both sanitizers.
+
+**What the plan got wrong.**
+
+- **"Every orderly `stop()` ends with a `Close`" is false.** `stop()` sets a flag and then closes the socket; an I/O thread that sees
+  the flag first leaves its loop with no handshake and no `Close`. The first full ctest run caught it: `DisconnectThenDropDeliversOneClose`
+  failed, and 600 runs of the first version of the test measured **46 failures, about 4 in 100 per test**. The window is where a test that
+  has just waited on a gate opened by a callback puts the thread. The tests no longer assert on a `Close`, and the regression test repeats
+  the attempt until one had a `Close` (it is what makes a late call possible); the header comment and `CLAUDE.md` say "normally". My first
+  count of the failures was `runs_with_a_failure=1`, wrong because a `declare -A` in a script failed under macOS's bash 3.2 and ended the
+  loop at the first failure; the second count, 46 of 600, is the real one.
+- **Steps 1 and 2 said "builds with no warnings".** True of the log, but those builds did not recompile `test_ws_client.cpp`, whose six
+  known `-Wunused-result` warnings (#24) appear whenever it is rebuilt, as Step 3's build showed. No step added a warning.
+- **The #43 red states.** At `-O1` the scratch program lost the frame of a `make_shared` responder; in the debug tree the same case
+  crashes (SegFault). Both are "red"; the plan said they depend on the allocator.
+- **The plan said the `close()` mutation was a race, "so several runs".** It was red 300 of 300 once the test repeated until a `Close`.
+
+**Left for later.** [#44](https://github.com/tomlin256/cryptocogs/issues/44) (a non-string `method` throws out of the responder) and
+[#45](https://github.com/tomlin256/cryptocogs/issues/45) (why the sanitizers were silent, and what closes the gap) are open. The red
+state of #39's test was not shown on Linux (I did not try the container). No tag (D6). The self-join and the Binance examples are as
+they were.
