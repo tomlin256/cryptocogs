@@ -1,4 +1,11 @@
 #-------------------------------------------------------------------------------
+# This project's own warning flags (plan 036): the first act of the directory, so that every library made below gets them. This
+# directory fetches nothing, so no dependency can. The root CMakeLists.txt has the reasons, and the rule for a new directory.
+#-------------------------------------------------------------------------------
+
+add_compile_options(${_cryptocogs_warning_options})
+
+#-------------------------------------------------------------------------------
 # Common scaffold — generic, exchange-agnostic ExchangeWsClient implementation.
 #
 # This is the one piece of non-template WS-client code shared across every

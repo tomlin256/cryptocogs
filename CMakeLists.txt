@@ -135,6 +135,34 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif()
 
 #-------------------------------------------------------------------------------
+# Compiler warnings (plan 036, #47)
+#
+#   -DCRYPTOCOGS_WARNINGS_AS_ERRORS=ON    -Werror on the project's own targets
+#
+# The project's own targets compile with -Wall -Wextra -Wpedantic -Werror=deprecated-declarations, and with -Werror when the option
+# is on (cmake/cryptocogs_warnings.cmake has the flags and the reasons). They reach this project's targets only: never a
+# dependency's, and never a project that fetches this one, which keeps its own flags (the option is declared at the top level
+# only, so a consumer's cache never shows a switch that does nothing). A newer compiler's new warning is an error once the option
+# is on; the fix is the code, or one narrow suppression with a comment that names the compiler bug (CLAUDE.md has the rule).
+#
+# This block only works out the list. add_compile_options reaches the targets created after it, in its directory and below, and this
+# project fetches its dependencies in two files (this one and tests/CMakeLists.txt) with add_subdirectory(src) between them, so a
+# call here would either reach the dependencies or miss src/ (plan 036 measured both). Each directory of the project's own targets
+# applies the list itself, as its first act and after any dependency it fetches: src/, tests/ and tests/benchmarks/. A directory
+# that the root adds later does the same (one that tests/ adds after its own call inherits the flags from it), and
+# test_warning_option fails if it does not.
+#-------------------------------------------------------------------------------
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/cryptocogs_warnings.cmake)
+set(_cryptocogs_top_level OFF)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(_cryptocogs_top_level ON)
+    option(CRYPTOCOGS_WARNINGS_AS_ERRORS "Make every compiler warning an error in this project's own targets" OFF)
+endif()
+cryptocogs_warning_flags("${CMAKE_CXX_COMPILER_ID}" "${_cryptocogs_top_level}" "${CRYPTOCOGS_WARNINGS_AS_ERRORS}"
+                         _cryptocogs_warning_options)
+
+#-------------------------------------------------------------------------------
 # Find OpenSSL
 #-------------------------------------------------------------------------------
 

@@ -11,9 +11,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(backward)
 
-add_library(example_backward OBJECT examples/backward_init.cpp)
-add_backward(example_backward)
-
 #-------------------------------------------------------------------------------
 # Find spdlog
 #-------------------------------------------------------------------------------
@@ -35,6 +32,21 @@ FetchContent_Declare(
   GIT_TAG        v2.4.2
 )
 FetchContent_MakeAvailable(CLI11)
+
+#-------------------------------------------------------------------------------
+# This project's own warning flags (plan 036)
+#
+# Here, after the last fetch above and before the first target below: add_compile_options reaches only the targets created after
+# it, in this directory and in unit/, so none of the dependencies above gets the flags and every target below does. That is why
+# example_backward is made here and not beside backward-cpp. The root CMakeLists.txt has the reasons, and the rule for a new
+# directory: a fetch added to this file goes above this block.
+#-------------------------------------------------------------------------------
+
+add_compile_options(${_cryptocogs_warning_options})
+
+# Backward-cpp's stack traces for the example programs; the object library is this project's own code (examples/backward_init.cpp).
+add_library(example_backward OBJECT examples/backward_init.cpp)
+add_backward(example_backward)
 
 #-------------------------------------------------------------------------------
 # Kraken example apps (+ the legacy KAPI reference library they depend on)
@@ -386,4 +398,38 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
              COMMAND ${CMAKE_COMMAND}
                      -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/warning_checks/check_warning_flags.cmake)
+endif()
+
+# The flags reach the project's own targets and nothing else (plan 036, #47). It configures the real root into scratch trees, over
+# the dependency sources this build already fetched, so it needs no network and compiles nothing, and reads each tree's
+# compile_commands.json: with no option and with the other value, as a subproject of a parent project, and (where this build has
+# google benchmark) with the benchmarks. It is given this tree's compiler and generator, so that what it classifies is what this
+# tree builds. Top level only.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    # The root fetches google benchmark after this directory is processed, so its sources are named from the cache here: the
+    # override if the tree has one, else where FetchContent puts them.
+    set(_cryptocogs_benchmark_src "")
+    if(CRYPTOCOGS_BUILD_BENCHMARKS)
+        if(FETCHCONTENT_SOURCE_DIR_GOOGLEBENCHMARK)
+            set(_cryptocogs_benchmark_src "${FETCHCONTENT_SOURCE_DIR_GOOGLEBENCHMARK}")
+        else()
+            set(_cryptocogs_benchmark_src "${FETCHCONTENT_BASE_DIR}/googlebenchmark-src")
+        endif()
+    endif()
+    add_test(NAME test_warning_option
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -DSCRATCH_ROOT=${CMAKE_CURRENT_BINARY_DIR}/warning_checks
+                     -DCXX=${CMAKE_CXX_COMPILER}
+                     -DCXX_ID=${CMAKE_CXX_COMPILER_ID}
+                     "-DGENERATOR=${CMAKE_GENERATOR}"
+                     -DNLOHMANN_JSON_SRC=${nlohmann_json_SOURCE_DIR}
+                     -DTOMLPLUSPLUS_SRC=${tomlplusplus_SOURCE_DIR}
+                     -DIXWEBSOCKET_SRC=${ixwebsocket_SOURCE_DIR}
+                     -DGOOGLETEST_SRC=${googletest_SOURCE_DIR}
+                     -DBACKWARD_SRC=${backward_SOURCE_DIR}
+                     -DSPDLOG_SRC=${spdlog_SOURCE_DIR}
+                     -DCLI11_SRC=${cli11_SOURCE_DIR}
+                     "-DGOOGLEBENCHMARK_SRC=${_cryptocogs_benchmark_src}"
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/warning_checks/check_warning_option.cmake)
 endif()
