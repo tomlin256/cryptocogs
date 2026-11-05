@@ -1,6 +1,10 @@
 # Plan 035 — clang-tidy as an opt-in test step
 
-**Status: Proposed (2026-11-05).** Waiting for approval. Steps 1 to 6 are pending.
+**Status: Approved (2026-11-05), with one change, to D10.** Rob: *"D10 -- i want warnings as errors, but the rest is approved (create
+follow up gh issue for fixing the 329 issues found)"*. D1 to D9 and D11 stand as written. D10 now passes the deprecation override, and
+the build's own warnings as errors are [#47](https://github.com/tomlin256/cryptocogs/issues/47), planned as plan 036 after this one,
+which was Rob's choice from the three ways D10 could go. The follow-up issue for the 329 findings is
+[#46](https://github.com/tomlin256/cryptocogs/issues/46), opened at approval. The Progress table at the end records each step.
 
 Closes [#34](https://github.com/tomlin256/cryptocogs/issues/34).
 
@@ -82,10 +86,13 @@ first is 237 of the 329 sites. A tidy-clean tree and a hint-clean tree are diffe
   Homebrew's clang has `MacOSX15.2.sdk` compiled in as its default, while the build uses `MacOSX.sdk`, which is 27.2 here. The results
   are identical today (329 either way), so this is for correctness: a gate without it would pass quietly on an SDK the build never
   uses.
-- **No `-Wno-error=deprecated-declarations`.** flywheel-dag and flywheel pass it because their compile commands carry
+- **`-Wno-error=deprecated-declarations`.** flywheel-dag and flywheel pass it because their compile commands carry
   `-Werror=deprecated-declarations`, with which a clang-tidy newer than the SDK's libc++ stops on nlohmann/json's `char_traits`
-  deprecation. This project's compile commands carry no `-Werror` (`-g` or `-O3`, `-std=gnu++23`, `-I`, `-isystem`, `-arch`), and the
-  runs above had no compile error without it (D10).
+  deprecation. This project's compile commands carry no `-Werror` today (`-g` or `-O3`, `-std=gnu++23`, `-I`, `-isystem`, `-arch`), and
+  the runs above had no compile error without it. D10 passes it anyway, because Rob wants warnings as errors: with
+  `-Werror=deprecated-declarations` added by `--extra-arg` (the same as the build carrying it), 65 of the 77 units fail on the Mac
+  without the override, on `char_traits<unsigned char>` in the SDK's libc++ reached from nlohmann/json's `output_adapters.hpp`; with
+  it the picture is the baseline again (5 green, 72 red, 329 sites, no compile error). Own code has no deprecation error either way.
 
 ## Decisions to confirm
 
@@ -93,7 +100,8 @@ My defaults, each one a place to edit before approving.
 
 - **D1. The gate, not the findings.** This plan adds the opt-in step and clears none of the 329 sites, so **with the gate on, 72 of
   the 77 per-file tests are red on the Mac**. That is the measurement, not a defect; the default build and `ctest` stay green, and the
-  six tests that prove the gate pass. The findings are recorded in a new issue (Step 5) and cleared in a fresh session with this gate
+  six tests that prove the gate pass. The findings are recorded in a new issue, [#46](https://github.com/tomlin256/cryptocogs/issues/46)
+  (opened at approval, from the scratch baseline; Step 5 re-measures with the gate), and cleared in a fresh session with this gate
   as its oracle. This is the scope you settled for flywheel#205: *"1. The basic scaffold to collect the status, but dont enable the
   gate pushed with a record of its findings in a new issue to fix the findings, 2. Do the fixes in a fresh session."* *Alternatives,
   not taken:* fix them here (four times flywheel-dag#60's 77 sites, 237 of them `unchecked-optional-access` behind gtest assertions the
@@ -137,8 +145,15 @@ My defaults, each one a place to edit before approving.
   time, so a target added after the call, or a file the walk misses, turns a test red. *Alternative:* the glob, which is simpler, also
   analyses a file no target compiles, and in a Crypto.com-only tree registers 52 units of adapters that are switched off. The cost of
   mine is the walk, about thirty lines, and a test for it.
-- **D10. No deprecation override; the SDK flag stays.** See the measurements. The day a `-Werror` enters the compile commands the gate
-  tells the same story as in flywheel-dag#60, and the fix is one argument plus an assertion in `test_clang_tidy_module`.
+- **D10 (changed at approval). The deprecation override and the SDK flag both stay; the build's own warnings as errors are plan 036.**
+  The first draft passed no override, because the compile commands carry no `-Werror`. Rob: *"i want warnings as errors"*. Every run
+  therefore passes `--extra-arg=-Wno-error=deprecated-declarations`, as flywheel-dag and flywheel do, so that the day the build carries
+  `-Werror=deprecated-declarations` the gate does not stop on the SDK's libc++ (measured above: 65 of 77 units without it). It is
+  inert until then, and Step 3 shows it is not dead: M11 and M12 below. `--warnings-as-errors=*` is unchanged, so a deprecation in
+  this project's own files is still an error in the gate, and the header filter drops one in the SDK or a dependency. What Rob asked
+  for beyond the gate, the build itself, is [#47](https://github.com/tomlin256/cryptocogs/issues/47). The choices were: a plan of its
+  own after this one (taken), the same flags as a new step ahead of the gate in this plan, or `-Werror=deprecated-declarations` alone
+  in this plan. The measurements behind them are in #47: nine warnings in two files today (six are #24), none in `src/` or `include/`.
 - **D11. Commits go straight to `main`, one per step, and are pushed once the step's checkpoint is green.** No branch and no PR, as
   your global rules say. Say if you want the push held until the end.
 
@@ -154,7 +169,8 @@ New:
   path; a generator that writes no `compile_commands.json`, or a tool this host cannot run, is a `FATAL_ERROR` that names the value);
   `cryptocogs_clang_tidy_sdk(<apple> <sysroot> <out>)` (the SDK for an Apple target whose sysroot is empty; a failing, silent or
   absent `xcrun` is a `FATAL_ERROR`);
-  `cryptocogs_clang_tidy_args(<extra> <sdk> <out>)` (`--warnings-as-errors=*`, the SDK flags if any, then the extras);
+  `cryptocogs_clang_tidy_args(<extra> <sdk> <out>)` (`--warnings-as-errors=*`, `--extra-arg=-Wno-error=deprecated-declarations`
+  (D10), the SDK flags if any, then the extras);
   `cryptocogs_clang_tidy_test_name(<root> <source> <out>)`;
   `cryptocogs_clang_tidy_select(<root> <candidates> <out>)` (a pure filter: the `.cpp`, `.cc` and `.cxx` files under the root, less
   `tests/clang_tidy_checks/canaries/` and `tests/sanitize_checks/canaries/`, de-duplicated and sorted; none at all, or two with one
@@ -207,9 +223,9 @@ that carries `build*` filled the disk on 2026-11-04) and never restored.
 
 ### Step 0 — Approval
 
-The plan is written and not yet committed. On your approval: it is committed as Proposed (`docs(plan): add plan 035, clang-tidy as an
-opt-in test step`), a comment on #34 links it, and your answer goes into the plan in a second commit (`docs(plan): 035 approved …`);
-both are pushed. **Done when:** `git status` is clean, #34 carries the path, and the approval is in the plan.
+The plan was committed as Proposed (`1217ac6`, `docs(plan): add plan 035, clang-tidy as an opt-in test step`) and pushed, and a comment
+on #34 links it. Rob's answer, with the change to D10, goes into the plan in a second commit (`docs(plan): 035 approved, with D10
+changed`), which is pushed too. **Done when:** `git status` is clean, #34 carries the path, and the approval is in the plan.
 
 ### Step 1 — Start from green
 
@@ -225,7 +241,7 @@ process, each refusal in a child run whose exit status and message are checked.
 
 | Test | Asserts |
 |---|---|
-| `test_clang_tidy_module` (new) | **tool:** empty gives empty, whatever the generator; `sh` (a name on `PATH`) and `${CMAKE_COMMAND}` (a path) resolve; a name no host has is refused with a message that names `CRYPTOCOGS_CLANG_TIDY=<value>`; `Xcode`, `Visual Studio 17 2022` and `Ninja Multi-Config` are refused with a message that names the generator, `Unix Makefiles` and `Ninja` accepted. **sdk:** not Apple gives empty and never runs `xcrun`; Apple with a non-empty sysroot gives empty; Apple with an empty sysroot gives the answer of a stand-in `xcrun` on a private `PATH`, and an absent one, one that fails after printing a path, and one that prints nothing are each refused, on every host. **args:** `--warnings-as-errors=*` comes first and nothing about deprecations follows (D10); with an SDK, `--extra-arg=-isysroot` and `--extra-arg=<sdk>` follow; the extras come last, in order. **test_name:** `src/kraken/auth.cpp` gives `clang_tidy_src_kraken_auth`, a nested `tests/examples/binance/…` file maps likewise, a source outside the root is refused. **select:** over a scratch tree, the `.cpp`, `.cc` and `.cxx` files among the candidates in sorted order, once each, and none of a `.hpp`, a file outside the root, `tests/clang_tidy_checks/canaries/` or `tests/sanitize_checks/canaries/`; no candidate at all is refused; `a_b/c.cpp` with `a/b_c.cpp` is refused, naming both |
+| `test_clang_tidy_module` (new) | **tool:** empty gives empty, whatever the generator; `sh` (a name on `PATH`) and `${CMAKE_COMMAND}` (a path) resolve; a name no host has is refused with a message that names `CRYPTOCOGS_CLANG_TIDY=<value>`; `Xcode`, `Visual Studio 17 2022` and `Ninja Multi-Config` are refused with a message that names the generator, `Unix Makefiles` and `Ninja` accepted. **sdk:** not Apple gives empty and never runs `xcrun`; Apple with a non-empty sysroot gives empty; Apple with an empty sysroot gives the answer of a stand-in `xcrun` on a private `PATH`, and an absent one, one that fails after printing a path, and one that prints nothing are each refused, on every host. **args:** `--warnings-as-errors=*` comes first and `--extra-arg=-Wno-error=deprecated-declarations` second (D10); with an SDK, `--extra-arg=-isysroot` and `--extra-arg=<sdk>` follow; the extras come last, in order. **test_name:** `src/kraken/auth.cpp` gives `clang_tidy_src_kraken_auth`, a nested `tests/examples/binance/…` file maps likewise, a source outside the root is refused. **select:** over a scratch tree, the `.cpp`, `.cc` and `.cxx` files among the candidates in sorted order, once each, and none of a `.hpp`, a file outside the root, `tests/clang_tidy_checks/canaries/` or `tests/sanitize_checks/canaries/`; no candidate at all is refused; `a_b/c.cpp` with `a/b_c.cpp` is refused, naming both |
 | the 521 existing | pass |
 
 **Done when:** the checkpoint is green with 522 of 522 on the Mac; the new test was red first; and hand-made mutants of the module,
@@ -274,6 +290,8 @@ three scripts.
   | M8 the major set to 22 | `clang_tidy_version` |
   | M9 `tests/sanitize_checks/canaries/` not excluded in `select` | `test_clang_tidy_module`, and in an `asan` tree two more units appear |
   | M10 `src/` walked without the `_deps` and build-tree exclusions | `test_clang_tidy_wiring`, and a dependency's sources appear among the units |
+  | M11 `add_compile_options(-Werror=deprecated-declarations)` after the dependencies in the root (what plan 036 will do, and what flywheel does) | nothing: the gate's picture is unchanged, 5 green, 72 red, 329 sites, no compile error, which is what D10's override is for |
+  | M12 M11, and the override dropped from `cryptocogs_clang_tidy_args` | `test_clang_tidy_module`, and on the Mac 65 of the 77 units, each with a `clang-diagnostic-deprecated-declarations` error in the SDK's libc++ |
 
 Commit: `build: add .clang-tidy and the opt-in clang_tidy_ tests (step 3/6)`.
 
@@ -286,21 +304,15 @@ also reports. A Linux-only site, or a compile error in a unit, is a stop.
 
 ### Step 5 — Record the findings in a new issue
 
-No code. The scaffold collects its own status: on the Mac and in the container, the gate on and `ctest -R '^clang_tidy_'` with the
-output kept; a scratch script digests it. The new issue (label `enhancement`; the repo has no priority labels) is the record the
-fixes start from:
-
-- the baseline: the commit, the tool versions, 77 units, how many are red and green on each platform, and the sites;
-- the tables by check and by area, the Mac-only site, and the 35 units that are red only through 23 header sites (clearing those
-  first is the obvious order);
-- how to re-measure, and what done is: the 83 `clang_tidy_*` tests passing on the Mac and in the container;
-- a first comment with every site, grouped by file, so progress is a diff against a frozen list;
-- its relation to #38 (the 14 `performance-enum-size` sites are #38's ABI question, to be answered before they are "fixed", and its
-  `unused-includes` are clangd's, not a tidy check), and that it is planned from scratch in a fresh session: a plan in `docs/plans/`
-  first, as the global rules say.
-
-#34 and #38 each get a comment that links it, and this plan names it. **Done when:** the issue exists, its numbers equal what the gate
-printed on both platforms, and the three links are in place.
+No code. [#46](https://github.com/tomlin256/cryptocogs/issues/46) already exists: Rob asked for it at approval, so it was opened from the
+scratch baseline of this plan's measurements (label `enhancement`; the repo has no priority labels), with the baseline, the tables by
+check and by area, the 35 units that are red only through 23 header sites, how to re-measure, what done is, its relation to #38 (the 14
+`performance-enum-size` sites are #38's ABI question, to be answered before they are "fixed"), a first comment with every site grouped
+by file, and a note that it is planned from scratch in a fresh session. #34 and #38 each have a comment that links it. This step
+makes the issue's numbers the gate's own: on the Mac and in the container, the gate on and `ctest -R '^clang_tidy_'` with the output
+kept, digested by a scratch script with the counting command that #46 gives. **Done when:** the numbers in #46's description and
+first comment equal what the gate printed on both platforms (any that differ are edited, and the first comment regenerated), and
+#46's "Blocked by #34" line is replaced by the commit that landed the gate.
 
 ### Step 6 — Docs, the sibling check, and close
 
@@ -341,7 +353,11 @@ printed on both platforms, and the three links are in place.
 - **Release and debug agree today** (329 sites each); a later `#ifndef NDEBUG` could split them. The gate is documented on the debug
   tree.
 - **GCC-shaped compile commands.** The Linux trees' commands carry only `-g` or `-O3`, `-std=gnu++23` and the include flags, and the
-  container run had no compile error. A GCC-only flag added to the project later would stop clang-tidy with an unknown-argument error.
+  container run had no compile error. A GCC-only flag added to the project later would stop clang-tidy with an unknown-argument error;
+  plan 036's warning flags (`-Wall -Wextra -Wpedantic`, `-Werror=deprecated-declarations`) are ones clang knows, and M11 and M12 are
+  where this plan shows the gate surviving the one that matters.
+- **The override is inert until plan 036 (D10).** A flag that nothing exercises rots, so M11 simulates the build carrying
+  `-Werror=deprecated-declarations` and M12 removes the override, and `test_clang_tidy_module` asserts it is in the arguments.
 - **A file no target compiles is outside the gate** (D9), where the siblings analyse it with inferred flags. It is also outside the
   build.
 - **Only instantiated templates are analysed**, so a header template that no unit instantiates is not checked. The suites instantiate
@@ -365,8 +381,10 @@ printed on both platforms, and the three links are in place.
 
 ## Not in this plan
 
-- **Clearing the 329 sites**: the issue Step 5 opens, in a fresh session. #38's two parts stay with #38 until its ABI question is
-  answered.
+- **Clearing the 329 sites**: [#46](https://github.com/tomlin256/cryptocogs/issues/46), in a fresh session. #38's two parts stay with
+  #38 until its ABI question is answered.
+- **The build's own warnings as errors**: [#47](https://github.com/tomlin256/cryptocogs/issues/47), plan 036, written after this plan
+  is done (D10). Nothing here changes a compile flag.
 - **A CI job** (D4), **wider checks** (D3), and **Include Cleaner**.
 - **Presets for the gate** (D5), and a gate in the sanitizer trees: it works there but proves nothing the debug tree does not.
 - **Anything in flywheel and flywheel-dag** beyond the issues Step 6 may raise.
@@ -389,8 +407,8 @@ printed on both platforms, and the three links are in place.
 
 | Step | Status | Notes |
 |---|---|---|
-| 0 Approval | Proposed | |
-| 1 Start from green | Pending | |
+| 0 Approval | Done | Proposed in `1217ac6`, linked from #34. Rob approved on 2026-11-05 with D10 changed (override stays; the build's warnings as errors are #47, plan 036 after this). #46 opened for the 329 findings and linked from #34 and #38; #47 opened for warnings as errors. |
+| 1 Start from green | Done | No commit. Mac, `debug-macos-arm64`: configure prints only the two CMake deprecation notices that #26 tracks (backward-cpp, CLI11) and exits 0, the build was up to date, ctest 521 of 521 in 36 s. Container, `debug-linux-arm64`: the same two notices, the build recompiled the two newest tests with no compiler warning in 1 min 50 s, ctest 521 of 521 in 12 s, and its compile database now has all 77 units. |
 | 2 The module, test first | Pending | |
 | 3 The configuration and the gate | Pending | |
 | 4 The Linux half | Pending | |
