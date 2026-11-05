@@ -1,10 +1,10 @@
 # Plan 032 — A sanitizer option and presets: `asan` and `tsan` trees, and a nightly that runs them
 
-**Status:** In progress (2026-11-04). Rob approved the plan as written, so D1 to D8 stood at the defaults below, and asked for one
+**Status:** Done (2026-11-05), except for one done-when that was not met. Rob approved the plan as written, so D1 to D8 stood at the defaults below, and asked for one
 addition: an issue in flywheel proposing the compile-side coverage check (D4) for its own sanitizer tests, which is
 [flywheel#209](https://github.com/tomlin256/flywheel/issues/209). Steps 0 to 9 are done and pushed: #27 and #28 were fixed by
-[plan 033](033-tsan-races-in-the-tests.md), and `tsan` is in the nightly. What is left is to read the first scheduled run with both
-jobs (03:41 UTC); #30 closes when it is green.
+[plan 033](033-tsan-races-in-the-tests.md), and `tsan` is in the nightly. Step 9 asked for a green `schedule` run before #30 closed. The tick of 03:41 UTC on 2026-11-05 made no
+run (see the Outcome), and Rob asked for #30 to be closed that day without one, so no scheduled run has been read.
 
 Closes [#30](https://github.com/tomlin256/cryptocogs/issues/30) — "A sanitizer option and presets: asan and tsan trees are
 hand-made today".
@@ -367,8 +367,8 @@ A check of the workflow file beyond what `test_presets` already pins.
 ## Outcome
 
 Steps 1 to 9 are done and pushed. Step 9 waited for [#27](https://github.com/tomlin256/cryptocogs/issues/27) and
-[#28](https://github.com/tomlin256/cryptocogs/issues/28), which [plan 033](033-tsan-races-in-the-tests.md) fixed; what is left is to
-read the first scheduled run with both jobs.
+[#28](https://github.com/tomlin256/cryptocogs/issues/28), which [plan 033](033-tsan-races-in-the-tests.md) fixed; the first scheduled run, which its
+done-when asks for, has not happened (see "The scheduled run" at the end).
 Measured on the Mac (Apple clang 21.0.0, CMake 4.4.5, Unix Makefiles, 12 cores) and on `ubuntu-latest` (GCC 15.2.0, CMake 4.4.4,
 4 cores, kernel 7.0.0-1017-azure).
 
@@ -474,6 +474,18 @@ run is the slowest of the three, and the build step is what varied (8 min 36 s, 
 configure 31 s, test 35 s), so the 20-minute ceiling is 2 times the slowest cold run and not the 2.3 that Step 6 wrote down; the
 comment and `CLAUDE.md` say so (`2ff151d`). `CLAUDE.md`'s CI paragraph says that both modes run nightly and what the runs cost.
 
-**Left for later.** The first scheduled run with both jobs (03:41 UTC), which the done-when of Step 9 asks to be read from
-`gh run list --workflow sanitizers.yml --event schedule`, and closing #30 on it. The `ubuntu-dev` container (Linux arm64) was not used:
-CI covers Linux x86_64, and the plan did not need a second Linux result.
+**The scheduled run (2026-11-05).** The tick of 03:41 UTC made no run. A waiter polled
+`gh run list --workflow sanitizers.yml --event schedule` every ten minutes from 20:43 UTC on 2026-11-04 and gave up at 05:43 UTC with
+nothing found; `--event schedule` lists no run of any workflow in the repository, and the newest `Sanitizers` run is still the dispatch
+of both (41909134424). What I checked: the workflow is `active`; `main` is the default branch and has carried the cron since `153f8cc`
+(19:29 UTC on 2026-11-04); the repository is public and not a fork; githubstatus.com lists no incident in the window (its only Actions
+incident that day ran 17:40 to 18:16 UTC, before the cron was on `main`). GitHub's documentation says a scheduled run "can be delayed
+during periods of high loads" and that under load "some queued jobs may be dropped"; it says nothing about the first tick of a new
+cron. So one miss does not say whether the run was dropped or the schedule is not registered, and I did not try a diagnostic cron on
+`main`, which would start runs that nobody asked for. Rob asked for #30 to be closed at this point, so the done-when of Step 9 ("a
+`schedule` run on `main` shows both jobs green") is **unmet**, and the issue is closed without it. The next tick is 03:41 UTC on
+2026-11-06; read it with the command above. If that tick also makes no run, the question is the schedule and not the build, since a
+dispatch of both takes the matrix branch that the schedule takes, and it wants an issue of its own.
+
+**Left for later.** The first scheduled run with both jobs, as above. The `ubuntu-dev` container (Linux arm64) was not used: CI covers
+Linux x86_64, and the plan did not need a second Linux result.
