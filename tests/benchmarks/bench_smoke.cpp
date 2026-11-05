@@ -15,11 +15,18 @@
 // steps of docs/plans/025-kraken-performance-profiling.md.
 namespace {
 
+// BENCHMARK(...) is google benchmark's registration macro: it declares a static whose initialiser registers the benchmark, which
+// allocates, so bugprone-throwing-static-initialization reports it. There is nothing in this file to fix, so that one check is
+// silenced from here to the matching end marker at the bottom of the namespace.
+// NOLINTBEGIN(bugprone-throwing-static-initialization)
+
 void BM_Noop(benchmark::State& state) {
     for (auto _ : state) {
         benchmark::DoNotOptimize(state.iterations());
     }
 }
 BENCHMARK(BM_Noop);
+
+// NOLINTEND(bugprone-throwing-static-initialization)
 
 } // namespace

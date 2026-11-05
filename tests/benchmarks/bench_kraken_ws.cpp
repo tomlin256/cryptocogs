@@ -23,6 +23,11 @@ using namespace exchange::kraken::ws::test;
 
 namespace {
 
+// Each BENCHMARK(...) in this namespace is google benchmark's registration macro: it declares a static whose initialiser registers
+// the benchmark, which allocates, so bugprone-throwing-static-initialization reports it. There is nothing in this file to fix, so
+// that one check is silenced from here to the matching end marker at the bottom of the namespace.
+// NOLINTBEGIN(bugprone-throwing-static-initialization)
+
 // ── BM_TickerFromJson / BM_FrameDescriptor_Ticker ───────────────────────────
 // Candidate #4: the highest-*frequency* real-world path (market data ticks),
 // using the captured live fixture from tests/unit/ws_client_example_json.hpp
@@ -143,7 +148,8 @@ void BM_VectorPushBack_NoReserve(benchmark::State& state) {
     const auto n = static_cast<int>(state.range(0));
     for (auto _ : state) {
         std::vector<exchange::kraken::ws::BookEntry> v;
-        for (int i = 0; i < n; ++i) v.push_back({100.0 + i, 1.0});
+        // No reserve() on purpose: this is the baseline that BM_VectorPushBack_WithReserve below is measured against.
+        for (int i = 0; i < n; ++i) v.push_back({100.0 + i, 1.0});  // NOLINT(performance-inefficient-vector-operation)
         benchmark::DoNotOptimize(v);
     }
     state.SetComplexityN(n);
@@ -161,5 +167,7 @@ void BM_VectorPushBack_WithReserve(benchmark::State& state) {
     state.SetComplexityN(n);
 }
 BENCHMARK(BM_VectorPushBack_WithReserve)->Arg(10)->Arg(50)->Arg(100)->Arg(500)->Complexity(benchmark::oN);
+
+// NOLINTEND(bugprone-throwing-static-initialization)
 
 } // namespace

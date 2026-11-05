@@ -18,6 +18,11 @@ using namespace exchange::kraken::rest;
 
 namespace {
 
+// Each BENCHMARK(...) in this namespace is google benchmark's registration macro: it declares a static whose initialiser registers
+// the benchmark, which allocates, so bugprone-throwing-static-initialization reports it. There is nothing in this file to fix, so
+// that one check is silenced from here to the matching end marker at the bottom of the namespace.
+// NOLINTBEGIN(bugprone-throwing-static-initialization)
+
 // Same dummy-creds idiom as tests/unit/test_rest_requests.cpp — the secret
 // only needs to be valid base64, its content is irrelevant to timing.
 KrakenCredentials make_dummy_creds() {
@@ -111,5 +116,7 @@ BENCHMARK(BM_ParseOpenOrdersResponse)
     ->RangeMultiplier(10)
     ->Range(1, 100)
     ->Complexity(benchmark::oNLogN);
+
+// NOLINTEND(bugprone-throwing-static-initialization)
 
 } // namespace
