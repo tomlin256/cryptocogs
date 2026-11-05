@@ -353,7 +353,15 @@ document had 112 and 123, before the four `IxWsConnection` tests (they build in 
   crashes (SegFault). Both are "red"; the plan said they depend on the allocator.
 - **The plan said the `close()` mutation was a race, "so several runs".** It was red 300 of 300 once the test repeated until a `Close`.
 
+**Release (D6 flipped after the plan was done).** Rob asked for a tag once the work was finished. As for v0.5.6 and v1.0.0, the
+bump commit changes one line of `CMakeLists.txt` (1.0.0 to 1.0.1, `21c8d75`); `test_package_version` derives its table from the
+version and passed; the debug and the release tree both built and passed **521 of 521** (only the six known #24 warnings); CI was green
+on the bump commit (run 42018665984, 2 min 8 s); then the annotated tag `v1.0.1` went on that commit and was pushed. Its message says
+what changed for a user: nothing to edit, the destructor, the relay and the contained identifier, and what else is in the tag
+(sanitizer option and presets, CI, ixwebsocket v12.1.0, test-only fixes). A tag and no GitHub release, as for v0.5.x to v1.0.0 (the
+last GitHub release is v0.0.3). The README's FetchContent example still pins `v1.0.0`: it started pinning a tag
+with 1.0.0 (before that it said `main`), so this is the first patch release it could have followed, and I left it.
+
 **Left for later.** [#44](https://github.com/tomlin256/cryptocogs/issues/44) (a non-string `method` throws out of the responder) and
 [#45](https://github.com/tomlin256/cryptocogs/issues/45) (why the sanitizers were silent, and what closes the gap) are open. The red
-state of #39's test was not shown on Linux (I did not try the container). No tag (D6). The self-join and the Binance examples are as
-they were.
+state of #39's test was not shown on Linux (I did not try the container). The self-join and the Binance examples are as they were.
