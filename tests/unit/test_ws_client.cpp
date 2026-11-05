@@ -25,6 +25,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 using json = nlohmann::json;
@@ -308,6 +309,12 @@ TEST(Execute, TimesOutAndReturnsError) {
 // Group: subscribe (three-phase lifecycle)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// The request goes into subscribe_async as std::move(sub_req) (or, in Cancel.RemovesPushCallback, as a temporary), not as a copy of a
+// named local. The tests do not use it again, and with -Werror GCC 15 rejects the copy in a ThreadSanitizer build (the sanitizers
+// workflow, -O2): the destructor of the local, whose std::optional<std::string> token is never engaged, is reported with
+// -Wmaybe-uninitialized, one of GCC's false positives with std::optional (PR 109561, PR 121173). Clang and GCC 13 do not report it,
+// so a copy put back goes unnoticed except in that job.
+
 TEST(Subscribe, PushCallbackNotFiredBeforeAck) {
     auto [client, conn] = make_test_client();
 
@@ -317,7 +324,7 @@ TEST(Subscribe, PushCallbackNotFiredBeforeAck) {
     std::atomic<int> push_count{0};
 
     auto fut = client->subscribe_async(
-        sub_req,
+        std::move(sub_req),
         [&](const exchange::kraken::ws::TickerMessage&) { ++push_count; }
     );
 
@@ -344,7 +351,7 @@ TEST(Subscribe, SuccessfulAckThenPushData) {
     std::atomic<double> last_bid{0.0};
 
     auto fut = client->subscribe_async(
-        sub_req,
+        std::move(sub_req),
         [&](const exchange::kraken::ws::TickerMessage& msg) {
             ++push_count;
             if (!msg.data.empty()) last_bid.store(msg.data[0].bid);
@@ -376,7 +383,7 @@ TEST(Subscribe, FailedAckPushCallbackNeverFires) {
     std::atomic<int> push_count{0};
 
     auto fut = client->subscribe_async(
-        sub_req,
+        std::move(sub_req),
         [&](const exchange::kraken::ws::TickerMessage&) { ++push_count; }
     );
 
@@ -431,12 +438,10 @@ TEST(Subscribe, HandleIsActiveAfterSuccessfulAck) {
 TEST(Cancel, RemovesPushCallback) {
     auto [client, conn] = make_test_client();
 
-    exchange::kraken::ws::TickerSubscribeRequest sub_req;
-
     std::atomic<int> push_count{0};
 
     auto fut = client->subscribe_async(
-        sub_req,
+        exchange::kraken::ws::TickerSubscribeRequest{},
         [&](const exchange::kraken::ws::TickerMessage&) { ++push_count; }
     );
 
