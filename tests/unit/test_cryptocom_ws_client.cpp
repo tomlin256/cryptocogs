@@ -8,7 +8,8 @@
 // =============================================================================
 //
 // Crypto.com WebSocket unit tests (no network — MockWsConnection only):
-//   - HeartbeatResponder decorator (auto-reply + swallow, forward otherwise);
+//   - HeartbeatResponder decorator (auto-reply + swallow, forward otherwise; and the callback it installs on the inner
+//     connection outliving the responder, plan 034 / #43);
 //   - cryptocom_frame_descriptor classification (ack/auth by id, push by id -1);
 //   - subscribe ack / auth parsing + auth signing;
 //   - push event from_json field assertions (live market + synthetic user);
@@ -16,6 +17,7 @@
 
 #include "exchange/cryptocom/heartbeat_connection.hpp"
 #include "exchange/cryptocom/ws.hpp"
+#include "callback_probe.hpp"
 #include "cryptocom_ws_example_json.hpp"
 #include "mock_ws_connection.hpp"
 
@@ -257,6 +259,96 @@ TEST(CryptoComHeartbeat, ForwardsTransportMethods) {
     EXPECT_EQ(inner->sent()[0], "hello");
     hb.disconnect();
     EXPECT_FALSE(hb.is_connected());
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HeartbeatResponder — the callback on the inner connection outlives the responder (plan 034, #43)
+//
+// The Crypto.com factories give the client the only reference to the responder, while the caller keeps the inner connection. So
+// the client can be released with the connection still open and frames still arriving. The callback the responder installed on
+// the connection must not need the responder: it has to go on working, on its own, for as long as the connection keeps it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+namespace {
+
+// The last frame the forward callback below was given. A namespace-scope variable and not a capture: on the code these tests
+// hunt, the callback runs after it was destroyed, and a destroyed callback's captures are not to be read (callback_probe.hpp).
+std::string g_forwarded_frame;
+
+exchange::ws::IWsConnection::MessageCb probe_forward() {
+    return [token = CallbackProbe::token()](const std::string& raw) {
+        CallbackProbe::record_call();
+        g_forwarded_frame = raw;
+    };
+}
+
+} // namespace
+
+// A responder built as the factories build it (make_shared), released while its connection lives: the next frame still reaches
+// the callback that was registered through it, and that callback has not been destroyed.
+TEST(CryptoComHeartbeat, ForwardsAFrameAfterTheResponderIsDestroyed) {
+    const CallbackProbe probe;
+    g_forwarded_frame.clear();
+    auto inner = std::make_shared<MockWsConnection>();
+    auto hb    = std::make_shared<HeartbeatResponder>(inner);
+    hb->set_on_message(probe_forward());
+    hb.reset();
+
+    inner->inject_message(std::string(fx::TICKER_PUSH));
+    EXPECT_EQ(probe.calls(), 1);
+    EXPECT_EQ(probe.calls_after_a_destruction(), 0);
+    EXPECT_EQ(probe.destroyed(), 0);              // the connection still holds the callback
+    EXPECT_EQ(g_forwarded_frame, std::string(fx::TICKER_PUSH));
+
+    inner.reset();
+    EXPECT_EQ(probe.destroyed(), 1);              // and lets it go with itself
+}
+
+// The same for a responder on the stack, which is how the other tests in this file build it.
+TEST(CryptoComHeartbeat, ForwardsAFrameAfterAStackResponderIsDestroyed) {
+    const CallbackProbe probe;
+    g_forwarded_frame.clear();
+    auto inner = std::make_shared<MockWsConnection>();
+    {
+        HeartbeatResponder hb{inner};
+        hb.set_on_message(probe_forward());
+    }
+
+    inner->inject_message(std::string(fx::TICKER_PUSH));
+    EXPECT_EQ(probe.calls(), 1);
+    EXPECT_EQ(probe.calls_after_a_destruction(), 0);
+    EXPECT_EQ(probe.destroyed(), 0);
+    EXPECT_EQ(g_forwarded_frame, std::string(fx::TICKER_PUSH));
+}
+
+// A heartbeat that arrives after the responder is gone is still answered, through the connection, and not forwarded.
+TEST(CryptoComHeartbeat, AnswersAHeartbeatAfterTheResponderIsDestroyed) {
+    const CallbackProbe probe;
+    auto inner = std::make_shared<MockWsConnection>();
+    auto hb    = std::make_shared<HeartbeatResponder>(inner);
+    hb->set_on_message(probe_forward());
+    hb.reset();
+
+    inner->inject_message(std::string(fx::HEARTBEAT));
+    ASSERT_EQ(inner->sent().size(), 1u);
+    const auto reply = json::parse(inner->sent()[0]);
+    EXPECT_EQ(reply.at("method"), "public/respond-heartbeat");
+    EXPECT_EQ(reply.at("id").get<int64_t>(), 1782032467342);
+    EXPECT_EQ(probe.calls(), 0);
+    EXPECT_EQ(probe.calls_after_a_destruction(), 0);
+}
+
+// The callback holds the connection it answers on weakly. The callback lives inside that connection, so a strong reference would
+// be a cycle that nothing could ever break. (This one passes on the old code, which had no such reference; it guards the fix.)
+TEST(CryptoComHeartbeat, TheInstalledCallbackDoesNotKeepTheInnerConnectionAlive) {
+    std::weak_ptr<MockWsConnection> observed;
+    {
+        auto inner = std::make_shared<MockWsConnection>();
+        observed   = inner;
+        HeartbeatResponder hb{inner};
+        hb.set_on_message([](const std::string&) {});
+    }
+    EXPECT_TRUE(observed.expired());
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

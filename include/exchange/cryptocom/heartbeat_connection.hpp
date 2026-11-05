@@ -44,16 +44,22 @@ public:
     // Installs an intercepting handler on the inner connection: a
     // "public/heartbeat" frame is answered + swallowed; everything else is
     // forwarded to cb. The other callbacks forward straight through.
+    //
+    // Lifetime (plan 034, #43): the handler owns what it needs (cb and a weak
+    // reference to the inner connection) and does not refer to this responder, so
+    // the responder may be destroyed while the inner connection is still open and
+    // delivering frames. The handler then goes on working, for as long as the
+    // connection keeps it: heartbeats are still answered and other frames still
+    // reach cb.
     void set_on_message(MessageCb cb) override;
     void set_on_open(OpenCb cb) override;
     void set_on_close(CloseCb cb) override;
     void set_on_error(ErrorCb cb) override;
 
 private:
-    void handle_inbound(const std::string& raw);
+    struct Relay;   // what the handler installed on the inner connection owns (heartbeat_connection.cpp)
 
     std::shared_ptr<IWsConnection> inner_;
-    MessageCb                      forward_;
 };
 
 } // namespace exchange::cryptocom::ws

@@ -17,6 +17,34 @@ namespace exchange::cryptocom::ws {
 
 using json = nlohmann::json;
 
+// What the callback installed on the inner connection owns. That callback lives inside the connection and can outlive this
+// responder (the factories give the client the only reference to it, while the caller keeps the connection), so it must not
+// refer to the responder: it carries its own copy of the forward callback and a weak reference to the connection it answers
+// on. Weak, because the callback is a member of that connection, and a strong reference would be a cycle nothing could break
+// (plan 034, #43).
+struct HeartbeatResponder::Relay {
+    std::weak_ptr<IWsConnection> inner;
+    MessageCb                    forward;
+
+    void on_message(const std::string& raw) const;
+};
+
+void HeartbeatResponder::Relay::on_message(const std::string& raw) const {
+    // Answer + swallow heartbeats; forward everything else (including frames that
+    // fail to parse — the client's own error handling deals with those).
+    json j = json::parse(raw, nullptr, /*allow_exceptions=*/false);
+    if (j.is_object() && j.value("method", std::string{}) == "public/heartbeat") {
+        json reply;
+        reply["id"]     = j.contains("id") ? j.at("id") : json(nullptr);
+        reply["method"] = "public/respond-heartbeat";
+        if (const auto conn = inner.lock())
+            conn->send(reply.dump());
+        return;
+    }
+    if (forward)
+        forward(raw);
+}
+
 HeartbeatResponder::HeartbeatResponder(std::shared_ptr<IWsConnection> inner)
     : inner_(std::move(inner))
 {}
@@ -27,27 +55,12 @@ bool HeartbeatResponder::is_connected() const   { return inner_->is_connected();
 void HeartbeatResponder::send(const std::string& msg) { inner_->send(msg); }
 
 void HeartbeatResponder::set_on_message(MessageCb cb) {
-    forward_ = std::move(cb);
-    inner_->set_on_message([this](const std::string& raw) { handle_inbound(raw); });
+    const auto relay = std::make_shared<const Relay>(Relay{inner_, std::move(cb)});
+    inner_->set_on_message([relay](const std::string& raw) { relay->on_message(raw); });
 }
 
 void HeartbeatResponder::set_on_open(OpenCb cb)   { inner_->set_on_open(std::move(cb)); }
 void HeartbeatResponder::set_on_close(CloseCb cb) { inner_->set_on_close(std::move(cb)); }
 void HeartbeatResponder::set_on_error(ErrorCb cb) { inner_->set_on_error(std::move(cb)); }
-
-void HeartbeatResponder::handle_inbound(const std::string& raw) {
-    // Answer + swallow heartbeats; forward everything else (including frames that
-    // fail to parse — the client's own error handling deals with those).
-    json j = json::parse(raw, nullptr, /*allow_exceptions=*/false);
-    if (j.is_object() && j.value("method", std::string{}) == "public/heartbeat") {
-        json reply;
-        reply["id"]     = j.contains("id") ? j.at("id") : json(nullptr);
-        reply["method"] = "public/respond-heartbeat";
-        inner_->send(reply.dump());
-        return;
-    }
-    if (forward_)
-        forward_(raw);
-}
 
 } // namespace exchange::cryptocom::ws
