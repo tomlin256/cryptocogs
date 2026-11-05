@@ -50,6 +50,17 @@ public:
                             std::map<std::string, std::string> extra_headers = {})
         : url_(std::move(url)), extra_headers_(std::move(extra_headers)) {}
 
+    // Stops the socket first. ix::WebSocket::stop() joins the I/O thread, and the thread normally ends by delivering a Close
+    // message to the callback below, so all four std::functions must still be alive for it, and for any frame still in
+    // flight. Members are destroyed in reverse order and ws_ is declared before them: without this destructor ~ix::WebSocket
+    // would stop the thread only after the callbacks were gone, and the thread would call destroyed std::functions
+    // (plan 034, #39). A final on_close may therefore run on the I/O thread while this destructor runs, exactly as it does in
+    // disconnect() (ixwebsocket skips it when stop() lands between two iterations of the thread's loop), and whatever the
+    // callbacks capture must outlive the connection. stop() is idempotent, so disconnect() followed by destruction is
+    // unchanged. If the I/O thread itself drops the last reference to this object it joins itself: see the ownership warning
+    // on the URL factory below.
+    ~IxWsConnection() override { ws_.stop(); }
+
     void connect() override {
         ws_.setUrl(url_);
         if (!extra_headers_.empty())

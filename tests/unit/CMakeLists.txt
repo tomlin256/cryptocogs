@@ -22,6 +22,13 @@ add_executable(test_mock_ws_connection test_mock_ws_connection.cpp)
 target_link_libraries(test_mock_ws_connection exchange_common GTest::gtest_main)
 gtest_discover_tests(test_mock_ws_connection)
 
+# IxWsConnection against a loopback ix::WebSocketServer (plan 034, #39): what its destructor promises about its callbacks and its
+# I/O thread. Real sockets on 127.0.0.1, no network, no sleeps. The real transport is header-only, so the test links ixwebsocket
+# itself, as the examples do; it is exchange-agnostic and builds in any flag configuration.
+add_executable(test_ix_ws_connection test_ix_ws_connection.cpp)
+target_link_libraries(test_ix_ws_connection exchange_common ixwebsocket GTest::gtest_main)
+gtest_discover_tests(test_ix_ws_connection)
+
 #-------------------------------------------------------------------------------
 # Kraken unit tests
 #-------------------------------------------------------------------------------
