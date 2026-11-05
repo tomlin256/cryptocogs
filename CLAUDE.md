@@ -159,6 +159,9 @@ cryptocogs/
         ├── test_tick_price.cpp          # TickPrice exact-decimal serialisation (FP-noise-free)
         ├── test_credentials_file.cpp    # read_toml_credentials — TOML from_file loader (exchange-agnostic)
         ├── test_ws_reconnect_session.cpp # WsReconnectSession lifecycle — deterministic, no sleeps
+        ├── test_kraken_ws_api_defaults.cpp # A bare AddOrderRequest / SubscribeRequest / UnsubscribeRequest is defined; the ws_api.hpp enums' underlying type (plan 037)
+        ├── assert_has_value.hpp          # ASSERT_HAS_VALUE — a fatal optional check that clang-tidy's dataflow analysis follows (plan 037)
+        ├── test_assert_has_value.cpp     # ASSERT_HAS_VALUE itself: passes, fails once and fatally naming the expression, streams, composes with if/else (exchange-agnostic)
         ├── ws_client_example_json.hpp
         ├── mock_ws_connection.hpp        # Shared MockWsConnection (Kraken + Binance + Coinbase + Crypto.com WS tests)
         ├── test_mock_ws_connection.cpp   # MockWsConnection's locked outbound log: sent(), wait_for_sent(), release_waiters() (exchange-agnostic)
@@ -332,9 +335,11 @@ ctest --preset debug-macos-arm64 -R '^clang_tidy_src_binance_' -j8      # one ad
 cmake --preset debug-macos-arm64 -DCRYPTOCOGS_CLANG_TIDY=               # off again
 ```
 
-- **Red until [#46](https://github.com/tomlin256/cryptocogs/issues/46) is done.** Turned on, 72 of the 77 per-file tests fail on the
-  Mac (329 findings, 237 of them `bugprone-unchecked-optional-access` in tests and examples): that is the measurement, not a
-  defect of the gate, and #46 is the record of it and the work of clearing it. The six tests that prove the gate pass.
+- **Green** ([plan 037](docs/plans/037-clear-clang-tidy-findings.md), closes [#46](https://github.com/tomlin256/cryptocogs/issues/46)):
+  85 of 85 in a default tree and 92 of 92 with `CRYPTOCOGS_BUILD_BENCHMARKS=ON`, on the Mac (clang-tidy 23.1.4) and in the
+  container (23.1.6). The baseline was 329 findings in 47 files (365 with the benchmarks), 237 of them
+  `bugprone-unchecked-optional-access` in tests and examples; each is fixed, and the only `NOLINT`s are the closed list under
+  *Fix a finding* below. From here a new finding turns its unit red: fix it, and do not add to the list without Rob's OK.
 - **The tests.** `clang_tidy_<path>`, one per unit; `clang_tidy_version` (the tool is LLVM 23); `clang_tidy_checks` (the config
   enables the families it should and none that it removes); `clang_tidy_units` (the registered units are exactly the units in
   the tree's compile database); and three canaries, `clang_tidy_canary_*`, on fixtures in `tests/clang_tidy_checks/canaries/`
@@ -344,15 +349,18 @@ cmake --preset debug-macos-arm64 -DCRYPTOCOGS_CLANG_TIDY=               # off ag
   passes*, which is why the gate itself is tested; `test_clang_tidy_wiring` also configures the real root with the gate on
   (the tool `sh`, never run), so the registration is exercised in every tree.
 - **The units come from the targets.** A unit is a `.cpp` that a target of this project compiles, read at configure time, so a
-  new adapter needs nothing, an adapter that is switched off has no units (a Crypto.com-only tree registers 31 tests, one with
-  `CRYPTOCOGS_BUILD_BENCHMARKS=ON` 90), and a file no target compiles is not one. The registration is the last thing the
+  new adapter needs nothing, an adapter that is switched off has no units (a Crypto.com-only tree registers 32 tests, one with
+  `CRYPTOCOGS_BUILD_BENCHMARKS=ON` 92), and a file no target compiles is not one. The registration is the last thing the
   root `CMakeLists.txt` does: `test_clang_tidy_config` holds that it follows the last `add_subdirectory`, and `clang_tidy_units`
   fails if a target was made after it. A dependency's sources (anything under a `_deps` directory) and anything generated into
   the build tree are never units.
 - **One list of checks, `.clang-tidy`.** The editor's clangd reads it too (shown with an LSP probe of Homebrew's clangd 23.1.4:
   the same 101 hints with `.clangd`'s list gone), so `.clangd` carries none. clangd leaves out the checks it knows to be slow, so
   the gate reports more than the editor: `bugprone-unchecked-optional-access` and `bugprone-signed-bitwise` never reach it. The editor
-  shows three hints that no unit reports, in the header-only `ix_ws_connection.hpp` ([#46](https://github.com/tomlin256/cryptocogs/issues/46)).
+  still shows three hints that no unit reports, in the header-only `ix_ws_connection.hpp` (49:5 member-init, 168:59 and 169:59 value-param).
+  They are not findings: clangd parses that header without ixwebsocket on its include path (`clangd --check` on it alone ends in
+  `pp_file_not_found`), so `ws_` is invalid and it cannot see the parameters being moved into the client, while every unit that includes
+  it parses it whole and reports nothing there ([plan 037](docs/plans/037-clear-clang-tidy-findings.md)).
   `HeaderFilterRegex` admits `include/exchange` and `tests`, `ExcludeHeaderFilterRegex` keeps `_deps` out, and
   `test_clang_tidy_config` holds that every header the checkout owns matches. It has no `WarningsAsErrors` (clangd would show
   every hint as an error): the tests pass `--warnings-as-errors=*`, and `-Wno-error=deprecated-declarations`, which keeps clang-tidy
@@ -367,9 +375,19 @@ cmake --preset debug-macos-arm64 -DCRYPTOCOGS_CLANG_TIDY=               # off ag
   Mac the SDK is taken from `xcrun --show-sdk-path`, because Homebrew's clang has its own compiled in and the build uses the
   system's. A unit peaks at about 0.5 GB, which is why the container (7 GB) runs `-j6`.
 - **Fix a finding.** `NOLINT(<check>)` is for a tool that is wrong or cannot see an invariant, by name and with a comment that
-  says which. `tests/clang_tidy_checks/canaries/` holds deliberate defects and is in no compile database.
-- **No CI job yet.** A job with 72 red units gates nothing; when the findings are cleared it is small: `clang-tidy-23` from
-  apt.llvm.org, configure only, `ctest -R '^clang_tidy_'`.
+  says which. `tests/clang_tidy_checks/canaries/` holds deliberate defects and is in no compile database. **The closed list**
+  (plan 037 D5; a new entry needs Rob's OK):
+  - `include/exchange/common/reconnect_session.inl`, two `NOLINT(bugprone-empty-catch)` on the catches around `DisconnectFn`, in
+    `stop()` and in `workerLoop()`. `DisconnectFn` must not throw; the catches defend that contract from the destructor and from the
+    worker thread, which have no error channel. Three tests in `test_ws_reconnect_session.cpp` keep them honest.
+  - `tests/benchmarks/bench_*.cpp`, seven `NOLINTBEGIN`/`NOLINTEND(bugprone-throwing-static-initialization)` pairs around each file's
+    `BENCHMARK(...)` lines (google benchmark's registration macro allocates in a static's initialiser), and four
+    `NOLINT(performance-inefficient-vector-operation)` on the loops of the `BM_VectorPushBack_NoReserve` benchmarks, which measure
+    the growth without `reserve` on purpose ([plan 026](docs/plans/026-kraken-reserve-vector-growth.md)).
+  - `src/binance/ws_streams.cpp`, one `NOLINTNEXTLINE(bugprone-return-const-ref-from-parameter)` from plan 016: `stream_payload`
+    returns a reference to its own argument or to a part of it, on purpose.
+- **A CI job is [#49](https://github.com/tomlin256/cryptocogs/issues/49)**, now that the gate is green; plan 035 left it out until
+  then. It is small: `clang-tidy-23` from apt.llvm.org, configure only, `ctest -R '^clang_tidy_'`.
 
 ### Compiler warnings
 
@@ -401,7 +419,10 @@ cmake --preset debug-macos-arm64 -DCRYPTOCOGS_WARNINGS_AS_ERRORS=OFF   # relax i
   failure above): `docker run -d -v ~/src:/work:ro ubuntu:26.04 sleep infinity`, `g++ cmake make git libssl-dev
   libcurl4-openssl-dev zlib1g-dev` from apt, `-S /work/cryptocogs -B /tmp/x/<preset name>` with `-DCMAKE_BUILD_TYPE=…
   -DCRYPTOCOGS_SANITIZE=…` as the preset sets them and `-DFETCHCONTENT_SOURCE_DIR_<DEP>=/work/cryptocogs/build/debug-linux-arm64/_deps/<dep>-src`
-  for the seven dependencies, built with `-- -k` to list every failure (47 s for the Release tree at `-j8`). On an Apple-silicon
+  for the seven dependencies, built with `-- -k` to list every failure (47 s for the Release tree at `-j8`). Docker Desktop's VM
+  has 7.75 GiB, shared by every container on it: at `-j12`, next to another container's build, three `cc1plus` were killed for
+  memory (`c++: fatal error: Killed signal terminated program cc1plus`, which is not a finding), so build the three trees at `-j4`
+  (plan 037, from a clean tree: 1 min 26 s Release, 2 min 58 s asan, 1 min 47 s tsan). On an Apple-silicon
   host that container compiles the tsan tree but its tests die with `SIGILL` at the first thread (aarch64 libtsan on Docker
   Desktop's kernel); only CI runs them.
 - **Where the flags go, and the rule for a new directory.** `cmake/cryptocogs_warnings.cmake` has the flags (GNU, Clang and
@@ -534,27 +555,29 @@ green, and it has no caches.
 ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure and a 120 s timeout per test
 ```
 
-There are twenty-seven test executables (512 tests, plus sixteen `cmake -P` checks that are listed after the table — 528 in
-ctest) — nine Kraken/common, six Binance, six Coinbase, six Crypto.com:
+There are twenty-nine test executables (540 tests, plus sixteen `cmake -P` checks that are listed after the table — 556 in
+ctest) — eleven Kraken/common, six Binance, six Coinbase, six Crypto.com:
 
 | Binary | Source | What it tests |
 |---|---|---|
-| `<tree>/bin/kraken_unit_tests` | `test_signature/rest_requests/rest_responses/client/kraken_auth.cpp` | REST request building, response parsing, signature, HTTP mock |
+| `<tree>/bin/kraken_unit_tests` | `test_signature/rest_requests/rest_responses/client/kraken_auth.cpp` | REST request building, response parsing, signature (and base64 against RFC 4648 and high-bit vectors, and a golden `API-Sign`), HTTP mock |
 | `<tree>/bin/test_ws_client` | `test_ws_client.cpp` | `ExchangeWsClient` (as `KrakenWsClient`) lifecycle with `MockWsConnection` |
 | `<tree>/bin/test_ws_responses` | `test_ws_responses.cpp` | `identify_message` + `from_json` against captured WS fixtures |
 | `<tree>/bin/test_tick_price` | `test_tick_price.cpp` | `TickPrice::from`/`str` exact-decimal round-tripping |
-| `<tree>/bin/test_credentials_file` | `test_credentials_file.cpp` | `read_toml_credentials` — TOML parse, `$HOME`/explicit path resolution, and every error branch |
-| `<tree>/bin/test_order_type` | `test_order_type.cpp` | Generic (`exchange::to_string`) vs. Kraken (`kraken_order_type_to_string`) wire formats |
-| `<tree>/bin/test_ws_reconnect_session` | `test_ws_reconnect_session.cpp` | `WsReconnectSession` start/stop/backoff/reconnect — deterministic, no real sleeps |
+| `<tree>/bin/test_credentials_file` | `test_credentials_file.cpp` | `read_toml_credentials` — TOML parse, `$HOME`/explicit path resolution, and every error branch with its exact message |
+| `<tree>/bin/test_order_type` | `test_order_type.cpp` | Generic (`exchange::to_string`) vs. Kraken (`kraken_order_type_to_string`) wire formats; the `std::uint8_t` underlying type of the common and Kraken enums (`static_assert`) |
+| `<tree>/bin/test_kraken_ws_api_defaults` | `test_kraken_ws_api_defaults.cpp` | A bare `AddOrderRequest`, `SubscribeRequest` and `UnsubscribeRequest` hold the first enumerator and serialise to a definite frame; a typed subscribe request keeps its own channel; the underlying type of `SubscribeChannel` and `MessageKind` ([plan 037](docs/plans/037-clear-clang-tidy-findings.md)) |
+| `<tree>/bin/test_assert_has_value` | `test_assert_has_value.cpp` | `ASSERT_HAS_VALUE`: passes on a value; on an empty optional fails once, fatally, with the expression in the message; streams text; returns from a void function; composes with `if`/`else`; works on members, strings, pointers and locals a callback sets (exchange-agnostic; [plan 037](docs/plans/037-clear-clang-tidy-findings.md)) |
+| `<tree>/bin/test_ws_reconnect_session` | `test_ws_reconnect_session.cpp` | `WsReconnectSession` start/stop/backoff/reconnect — deterministic, no real sleeps; a throwing `DisconnectFn` is contained in `stop()`, in the destructor and in the worker |
 | `<tree>/bin/test_mock_ws_connection` | `test_mock_ws_connection.cpp` | `MockWsConnection`'s locked outbound log — `sent()` is an ordered copy, `wait_for_sent` and `release_waiters` wake in either thread order, concurrent sends are all kept (exchange-agnostic; [plan 033](docs/plans/033-tsan-races-in-the-tests.md)) |
 | `<tree>/bin/test_ix_ws_connection` | `test_ix_ws_connection.cpp` | `IxWsConnection` against a loopback `ix::WebSocketServer` (real sockets on 127.0.0.1, no sleeps): dropping an open connection stops the socket before any callback is destroyed, `disconnect()` then drop delivers no second `Close`, a never-connected one is dropped harmlessly (exchange-agnostic; [plan 034](docs/plans/034-transport-callback-lifetimes.md)) |
 | `<tree>/bin/test_binance_auth` | `test_binance_auth.cpp` | `BinanceAuth` HMAC-SHA256 signing + header injection |
-| `<tree>/bin/test_binance_types` | `test_binance_types.cpp` | Binance enum converters (incl. canonical FOK time-in-force) |
+| `<tree>/bin/test_binance_types` | `test_binance_types.cpp` | Binance enum converters (incl. canonical FOK time-in-force); the `std::uint8_t` underlying type of `BinanceOrderRespType` and `BinanceSignAlgorithm` (`static_assert`) |
 | `<tree>/bin/test_binance_rest_requests` | `test_binance_rest_requests.cpp` | Each Binance REST request builds the correct path/query/body |
 | `<tree>/bin/test_binance_rest_responses` | `test_binance_rest_responses.cpp` | `from_json` + `parse_binance_response` against captured fixtures |
 | `<tree>/bin/test_binance_client` | `test_binance_client.cpp` | `BinanceRestClient::execute()` signed round-trip via mock performer |
 | `<tree>/bin/test_binance_ws_client` | `test_binance_ws_client.cpp` | Binance stream + trading-WS-API lifecycle with `MockWsConnection` |
-| `<tree>/bin/test_coinbase_auth` | `test_coinbase_auth.cpp` | `CoinbaseAuth` base64/HMAC-SHA256 (RFC 4231 vector) + CB-ACCESS-* header injection |
+| `<tree>/bin/test_coinbase_auth` | `test_coinbase_auth.cpp` | `CoinbaseAuth` base64 (RFC 4648 and high-bit vectors)/HMAC-SHA256 (RFC 4231 vector), a golden `CB-ACCESS-SIGN` computed with openssl, + CB-ACCESS-* header injection |
 | `<tree>/bin/test_coinbase_types` | `test_coinbase_types.cpp` | Coinbase enum converters + `parse_coinbase_response` status mapping |
 | `<tree>/bin/test_coinbase_rest_requests` | `test_coinbase_rest_requests.cpp` | Each Coinbase REST request builds the correct path/query/JSON body |
 | `<tree>/bin/test_coinbase_rest_responses` | `test_coinbase_rest_responses.cpp` | `from_json` field assertions (public live + private synthetic fixtures) |
@@ -590,15 +613,15 @@ The sixteen `cmake -P` checks need no build and finish in seconds (`test_warning
 
 A tree configured with `CRYPTOCOGS_SANITIZE` adds the tests that prove its options are live (`sanitizer_canary_*` and
 `test_sanitizer_coverage`; see [Sanitizers](#sanitizers)), and one configured with `CRYPTOCOGS_CLANG_TIDY` adds the `clang_tidy_*`
-tests (83 in the default tree; see [clang-tidy (opt-in)](#clang-tidy-opt-in)).
+tests (85 in the default tree; see [clang-tidy (opt-in)](#clang-tidy-opt-in)).
 
 Tests do **not** require network access or credentials — all I/O is mocked, except `test_ix_ws_connection`, which talks to a
 server of its own on 127.0.0.1 (a port it finds free; nothing leaves the machine).
 The flag matrix splits cleanly: each exchange flag drops its own suite. A
 Crypto.com-only tree (`-DCRYPTOCOGS_BUILD_KRAKEN=OFF -DCRYPTOCOGS_BUILD_BINANCE=OFF
--DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 122 gtests — the 94-test Crypto.com suite plus the
-exchange-agnostic 11 `TickPrice`, 8 `read_toml_credentials`, 5 `MockWsConnection` and 4 `IxWsConnection` tests, which build
-in any tree — and the sixteen `cmake -P` checks: 138 in ctest.
+-DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 133 gtests — the 94-test Crypto.com suite plus the
+exchange-agnostic 11 `TickPrice`, 9 `read_toml_credentials`, 5 `MockWsConnection`, 4 `IxWsConnection` and 10 `ASSERT_HAS_VALUE`
+tests, which build in any tree — and the sixteen `cmake -P` checks: 149 in ctest.
 
 ### Test suite breakdown
 
@@ -616,6 +639,10 @@ in any tree — and the sixteen `cmake -P` checks: 138 in ctest.
 | `test_mock_ws_connection.cpp` | `MockWsConnection`'s outbound log is safe from a second thread: `sent()` copies in order, `wait_for_sent` returns when satisfied whichever thread gets there first, `release_waiters` frees a waiter, 400 concurrent sends are all kept in per-thread order — no sleeps |
 | `test_ix_ws_connection.cpp` | The `IxWsConnection` destructor stops the socket (and so joins the I/O thread) before it destroys the callbacks; a `CallbackProbe` counts any call that follows a destruction. ixwebsocket skips the final `Close` when `stop()` lands between two iterations of its loop (about 4 in 100 runs here), so no assertion depends on a `Close` and the one test that needs one repeats the attempt until it had one |
 | `test_ws_client.cpp` (`WsErrorIsolation`) | A throw from a handler, a push callback or the `MessageIdentifier` is contained on the receive thread: the frame is reported through the error handler and dropped, and the client goes on |
+| `test_assert_has_value.cpp` | `ASSERT_HAS_VALUE` itself: it passes on a value; on an empty optional it fails once, fatally, naming the expression as written, and the test function returns; text streamed after it follows on its own line; it composes with `if`/`else` and works on struct members, a `std::optional<std::string>`, a pointer to an optional and a local that a callback sets |
+| `test_kraken_ws_api_defaults.cpp` | A `const` default-initialised request compiles only if every member has an initialiser, which is the compile-time half; the values (`Limit`, `Buy`, `Ticker`) and the exact frames of `to_json()` are the other half |
+| `test_kraken_auth.cpp`, `test_coinbase_auth.cpp` | base64 encode and decode against RFC 4648 and high-bit vectors (`0xFF`, `0x80`, mixes), and golden `API-Sign` / `CB-ACCESS-SIGN` values computed with openssl: they pin the signing path whose shifts plan 037 made unsigned |
+| `test_ws_reconnect_session.cpp` (`*ContainsAThrowFromDisconnect*`) | A `DisconnectFn` that throws is contained in `stop()`, in the destructor and in the worker thread, and the worker goes on to reconnect: the three tests behind the two `NOLINT`ed catches in `reconnect_session.inl` |
 
 ---
 
@@ -1584,6 +1611,18 @@ Place the banner before `#pragma once` (for headers) or before the first `#inclu
 - All optional fields on request and response structs use `std::optional<T>`. Only set them when needed; omitted fields are not serialised.
 - JSON serialisation uses `to_json()` / `from_json()` static methods on each struct. Prefer `j.value("key", default)` over `j.at("key")` for fields that may be absent in responses.
 - Enum conversions are done by free functions `to_string(Enum)` and `foo_from_string(const std::string&)`. The canonical four (`Side`, `OrderType`, `TimeInForce`, `OrderStatus`) live in `exchange/common/types.hpp`; Kraken-only enums (`PriceType`, `TriggerReference`, `StpType`, `FeePreference`) and Kraken's hyphenated `OrderType` overrides (`kraken_order_type_to_string`/`from_string`) live in `exchange/kraken/types.hpp`. All throw `std::invalid_argument` on unknown values.
+- **Public enums are `enum class E : std::uint8_t`** ([plan 037](docs/plans/037-clear-clang-tidy-findings.md) D1, the `performance-enum-size` half of [#38](https://github.com/tomlin256/cryptocogs/issues/38)): 14 of them, with `<cstdint>` and a `static_assert` on the underlying type in the nearest test, and a new enum gets the same. No wire or stored value changes (every conversion goes through `to_string` / `*_from_string`, and nothing casts one to an integer), but **the layout of public types does**: an enum goes from 4 bytes to 1, and of the 37 structs that hold one, 13 shrink (three by 24 bytes on the Mac: `kraken::OrderParams` 440 → 416, `kraken::rest::AddOrderRequest` 448 → 424, `kraken::ws::AddOrderRequest` 472 → 448). Nothing was released with it: the version of the release that carries it (1.1.0 or 2.0.0) is Rob's to choose. An enum member of a request struct has a `{}` initialiser (the first enumerator), so a bare request is defined and serialises to a definite frame (`cppcoreguidelines-pro-type-member-init`; `test_kraken_ws_api_defaults`).
+- **Check an optional in a test with `ASSERT_HAS_VALUE(opt)`, never `ASSERT_TRUE(opt.has_value())`** (`#include "assert_has_value.hpp"`, in `tests/unit/`). clang-tidy 23's dataflow analysis does not take gtest's assertions as a check, so every later `*opt`, `opt->x` and `opt.value()` is reported as `bugprone-unchecked-optional-access` (237 of the 329 findings that plan 037 cleared). The macro is a plain `if (opt.has_value()) {} else` whose else branch is gtest's own fatal failure: the analysis follows it, and it fails the test in the same cases and names the expression. What the analysis was measured to accept:
+
+  | Before `opt` is dereferenced | Reported |
+  |---|---|
+  | `ASSERT_TRUE(opt.has_value())`, `ASSERT_TRUE(opt)`, `ASSERT_NE(opt, std::nullopt)`, with or without `<< "…"`; `opt.value()` in place of `*opt` | **yes**, at each later use (why gtest's expansion is not followed is not established; a hand-written copy of it *is*) |
+  | `ASSERT_HAS_VALUE(opt)`; `if (!opt.has_value()) { FAIL() << …; }`; either on a member chain (`resp.result`), or on a local captured by reference | no |
+  | a check on `v[i].opt` or `v.at(i).opt`, then a use | **yes**: each call is a different object to the analysis; bind `const auto& e = v[i];` once and check `e.opt` |
+
+  Rules of use: the macro `return`s from a void function like every `ASSERT_*`, so a helper that returns a value checks in plain sight (`if (!opt) { ADD_FAILURE() << "…"; return {}; }`); it evaluates its argument twice, so a call's result is bound to a local first; as the branch of an `if` it needs an `else` or braces (GCC and clang both reject the bare form under `-Wdangling-else`, and so they reject gtest's own assertions there); an `EXPECT_TRUE(opt.has_value())` that is followed by a dereference is a latent crash and becomes `ASSERT_HAS_VALUE`; never `.value_or(…)` a dummy to quiet the check, which would let a test pass on an empty optional.
+- **No allocating object at namespace scope** (`bugprone-throwing-static-initialization`): a namespace-scope `std::string`, or a credentials struct, allocates in its initialiser, which can throw before `main`. Use a `constexpr const char*` or `std::string_view`, or a function-local static (`const Creds& creds() { static const Creds c{…}; return c; }`).
+- **An example's `main()` catches and reports** (plan 037 D4, `bugprone-exception-escape`): `try { … } catch (const std::exception& e) { std::cerr << "fatal: " << e.what() << '\n'; <cleanup>; return EXIT_FAILURE; } catch (...) { … }`, in each of the fifteen. The handlers write to `std::cerr`, not to spdlog: spdlog's error path allocates, which the check reports again. The cost is that an exception on the main thread no longer reaches `backward_init.cpp`'s terminate handler, so its throw-site backtrace is lost for those; exceptions on other threads (the WebSocket I/O threads) and crashes (signals) still go through backward. In the two REST examples `report(resp)` returns `const Resp*` (`nullptr` after logging a failed response, or an ok one with no result) and each subcommand reads the result only through that pointer.
 - Monetary / volume fields returned by the REST API arrive as JSON **strings** (e.g., `"1.5"`) — deserialise with `std::stod(j.value("field", "0"))` rather than `.get<double>()`. For prices that must round-trip to an *exact* decimal string (e.g. for order placement), use `TickPrice` instead of raw `double` formatting — see [Shared types reference](#tickprice--exact-decimal-price-representation).
 - The build produces **six** static libraries — two always-built common libs plus the four adapters. `exchange_common` compiles the exchange-agnostic non-template code — `src/exchange/common/{ws_client,ws,types,tick_price,credentials_file}.cpp` (generic WS dispatch, `SubscriptionHandle`/`RateLimitedWsErrorHandler`, canonical enum converters, `TickPrice`, and the shared `read_toml_credentials` TOML loader) — and links `nlohmann_json` (`PUBLIC`) plus toml++ (`PRIVATE`, build-only — header-only, used only by `credentials_file.cpp`), **not** OpenSSL/libcurl (the WS engine needs no HTTP/crypto). `exchange_http` compiles `src/exchange/common/http_client.cpp` (the shared `CurlHttpClient` REST transport) and links `CURL::libcurl` + `nlohmann_json` (`PUBLIC`) — kept separate so `exchange_common` stays curl-free (plan 010). `kraken` (six `.cpp` under `src/kraken/`: types, auth, rest_api, rest_client, ws_api, ws_client), `binance` (six under `src/binance/`: types, auth, rest_api, rest_client, ws_streams, ws_api), `coinbase` (five under `src/coinbase/`: types, auth, rest_api, rest_client, ws_streams), and `cryptocom` (six under `src/cryptocom/`: types, auth, rest_api, rest_client, heartbeat_connection, ws) are **peers**: each links `exchange_common`, `exchange_http`, and OpenSSL (`PUBLIC`), and **none links another**. OpenSSL is `PUBLIC` because `auth.hpp` declares HMAC/SHA helpers in a public header (defined in `auth.cpp`); libcurl reaches consumers transitively through `exchange_http`. After plan 010 the curl handling lives once in `CurlHttpClient`; after plan 016 every adapter header is purely declarative — request/response bodies live in these `.cpp` files and template bodies in sibling `.inl` files. None of the libraries link ixwebsocket; callers that use `IxWsConnection` must link `ixwebsocket` separately.
 - IXWebSocket and spdlog are **not** linked into any of the three libraries; they are used only by examples and tests.

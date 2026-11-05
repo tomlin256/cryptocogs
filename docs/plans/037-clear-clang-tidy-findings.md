@@ -1,6 +1,6 @@
 # Plan 037 — Clear the clang-tidy findings so the opt-in gate passes
 
-**Status: Approved (2026-11-05); Steps 0 and 1 done, Step 2 next.** Rob's request: *"fix #46 using agents so you can do it in parallel"*.
+**Status: Done (2026-11-05).** Rob's request: *"fix #46 using agents so you can do it in parallel"*. The [Outcome](#outcome) is at the end.
 
 Closes [#46](https://github.com/tomlin256/cryptocogs/issues/46). Answers the `performance-enum-size` half of
 [#38](https://github.com/tomlin256/cryptocogs/issues/38) (D1); #38's two unused includes in `common/ws.hpp` are not in this plan.
@@ -16,7 +16,8 @@ In a tree configured with `-DCRYPTOCOGS_CLANG_TIDY=clang-tidy`, `ctest -R '^clan
 findings ("sites") in 47 files**, in this project's own `src/`, `include/`, `tests/unit/` and `tests/examples/`. The gate is off by default, so
 the default build and CI never see them. With the change the gate is green on the Mac and in the Linux container: 84 of 84, or 91 of 91 with the
 benchmarks (the issue's 83 and 90, plus one unit for the new test of D2); from then on a unit that goes green stays green or its test turns red,
-and a CI job (not in this plan) becomes worth adding.
+and a CI job (not in this plan) becomes worth adding. *As built: 85 of 85 and 92 of 92, one more than planned: W1 added a second new test file,
+`test_kraken_ws_api_defaults.cpp`, for the `{}` initialisers.*
 
 ### What I measured (2026-11-05, `f6cb165`)
 
@@ -127,6 +128,9 @@ D2, D3, D5, D6, D7 and D8 were not asked about one by one, and stand as written.
   throw-site backtrace is lost for those; exceptions on other threads (the WebSocket I/O threads) and crashes (signals) still go through backward.
   *Alternative:* `// NOLINT(bugprone-exception-escape)` on each `main` with that reason. I recommend the catch, which also gives a demo a clean
   message and a non-zero exit.
+  **As built (Step 2):** the handlers write to `std::cerr` in all 15, and `spdlog` in none. A probe in W5's file showed that `spdlog::error` inside a
+  handler still trips `bugprone-exception-escape` on `main` (spdlog's error path allocates), where `std::cerr`, `fprintf` and `fputs` are clean. The
+  handlers also call `curl_global_cleanup()` where the normal path does, and return `EXIT_FAILURE`.
 - **D5. The closed list of `NOLINT`s.** Only where the tool cannot see the intent, named by check, with a comment that says which: **(a)** the 31
   `BENCHMARK(...)` registrations, one `NOLINTBEGIN`/`NOLINTEND` pair per file around them (google benchmark's own macro; nothing in our code
   to fix); **(b)** the four `BM_VectorPushBack_NoReserve` loops (they measure the missing `reserve`); **(c)** the two empty `catch (...)` in
@@ -134,6 +138,11 @@ D2, D3, D5, D6, D7 and D8 were not asked about one by one, and stand as written.
   contract (there is no error channel on that thread), and otherwise they are handled, not silenced. **An agent that wants any other `NOLINT`
   stops and reports it**; it is not added. A throwing static (`backward_init.cpp`, the credentials in three tests) is fixed in the code
   (a `constexpr` literal, or moved into a function-local static, or a `noexcept` initialiser), not silenced.
+  **As built (Step 2):** the list was used exactly, and no agent asked for another. (a) is 7 pairs, one per benchmark file; (b) is 4 lines; (c) is
+  the two catches: W1 confirmed the contract (`DisconnectFn` is documented "Must not throw", and the catches run from the destructor and the worker
+  thread, which have no error channel), and three new tests in `test_ws_reconnect_session.cpp` keep them honest (mutants: a catch removed, and a
+  worker catch that returns). One older `NOLINTNEXTLINE(bugprone-return-const-ref-from-parameter)` in `src/binance/ws_streams.cpp` (plan 016) was
+  there before this plan and is not part of the list.
 - **D6. Six workstreams, five in this checkout, one in a worktree.** W2 to W6 (tests, examples, benchmarks) edit disjoint files in this checkout
   and **do not build**: a header or test mid-edit in one workstream would break another's build, and several `make`s in one tree race on the
   dependency files. Each checks its own files with the gate's own command (read-only, against the configure-only `bench-macos-arm64` tree). W1
@@ -197,6 +206,7 @@ How each kind of site is fixed (the agents' brief; the plan, not the agent, deci
 | `test_assert_has_value` (new, every tree with the tests on; 10 tests) | the macro in `TEST` bodies, and in void lambdas whose failures a `ScopedFakeTestPartResultReporter` (gtest-spi.h) collects, so the exact text is compared | **present:** no failure, the dereference after the macro works, the code after it runs; **empty:** exactly one fatal failure whose text is exactly `o has no value`, and the statement after the macro did not run; **streaming:** `ASSERT_HAS_VALUE(name) << "context"` gives `name has no value`, a newline, then the context; **as a branch of an `if` that has an `else`** (then and else position): compiles and picks the right branch; **forms:** a member chain, a pointer dereference, a local that a callback sets, an `std::optional<std::string>`, the expression named as written |
 | the gate's own `clang_tidy_tests_unit_test_assert_has_value` | clang-tidy on that test | green from the start, and the proof that the analysis sees the macro: a mutant that deletes the macro line turns this unit red |
 | the 528 existing, and the gate's 84 (91 with the benchmarks) | | all pass at the end; the gate's per-unit tests go green as the workstreams land |
+| *as built:* 18 more tests in W1's files (556 in the default suite), and the gate's 85 (92 with the benchmarks) | `test_kraken_auth` +5 and `test_coinbase_auth` +5 (base64 against RFC 4648 and high-bit vectors, and a golden `API-Sign` / `CB-ACCESS-SIGN` computed with openssl, each passing on the old code first), `test_credentials_file` +1 (and exact-text checks added to three tests), `test_ws_reconnect_session` +3 (a throwing `DisconnectFn`), the new `test_kraken_ws_api_defaults` +4 | all pass on the Mac, in the container and under GCC 15.2 |
 
 ## Steps
 
@@ -248,6 +258,14 @@ own files show **0** sites (findings in headers another workstream owns are not 
 **Done when:** all six have reported; `git status` in this checkout shows changes only in the files of W2 to W6; each owned file reports 0 sites;
 W1's worktree has a clean full gate under `include/` and `src/` and a green full build and `ctest`; and the `NOLINT`s found are D5's list and no more.
 
+**As built (2026-11-05).** Six agents ran at once as planned: W1 in a detached worktree (its own gate tree and build tree), W2 to W6 in this checkout
+without building. All six reported. `git status` showed changes only in the files of W2 to W6; each owned file reported 0 sites; W1's worktree had a
+clean gate under `include/` and `src/` (30 → 0) and a green build and `ctest` (556 of 556 there); and the `NOLINT`s were D5's list and no more.
+Sites before → after: W1 30 → 0, W2 84 → 0, W3 92 → 0, W4 22 + 36 → 0, W5 73 → 0, W6 28 → 0. Two findings the plan did not foresee: `spdlog::error` in a
+`main` handler still trips `bugprone-exception-escape` (D4, *as built*; W5 found it before W6 wrote a handler), and W1 added a second new test file,
+`test_kraken_ws_api_defaults.cpp`. W1 also settled the three editor hints in `ix_ws_connection.hpp`: not findings (clangd parses the header
+without ixwebsocket on its include path), so nothing there changed.
+
 ### Step 3 — Integrate and verify
 
 1. Cherry-pick W1's commits onto `main` (disjoint files, so clean), remove the worktree.
@@ -262,12 +280,27 @@ W1's worktree has a clean full gate under `include/` and `src/` and a green full
 **Done when:** the default suite passes, the gate is 91 of 91 (benchmarks) and 84 of 84 (default) on the Mac, the site list is empty, the commits
 are made and `git status` is clean.
 
+**As built (2026-11-05).** W1's commit went onto `main` by fast-forward (the same parent, disjoint files) and its worktree was removed. On the
+combined tree: `debug-macos-arm64` built with no warning and passed **556 of 556** (538, plus W1's 18); the gate in `build/bench-macos-arm64`
+passed **92 of 92** with an empty list of sites (the baseline was 365); the default tree with the gate switched on passed **85 of 85** and was
+switched off again (556 tests listed). The examples' offline behaviour (`--help`, a bogus flag, and all of `kraken_example`) is identical to the run
+before the plan but for one line, which was expected: `kraken_example` sends a bare `ws::AddOrderRequest` whose `side` it never sets; it printed
+`"sell"`, an indeterminate value, and prints `"buy"` now that W1 gave the member `{}`. The demo also never copies the symbol or quantity into that
+request, which is #50. A scan of the diffs found no removed or weakened assertion (each removed assertion line has its replacement), no `value_or`
+to quiet a check, and one `EXPECT_TRUE` followed by a dereference made safe (`parse<Result>` in `test_cryptocom_rest_responses.cpp`). The commits,
+each `(step 3/6)`: the library `ed51e43`; the tests of W2 `922ec57`, W3 `6c82ea6`, W4 `c9867f1`; the benchmarks `efdc29d`; the REST examples (W5)
+`3ead9d6`; the other examples (W6) `596eab3`. The remaining `NOLINT`s are D5's list, by `git grep`.
+
 ### Step 4 — The second check: the Linux container
 
 `ubuntu-dev`: `cmake --preset debug-linux-arm64`, build, `ctest --preset debug-linux-arm64` (GCC 13.3, `-Werror`): all pass. The gate there is a
 hand-made `build/bench-linux-arm64` tree (gate on, benchmarks on, dependency sources from the debug tree's `_deps`, google benchmark's from the Mac
 tree's), `ctest -R '^clang_tidy_' -j6`: **91 of 91** with clang-tidy 23.1.6, `ASSERT_HAS_VALUE` included (probed above, re-proved by the gate). A
 Linux-only site is fixed the same way; none is expected, as the Mac is the stricter gate. **Done when:** both pass in the container.
+
+**As built (2026-11-05).** `debug-linux-arm64` (GCC 13.3, `-Werror`) built with no warning and passed **556 of 556**. The gate, in a hand-made
+`build/bench-linux-arm64` (configure only, benchmarks on, dependency sources from the debug tree's `_deps` and google benchmark's from the Mac
+tree's, clang-tidy 23.1.6), passed **92 of 92** in 43 s at `-j6`, with no finding. No Linux-only site appeared.
 
 ### Step 5 — GCC 15.2 as CI builds it, then CI
 
@@ -278,6 +311,16 @@ die with `SIGILL` on this host). Then push, read the `cmake-single-platform.yml`
 green. A warning from a newer GCC is fixed in code, or, if it is a confirmed false positive, silenced at one site for one compiler with a comment
 naming the bug (the rule in `CLAUDE.md`), and I tell you.
 
+**As built (2026-11-05).** GCC 15.2.0 in a throwaway `ubuntu:26.04` container (CMake 4.2.3), the committed files of `596eab3` extracted with
+`git archive`, each configuration the workflows build, from a clean tree at `-j4`: Release built in 1 min 26 s and passed **556 of 556**; asan built in
+2 min 58 s and passed **559 of 559** (the sanitizer canaries and the coverage test included); tsan built in 1 min 47 s (compile only). All three: build
+exit 0 and **no warning**, `test_kraken_ws_api_defaults` and the moved-optional tests of W3 and W4 included, so the `-Wmaybe-uninitialized` family of
+plan 036 did not show. A first attempt at `-j12` had three `cc1plus` killed for memory (`Killed signal terminated program cc1plus`) because Docker
+Desktop's 7.75 GiB VM was shared with another session's build; that is not a finding, the tree was wiped and rebuilt at `-j4`, and `CLAUDE.md` now says
+`-j4`. Then the push of the seven code commits (`88c8e87..596eab3`): `cmake-single-platform.yml` run 42106399099 on `596eab3` **green** (556 of 556,
+no warning, 2 min 57 s), and `sanitizers.yml` dispatched once with `which=both`, run 42106464163 on `596eab3` **green** in both jobs on the runner's
+GCC 15.2.0: asan 559 of 559 (10 min 8 s) and tsan 558 of 558 (6 min 50 s), no warning in either log.
+
 ### Step 6 — Docs, follow-ups, close
 
 `CLAUDE.md`: the clang-tidy section loses *Red until #46 is done* and says the gate is green, with the numbers; the `ASSERT_HAS_VALUE` convention
@@ -286,6 +329,14 @@ the layout rows and the test counts (one more executable). This plan: the Progre
 numbers and the commits); #38 gets D1's outcome; one issue raised for **a clang-tidy CI job** (plan 035 left it out on purpose; the gate is now
 green, so it is small: `clang-tidy-23` from apt.llvm.org, configure only, `ctest -R '^clang_tidy_'`), labelled `enhancement`. Commit:
 `docs: the clang-tidy gate is green (step 6/6)`. **Done when:** the docs say what the tree does, #46 is closed, and the follow-up issue exists.
+
+**As built (2026-11-05).** `CLAUDE.md` (the clang-tidy section is green and has the closed `NOLINT` list; the Coding conventions have the enum, the
+`ASSERT_HAS_VALUE` with its probe table, the no-allocating-static and the `main()` conventions; the layout rows, the test tables and the counts; the
+`-j4` note), `README.md` (it said the tests were red until #46) and this plan; `tests/unit/assert_has_value.hpp` gained the sentence about `v[i]` chains.
+The follow-up for a clang-tidy CI job is **#49**. Two more issues came out of the work and are outside it: **#48** (`CurlHttpClient::perform` leaks the
+header list and drops the earlier headers when `curl_slist_append` fails, found by W1 in code it only reformatted) and **#50** (`kraken_example`'s
+WebSocket order copies only `order_type`). #46 is closed with a comment, and #38 has a comment with D1's outcome (its other half, two unused includes in
+`common/ws.hpp`, stays open).
 
 ## Self-review
 
@@ -322,6 +373,13 @@ green, so it is small: `clang-tidy-23` from apt.llvm.org, configure only, `ctest
 - **Six agents use CPU and disk together** (12 cores, 64 GB free; a clang-tidy unit peaks near 0.5 GB). W1's build tree is about 1 GB in the
   scratch directory, and is removed with its worktree.
 - **A header edit rebuilds everything.** Expected: one W1 commit touches 9 headers, and the next build of every tree takes the full time once.
+
+**How the risks turned out.** No agent touched another's file (`git status` showed only owned files, twice); the first combined build had no
+compile error and the first combined `ctest` and gate were green, so nothing went back to an agent; Rob accepted the verification of the five commits
+together, and it held. The double evaluation of `ASSERT_HAS_VALUE` caused no site (the gate is the check, and it is green). GCC 15.2 showed no
+`-Wmaybe-uninitialized`, in the container or on the runner. The signing path has golden tests that passed on the old code first. `http_client.cpp` is
+still the one changed function with no unit test, checked by hand, as planned. The one risk the plan did not list was memory: Docker Desktop's VM is
+shared, and a `-j12` build of the GCC 15 trees next to another container's build got compiles killed (see Step 5).
 
 **Assumptions**
 
@@ -360,8 +418,31 @@ green, so it is small: `clang-tidy-23` from apt.llvm.org, configure only, `ctest
 |---|---|---|
 | 0 Approval | Done (2026-11-05) | Approved as proposed (D1 `: std::uint8_t`, D4 catch and report). The plan is pushed, and #46 carries its path |
 | 1 Start from green, and the macro, test first | Done (2026-11-05) | `ASSERT_HAS_VALUE` and its 10 tests: 538 of 538 on the Mac and in the container; test red first; six mutants killed, one by the gate alone; no blocker (D2, *as built*) |
-| 2 The fan-out | Pending | |
-| 3 Integrate and verify | Pending | |
-| 4 The second check: the Linux container | Pending | |
-| 5 GCC 15.2 as CI builds it, then CI | Pending | |
-| 6 Docs, follow-ups, close | Pending | |
+| 2 The fan-out | Done (2026-11-05) | Six agents; 329 + 36 sites → 0 in their files; W1's worktree green on its own (556 of 556, library gate clean); the `NOLINT`s are D5's list; `std::cerr` in the `main` handlers (D4, *as built*) |
+| 3 Integrate and verify | Done (2026-11-05) | W1 fast-forwarded onto `main`, then six commits (`922ec57` to `596eab3`). Mac: 556 of 556, gate **92 of 92** (benchmarks) and **85 of 85** (default), no site left; examples print what they did, but for `kraken_example`'s one indeterminate word |
+| 4 The second check: the Linux container | Done (2026-11-05) | GCC 13.3 `-Werror`: 556 of 556; clang-tidy 23.1.6 gate: **92 of 92**, no Linux-only site |
+| 5 GCC 15.2 as CI builds it, then CI | Done (2026-11-05) | Container at `-j4`: Release 556 of 556, asan 559 of 559, tsan compiles, no warning. Pushed; CI run 42106399099 green; `sanitizers.yml` run 42106464163 (`both`) green: asan 559, tsan 558 |
+| 6 Docs, follow-ups, close | Done (2026-11-05) | `CLAUDE.md`, `README.md`, this plan; #46 closed, #38 commented; #49 (CI job), #48 and #50 raised |
+
+## Outcome
+
+**#46 is closed: the clang-tidy gate is green.** 329 findings in 47 files (365 with the benchmarks) → **0**. The gate passes **85 of 85** in a default tree and
+**92 of 92** with `CRYPTOCOGS_BUILD_BENCHMARKS=ON`, on the Mac (clang-tidy 23.1.4) and in the container (23.1.6). The default suite went from 528 to **556**
+tests (the macro's 10 and W1's 18) and passes on the Mac, in the container (GCC 13.3) and under GCC 15.2; CI and both sanitizer jobs are green.
+Nine commits on `main`: the macro and its test (step 1), the library, six for the tests, the benchmarks and the examples (step 3), and the docs.
+
+What a user of the library can see, **none of it released, the version yours to choose**:
+
+- **The 14 public enums are `: std::uint8_t`** (D1). The layout of 13 order-entry structs changes (they shrink, three by 24 bytes on the Mac); no wire or
+  stored value does.
+- **A bare `AddOrderRequest`, `SubscribeRequest` or `UnsubscribeRequest` of the Kraken WebSocket holds the first enumerator** (`Limit`, `Buy`, `Ticker`),
+  not an indeterminate value.
+- `WsReconnectSession::scheduleReconnect` takes `const std::string&` (source-compatible), and `subscribe_async` moves its callback into the closure.
+- **An example's `main()` catches and reports** (D4): `fatal: …` on `std::cerr`, `EXIT_FAILURE`. An exception on the main thread no longer reaches
+  `backward_init.cpp`'s terminate handler, so its throw-site backtrace is lost for those; threads and signals still go through backward. The REST examples
+  read a result only through `report()`, and treat an ok response with no result as a failure.
+
+What was not done, and why: `http_client.cpp`'s header line has no unit test (a libcurl transport; it was compared old against new by hand, and the plan
+said so); the three editor hints in `ix_ws_connection.hpp` are not findings and were left; #38's two unused includes are not in this plan. The `NOLINT`s are
+the closed list: two `bugprone-empty-catch` in `reconnect_session.inl`, seven `NOLINTBEGIN`/`NOLINTEND` pairs and four lines in the benchmarks (and one older
+`NOLINTNEXTLINE` in `ws_streams.cpp`). Raised outside the plan: **#48**, **#49**, **#50**.

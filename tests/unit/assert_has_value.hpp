@@ -24,7 +24,9 @@
 // Use it as ASSERT_TRUE is used: as a statement in a function that returns void (the failure `return`s), on an optional that the
 // analysis can name: a variable, a member chain (`resp.result`) or `*ptr`. The macro reads the expression once and the code after
 // it reads it again, so bind a call to a local first (`const auto r = f(); ASSERT_HAS_VALUE(r);`), never `ASSERT_HAS_VALUE(f())`.
-// The failure names the expression, and text streamed after the macro goes on its own line, as for gtest's assertions:
+// The same goes for an element reached by an index or `.at()` (`v[i].opt`, `v.at(i).opt`): the analysis takes each call for a
+// different object, so a check on one and a use of the next are not matched. Bind the element once, `const auto& e = v[i];`, and
+// check `e.opt`. The failure names the expression, and text streamed after the macro goes on its own line, as for gtest's assertions:
 //
 //     ASSERT_HAS_VALUE(resp.result) << "for " << symbol;     // resp.result has no value
 //                                                            // for BTC/USD
