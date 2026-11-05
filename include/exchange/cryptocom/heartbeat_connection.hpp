@@ -45,6 +45,11 @@ public:
     // "public/heartbeat" frame is answered + swallowed; everything else is
     // forwarded to cb. The other callbacks forward straight through.
     //
+    // A heartbeat is a JSON object whose "method" is that string. A frame that
+    // does not parse, is not an object, or has a "method" that is missing or not a
+    // string is not one: it is forwarded like any other, and the handler does not
+    // throw on it (it runs on the transport's I/O thread; #44).
+    //
     // Lifetime (plan 034, #43): the handler owns what it needs (cb and a weak
     // reference to the inner connection) and does not refer to this responder, so
     // the responder may be destroyed while the inner connection is still open and

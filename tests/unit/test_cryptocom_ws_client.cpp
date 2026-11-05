@@ -8,7 +8,8 @@
 // =============================================================================
 //
 // Crypto.com WebSocket unit tests (no network — MockWsConnection only):
-//   - HeartbeatResponder decorator (auto-reply + swallow, forward otherwise; and the callback it installs on the inner
+//   - HeartbeatResponder decorator (auto-reply + swallow, forward otherwise; a frame it cannot classify, such as a
+//     "method" that is not a string, is forwarded and does not throw, #44; and the callback it installs on the inner
 //     connection outliving the responder, plan 034 / #43);
 //   - cryptocom_frame_descriptor classification (ack/auth by id, push by id -1);
 //   - subscribe ack / auth parsing + auth signing;
@@ -259,6 +260,75 @@ TEST(CryptoComHeartbeat, ForwardsTransportMethods) {
     EXPECT_EQ(inner->sent()[0], "hello");
     hb.disconnect();
     EXPECT_FALSE(hb.is_connected());
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HeartbeatResponder — a frame that is not a heartbeat is forwarded, whatever else it is (#44)
+//
+// The responder classifies every inbound frame inside the inner connection's receive callback, which on the real transport is the
+// ixwebsocket I/O thread, and nothing there catches an exception: one that escapes ends the process. nlohmann's value() throws
+// type_error.302 for a "method" that is not a string, so a valid frame such as {"id":1,"method":5} used to end it. A frame the
+// responder cannot take for a heartbeat is not its business: it is forwarded untouched and not answered.
+// ─────────────────────────────────────────────────────────────────────────────
+
+namespace {
+
+// What a HeartbeatResponder over a fresh MockWsConnection does with one inbound frame.
+struct HeartbeatOutcome {
+    std::vector<std::string> forwarded;   // what reached the callback registered through the responder
+    std::vector<std::string> sent;        // what the responder sent on the connection (a heartbeat reply)
+};
+
+HeartbeatOutcome feed_a_responder(const std::string& frame) {
+    auto inner = std::make_shared<MockWsConnection>();
+    HeartbeatResponder hb{inner};
+    HeartbeatOutcome   out;
+    hb.set_on_message([&out](const std::string& raw) { out.forwarded.push_back(raw); });
+    inner->inject_message(frame);
+    out.sent = inner->sent();
+    return out;
+}
+
+} // namespace
+
+// Valid JSON whose "method" is every type but a string, including a string wrapped in an array and in an object.
+TEST(CryptoComHeartbeat, ForwardsAFrameWhoseMethodIsNotAString) {
+    const std::vector<std::string> frames = {
+        R"({"id":1,"method":5})",                              // the frame #44 measured
+        R"({"id":1,"method":1.5})",
+        R"({"id":1,"method":true})",
+        R"({"id":1,"method":null})",
+        R"({"id":1,"method":["public/heartbeat"]})",
+        R"({"id":1,"method":{"name":"public/heartbeat"}})",
+    };
+    for (const auto& frame : frames) {
+        SCOPED_TRACE(frame);
+        HeartbeatOutcome out;
+        EXPECT_NO_THROW(out = feed_a_responder(frame));
+        EXPECT_EQ(out.forwarded, std::vector<std::string>{frame});   // untouched, once
+        EXPECT_TRUE(out.sent.empty());                               // and not answered
+    }
+}
+
+// The other frames that are not heartbeats: not JSON, JSON that is not an object, an object with no "method", another method.
+TEST(CryptoComHeartbeat, ForwardsEveryFrameThatIsNotAHeartbeat) {
+    const std::vector<std::string> frames = {
+        "not json",
+        "",
+        "[1,2,3]",
+        "5",
+        R"("public/heartbeat")",                               // a JSON string, not an object
+        "{}",
+        R"({"id":1})",
+        R"({"id":1,"method":"subscribe","code":0})",
+    };
+    for (const auto& frame : frames) {
+        SCOPED_TRACE(frame);
+        HeartbeatOutcome out;
+        EXPECT_NO_THROW(out = feed_a_responder(frame));
+        EXPECT_EQ(out.forwarded, std::vector<std::string>{frame});
+        EXPECT_TRUE(out.sent.empty());
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

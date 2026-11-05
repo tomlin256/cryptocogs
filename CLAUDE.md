@@ -534,7 +534,7 @@ green, and it has no caches.
 ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure and a 120 s timeout per test
 ```
 
-There are twenty-seven test executables (510 tests, plus sixteen `cmake -P` checks that are listed after the table — 526 in
+There are twenty-seven test executables (512 tests, plus sixteen `cmake -P` checks that are listed after the table — 528 in
 ctest) — nine Kraken/common, six Binance, six Coinbase, six Crypto.com:
 
 | Binary | Source | What it tests |
@@ -565,7 +565,7 @@ ctest) — nine Kraken/common, six Binance, six Coinbase, six Crypto.com:
 | `<tree>/bin/test_cryptocom_rest_requests` | `test_cryptocom_rest_requests.cpp` | Each Crypto.com REST request builds the right path/query (public) or signed envelope (private) |
 | `<tree>/bin/test_cryptocom_rest_responses` | `test_cryptocom_rest_responses.cpp` | `from_json` field assertions (market live + private synthetic fixtures) |
 | `<tree>/bin/test_cryptocom_client` | `test_cryptocom_client.cpp` | `CryptoComRestClient::execute()` signed-envelope round-trip via mock performer |
-| `<tree>/bin/test_cryptocom_ws_client` | `test_cryptocom_ws_client.cpp` | `HeartbeatResponder` auto-reply, and its callback outliving the responder (a frame and a heartbeat after it is destroyed, heap and stack, no reference cycle; plan 034), + id-correlated subscribe/ack/push lifecycle with `MockWsConnection` |
+| `<tree>/bin/test_cryptocom_ws_client` | `test_cryptocom_ws_client.cpp` | `HeartbeatResponder` auto-reply, a frame that is not a heartbeat forwarded without a throw (a non-string `method`, not JSON, not an object; #44), and its callback outliving the responder (a frame and a heartbeat after it is destroyed, heap and stack, no reference cycle; plan 034), + id-correlated subscribe/ack/push lifecycle with `MockWsConnection` |
 
 The sixteen `cmake -P` checks need no build and finish in seconds (`test_warning_option` takes about 3 s); they are registered at the top level, in every tree:
 
@@ -596,9 +596,9 @@ Tests do **not** require network access or credentials — all I/O is mocked, ex
 server of its own on 127.0.0.1 (a port it finds free; nothing leaves the machine).
 The flag matrix splits cleanly: each exchange flag drops its own suite. A
 Crypto.com-only tree (`-DCRYPTOCOGS_BUILD_KRAKEN=OFF -DCRYPTOCOGS_BUILD_BINANCE=OFF
--DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 120 gtests — the 92-test Crypto.com suite plus the
+-DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 122 gtests — the 94-test Crypto.com suite plus the
 exchange-agnostic 11 `TickPrice`, 8 `read_toml_credentials`, 5 `MockWsConnection` and 4 `IxWsConnection` tests, which build
-in any tree — and the sixteen `cmake -P` checks: 136 in ctest.
+in any tree — and the sixteen `cmake -P` checks: 138 in ctest.
 
 ### Test suite breakdown
 
@@ -1335,6 +1335,8 @@ public:
 - The teardown for a long-lived consumer is: build the `IxWsConnection` yourself and keep it, wrap it with the conn-based factory, and on the way out call `conn->disconnect()` first (no callback can run, or hold a reference, afterwards), then release the client and the connection in either order. `ws_client_example` does this with a small `Session` class. The URL-based `make_exchange_ws_client` is for short single-shot calls; the self-join it can cause (the I/O thread dropping the last reference to the connection) is documented in the header and is *not* fixed.
 - A decorator that installs a callback on an inner connection (`HeartbeatResponder`) must not capture `this`: the inner connection can outlive it. The callback owns a small immutable `Relay` (the forward callback and a `weak_ptr` to the inner connection) and goes on working for as long as the connection keeps it (#43). Weak, because the callback lives inside that connection.
 - A destroyed `std::function` is still callable in practice (libc++ and libstdc++ do not clear it) and a sanitizer may not see the call, so tests of this class use `tests/unit/callback_probe.hpp`: callbacks own a token whose destruction is counted, and every call records whether a destruction preceded it. ASan's defaults stay silent on #39; `ASAN_OPTIONS=max_free_fill_size=4096:free_fill_byte=221` made it report ([#45](https://github.com/tomlin256/cryptocogs/issues/45) tracks why CI did not catch it).
+
+**Exceptions on the I/O thread** (#44). Nothing above the callbacks catches an exception, so one that escapes ends the process. `ExchangeWsClient` contains a throw from a handler, a push callback or the `MessageIdentifier` and reports the frame through the error handler. A decorator has no error handler, so its callback must classify a frame without throwing and forward what it does not recognise: `HeartbeatResponder` once used `json::value("method", …)`, which throws `type_error.302` for a `method` that is not a string, so the valid frame `{"id":1,"method":5}` ended the process.
 
 `IWsErrorHandler` / `RateLimitedWsErrorHandler` (also in `exchange::ws::`) are an optional strategy for surfacing malformed-frame and connection-error events without flooding logs — `RateLimitedWsErrorHandler` logs at most once per configurable interval (default 60 s), tracking a dropped-event count in between. Pass a `shared_ptr<IWsErrorHandler>` to `make_kraken_ws_client` / `make_exchange_ws_client` to opt in; it defaults to `nullptr` (silent).
 

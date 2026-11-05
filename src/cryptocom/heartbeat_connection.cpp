@@ -17,6 +17,20 @@ namespace exchange::cryptocom::ws {
 
 using json = nlohmann::json;
 
+namespace {
+
+// True for a heartbeat: a JSON object whose "method" is the string "public/heartbeat". Anything else is not one, an object whose
+// "method" is missing or is not a string included. This runs on the transport's I/O thread, where nothing catches an exception, so
+// it must not throw: json::value() does, type_error.302, for a "method" that is not a string (#44).
+bool is_heartbeat(const json& j) {
+    if (!j.is_object())
+        return false;
+    const auto method = j.find("method");
+    return method != j.end() && method->is_string() && method->get_ref<const std::string&>() == "public/heartbeat";
+}
+
+} // namespace
+
 // What the callback installed on the inner connection owns. That callback lives inside the connection and can outlive this
 // responder (the factories give the client the only reference to it, while the caller keeps the connection), so it must not
 // refer to the responder: it carries its own copy of the forward callback and a weak reference to the connection it answers
@@ -31,9 +45,10 @@ struct HeartbeatResponder::Relay {
 
 void HeartbeatResponder::Relay::on_message(const std::string& raw) const {
     // Answer + swallow heartbeats; forward everything else (including frames that
-    // fail to parse — the client's own error handling deals with those).
-    json j = json::parse(raw, nullptr, /*allow_exceptions=*/false);
-    if (j.is_object() && j.value("method", std::string{}) == "public/heartbeat") {
+    // fail to parse, and frames whose "method" is missing or is not a string — the
+    // client's own error handling deals with those).
+    const json j = json::parse(raw, nullptr, /*allow_exceptions=*/false);
+    if (is_heartbeat(j)) {
         json reply;
         reply["id"]     = j.contains("id") ? j.at("id") : json(nullptr);
         reply["method"] = "public/respond-heartbeat";
