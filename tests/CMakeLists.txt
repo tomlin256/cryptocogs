@@ -326,3 +326,19 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR AND
                          -P ${CMAKE_CURRENT_SOURCE_DIR}/sanitize_checks/check_sanitizer_coverage.cmake)
     endif()
 endif()
+
+#-------------------------------------------------------------------------------
+# clang-tidy, opt in (plan 035, #34): plain cmake -P scripts
+#-------------------------------------------------------------------------------
+
+# The functions in cmake/cryptocogs_clang_tidy.cmake that resolve the tool, build its arguments, name the tests and choose
+# the units. They run in every tree, with no clang-tidy and no network, because the gate they serve exists only in the tree
+# that asks for it (CRYPTOCOGS_CLANG_TIDY) and a regression in them would be invisible until someone did. Top level only, where
+# the checkout it reads is this project's own.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_test(NAME test_clang_tidy_module
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -DSCRATCH_ROOT=${CMAKE_CURRENT_BINARY_DIR}/clang_tidy_checks
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/clang_tidy_checks/check_clang_tidy_module.cmake)
+endif()

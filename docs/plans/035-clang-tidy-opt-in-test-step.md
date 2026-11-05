@@ -409,7 +409,7 @@ first comment equal what the gate printed on both platforms (any that differ are
 |---|---|---|
 | 0 Approval | Done | Proposed in `1217ac6`, linked from #34. Rob approved on 2026-11-05 with D10 changed (override stays; the build's warnings as errors are #47, plan 036 after this). #46 opened for the 329 findings and linked from #34 and #38; #47 opened for warnings as errors. |
 | 1 Start from green | Done | No commit. Mac, `debug-macos-arm64`: configure prints only the two CMake deprecation notices that #26 tracks (backward-cpp, CLI11) and exits 0, the build was up to date, ctest 521 of 521 in 36 s. Container, `debug-linux-arm64`: the same two notices, the build recompiled the two newest tests with no compiler warning in 1 min 50 s, ctest 521 of 521 in 12 s, and its compile database now has all 77 units. |
-| 2 The module, test first | Pending | |
+| 2 The module, test first | Done | `build: add cmake/cryptocogs_clang_tidy.cmake and the test that holds it (step 2/6)`. `test_clang_tidy_module` was red first (the module did not exist), then green in 0.2 s. 42 hand-made mutants of the module, each run through the test on a scratch copy, are all killed by the assertion meant to catch them. The first pass left two alive, the root's `NORMAL_PATH` dropped in `test_name` and in `select`, because no case spelled the root with dot segments; two (`/x/../r/.`) were added and both are killed. Mac: configure output identical to Step 1's, build up to date with no warning, ctest 522 of 522 in 21 s. Container: the same, 522 of 522 in 24 s. |
 | 3 The configuration and the gate | Pending | |
 | 4 The Linux half | Pending | |
 | 5 Record the findings in a new issue | Pending | |
