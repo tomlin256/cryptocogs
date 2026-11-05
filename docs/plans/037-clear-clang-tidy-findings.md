@@ -1,6 +1,6 @@
 # Plan 037 — Clear the clang-tidy findings so the opt-in gate passes
 
-**Status: Proposed (2026-11-05). Awaiting approval.** Rob's request: *"fix #46 using agents so you can do it in parallel"*.
+**Status: Approved (2026-11-05); Step 0 done, Step 1 next.** Rob's request: *"fix #46 using agents so you can do it in parallel"*.
 
 Closes [#46](https://github.com/tomlin256/cryptocogs/issues/46). Answers the `performance-enum-size` half of
 [#38](https://github.com/tomlin256/cryptocogs/issues/38) (D1); #38's two unused includes in `common/ws.hpp` are not in this plan.
@@ -72,6 +72,11 @@ choice.
 gate's command is clean, 324 findings suppressed as non-user code. Whether any is real is settled in W1 by reading the three lines.
 
 ## Decisions to confirm
+
+**Confirmed by Rob, 2026-11-05, as proposed:** the plan; D1 (`: std::uint8_t`; the version of the release that carries it stays his to choose);
+D4 (the `main()`s catch and report); the five test and example commits being verified together on the combined tree rather than each alone (D8
+and the self-review); and the push of this plan and the comment on [#46](https://github.com/tomlin256/cryptocogs/issues/46#issuecomment-6667307704).
+D2, D3, D5, D6, D7 and D8 were not asked about one by one, and stand as written. Nothing in D1 to D8 changed.
 
 - **D1. `performance-enum-size`: give the 14 enums `: std::uint8_t`.** The issue asks for the answer to #38's ABI question first, so it was audited
   (scratch work, nothing in the checkout: record layouts of every complete type in 85 units, on Apple clang 21 / libc++ and GCC 13.3 /
@@ -336,7 +341,7 @@ green, so it is small: `clang-tidy-23` from apt.llvm.org, configure only, `ctest
 
 | Step | Status | Notes |
 |---|---|---|
-| 0 Approval | Pending | |
+| 0 Approval | Done (2026-11-05) | Approved as proposed (D1 `: std::uint8_t`, D4 catch and report). The plan is pushed, and #46 carries its path |
 | 1 Start from green, and the macro, test first | Pending | |
 | 2 The fan-out | Pending | |
 | 3 Integrate and verify | Pending | |
