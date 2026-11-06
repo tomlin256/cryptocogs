@@ -1,7 +1,7 @@
 # Plan 041 — `CurlHttpClient::perform` starts every call from a reset handle
 
-**Status:** In progress. Rob approved the plan as written on 2026-11-06, so D1 to D5 stand at the defaults below (no release). Step 0 is
-done when this commit is pushed.
+**Status:** In progress. Rob approved the plan as written on 2026-11-06, so D1 to D5 stood at the defaults below (no release). Steps 0 to
+2 are done (see the *Outcome*); Step 3, the sanitizer trees and Linux, is measured after the push.
 
 Closes [#51](https://github.com/tomlin256/cryptocogs/issues/51).
 
@@ -219,3 +219,85 @@ Bump the version in the two places above, run the full ctest, commit, push, wait
 - **`-Werror` and the gate:** no new warning sources expected; the table is a function-local vector, `curl_easy_reset` returns `void`,
   and the file has no optional to check.
 - **Priority:** the issue says high, and a crash in ordinary use of a released version supports it; hence D3.
+
+## Outcome
+
+Steps 0 to 2 are done (2026-11-06). Step 3 is measured after the push and recorded at the end of this section. D3 stood at no release:
+`v2.0.1` is still Rob's to say.
+
+### Commits
+
+| Step | Commit | What |
+|---|---|---|
+| 0 | `3308832` | this plan, approved as written |
+| 1 | `647a9ce` | `curl_easy_reset(curl)` first in `perform` and the `CUSTOMREQUEST` line gone; the comment in `http_client.hpp`; the server keeps every request and says `Connection: close`; the four tests |
+| 1 | `ca7c790` | braces round an assertion in an `if` in `expect_only_its_own` (GCC's `-Wdangling-else`; see *What differed*) |
+| 2 | the commit that adds this section | `CLAUDE.md` and this *Outcome*; #51 closed by hand after the push |
+
+### Red, then green (Step 1: `debug-macos-arm64`, Apple clang 21.0.0, libcurl 8.7.1)
+
+Each test alone, as ctest runs it. "Without" is the test file of `647a9ce` over the `perform` of `c4780f2` (no reset); "with" is the fix.
+
+| Test | Without the reset | With it |
+|---|---|---|
+| `AGetWithNoHeadersAfterOneWithHeadersSendsNone` | SIGSEGV (exit 139) | passes |
+| `ADeleteWithNoBodyAfterAPostSendsNoBody` | fails (exit 1): the body `symbol=X&secret=1`, `Content-Length: 17` and `Content-Type: application/x-www-form-urlencoded` of the POST reach the server | passes |
+| `ARequestAfterAFailedOneSendsOnlyItsOwn` | fails (exit 1) with the same three | passes |
+| `ARequestSendsOnlyItsOwnWhateverCameBefore` | SIGSEGV (exit 139) | passes (46 ms for its 35 pairs) |
+| the three that existed | pass | pass |
+
+This is what the plan expected: 1 and 4 undefined behaviour on the freed header list (a crash here), 2 and 3 the stale body, by assertion.
+
+### Hand-made changes (Step 1)
+
+Each in the tree with its object deleted first (Apple's Make 3.81), and the number of objects compiled printed: 1 every time. The four new
+tests and the three old ones were run alone; `crash` is a signal, `red` a failed assertion.
+
+| Change to `perform` | Test 1 | Test 2 | Test 3 | Test 4 | The three old |
+|---|---|---|---|---|---|
+| (a) no reset (the code of `c4780f2`) | crash | red | red | crash | green |
+| (b) the reset replaced by clearing `CURLOPT_HTTPHEADER` only | green | red | red | red | green |
+| (c) replaced by clearing `POSTFIELDS`, `POSTFIELDSIZE`, `CUSTOMREQUEST` and `HTTPGET` only | crash | green | green | crash | green |
+| (d) the reset moved to the end of `perform`, after the status is read | green | green | red | crash | green |
+| (e) the reset kept and the `CUSTOMREQUEST` line kept as well | green | green | green | green | green |
+| the fix restored (the source byte-identical to the one of `647a9ce`) | green | green | green | green | green |
+
+(a) is the record above. Each half of the bug has a test that catches it alone: clearing the header list only (b) still sends the POST's
+body, and clearing the POST options only (c) still reads the freed list. (d) is what *first* buys: at the end of `perform` a call that
+threw leaves its state behind, and tests 3 and 4 say so. (e) shows the old `CUSTOMREQUEST` line was redundant, not wrong, and no test
+tells the two apart, which is why it went.
+
+### Counts (measured)
+
+| Tree | Result |
+|---|---|
+| `debug-macos-arm64`, gate on, before the change | 654 of 654 |
+| `debug-macos-arm64`, gate on, after | 658 of 658 (570, and the 88 `clang_tidy_*`) |
+| `debug-macos-arm64`, gate off, after | 570 of 570: 552 gtests, 17 `cmake -P` checks and `test_kraken_example` |
+| Crypto.com-only (the other three exchanges off), gate on, after | 197 of 197: 35 gate tests and 162 others, of which 145 gtests and 7 of them `CurlHttpClientPerform` |
+| CI `release-linux-x86_64` (GCC 15.2), `ca7c790` | 570 of 570, 17.6 s of tests; the job took 1 min 50 s |
+| CI `clang-tidy` (Debug, benchmarks and gate on), `ca7c790` | 95 of 95, as before: no `.cpp` was added or removed; the job took 6 min 22 s |
+
+`CLAUDE.md` carries these: 548 → 552 and 566 → 570, the Crypto.com-only line (141 → 145 gtests, 158 → 162), 3 → 7
+`CurlHttpClient::perform` tests, the two rows for `test_http_client`, the structure tree, and a *Coding conventions* bullet on where an
+option that must hold for every request goes (after the reset, on each call: the note #56 needs).
+
+### What differed from the plan
+
+- **The first push was red on GCC.** The main workflow on `647a9ce` (run 42269972714) failed in its Build step with
+  `test_http_client.cpp:193:16: error: suggest explicit braces to avoid ambiguous 'else' [-Werror=dangling-else]`: a bare `if` over an
+  `EXPECT_EQ` in `expect_only_its_own`. Apple clang 21 and clang-tidy 23 do not report it (the `clang-tidy` run on `647a9ce` was green),
+  and the plan's Step 1 checkpoint was the Mac only. `CLAUDE.md` already says an assertion under a bare `if` needs braces and that a change that adds
+  code is built on GCC before the push; I pushed without the GCC build. `main` was red in that workflow from the push of `647a9ce`
+  (18:21:35Z) to the push of `ca7c790` (18:25:07Z). `ca7c790` is the braces; before pushing it I rebuilt and ran on Apple clang and built
+  `test_http_client` in `ubuntu-dev` (GCC 13.3, `-Werror`: no warning, 7 of 7 tests pass). Both workflows on `ca7c790` are green, which
+  is what Step 1's *Done when* asked of the commit.
+- **Nothing else.** The four tests, the 35 pairs, the counts (658, 570, 552, 145, 162) and the five hand-made changes came out as the
+  plan said; in (c) and (d) the plan's "red" for test 4 is a crash.
+- **Issues opened:** [#56](https://github.com/tomlin256/cryptocogs/issues/56) (bug, priority medium), `perform` sets no timeout. Found
+  while reading `perform`; not part of this fix.
+
+### Step 3 — after the push
+
+Not measured when this section was written; the sanitizer trees, the two dispatches of `sanitizers.yml` and the run against the old
+`perform` in `ubuntu-dev` are added below.
