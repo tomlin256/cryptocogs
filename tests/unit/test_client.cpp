@@ -9,8 +9,10 @@
 
 #include "exchange/kraken/rest_client.hpp"
 #include "assert_has_value.hpp"
+#include "silent_listener.hpp"
 
 #include <gtest/gtest.h>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -216,4 +218,28 @@ TEST(KrakenRestClient, MalformedBodyFoldsIntoErrorResponse) {
     const auto resp = client.execute(GetServerTimeRequest{});
     EXPECT_FALSE(resp.ok);
     EXPECT_FALSE(resp.errors.empty());
+}
+
+// ---------------------------------------------------------------------------
+// Timeouts (plan 042, #56): the one test here that uses the real transport.
+// ---------------------------------------------------------------------------
+
+// The production constructor hands its HttpTimeouts to the transport. The
+// server accepts the connection and never answers; one limit is an hour, so
+// only the total limit can end the call. A client that dropped its timeouts
+// would wait the default 30 s and name that limit instead.
+TEST(KrakenRestClient, ProductionClientHandsItsTimeoutsToTheTransport) {
+    const CurlGlobal curl;
+    ASSERT_TRUE(curl.ok());
+    const SilentListener silent;
+    ASSERT_TRUE(silent.listening());
+    const HttpTimeouts timeouts{.connect = std::chrono::hours(1), .total = std::chrono::milliseconds(1)};
+    KrakenRestClient client(silent.url("http"), timeouts);
+
+    const auto resp = client.execute(GetServerTimeRequest{});
+    EXPECT_FALSE(resp.ok);
+    ASSERT_EQ(resp.errors.size(), 1u);
+    EXPECT_NE(resp.errors[0].find("request failed: curl_easy_perform failed: Timeout was reached"), std::string::npos)
+        << resp.errors[0];
+    EXPECT_NE(resp.errors[0].find("total limit 1 ms"), std::string::npos) << resp.errors[0];
 }

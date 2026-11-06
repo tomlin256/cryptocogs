@@ -29,12 +29,15 @@ namespace exchange::coinbase::rest {
 
 using exchange::rest::CurlHttpClient;
 using exchange::rest::HttpResponse;
+using exchange::rest::HttpTimeouts;
 
 class CoinbaseRestClient {
 public:
-    // Production constructor — uses the shared libcurl transport.
+    // Production constructor — uses the shared libcurl transport. `timeouts` bound every call (HttpTimeouts, #56): a call that exceeds
+    // them comes back with ok == false and "request failed: curl_easy_perform failed: Timeout was reached …" in errors, and that text
+    // says whether the request was sent. Throws std::invalid_argument if a limit is not positive.
     explicit CoinbaseRestClient(
-        std::string base_url = "https://api.exchange.coinbase.com");
+        std::string base_url = "https://api.exchange.coinbase.com", HttpTimeouts timeouts = {});
 
     CoinbaseRestClient(const CoinbaseRestClient&)            = delete;
     CoinbaseRestClient& operator=(const CoinbaseRestClient&) = delete;

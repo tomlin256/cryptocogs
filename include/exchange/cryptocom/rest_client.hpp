@@ -38,11 +38,14 @@ namespace exchange::cryptocom::rest {
 
 using exchange::rest::CurlHttpClient;
 using exchange::rest::HttpResponse;
+using exchange::rest::HttpTimeouts;
 
 class CryptoComRestClient {
 public:
-    // Production constructor — uses the shared libcurl transport.
-    explicit CryptoComRestClient(std::string base_url = "https://api.crypto.com");
+    // Production constructor — uses the shared libcurl transport. `timeouts` bound every call (HttpTimeouts, #56): a call that exceeds
+    // them comes back with ok == false and "request failed: curl_easy_perform failed: Timeout was reached …" in errors, and that text
+    // says whether the request was sent. Throws std::invalid_argument if a limit is not positive.
+    explicit CryptoComRestClient(std::string base_url = "https://api.crypto.com", HttpTimeouts timeouts = {});
 
     CryptoComRestClient(const CryptoComRestClient&)            = delete;
     CryptoComRestClient& operator=(const CryptoComRestClient&) = delete;

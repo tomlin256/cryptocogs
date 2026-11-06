@@ -10,17 +10,22 @@
 // Verifies CryptoComRestClient::execute() end-to-end via an injected mock HTTP
 // performer (no libcurl, no network): public round-trips, the signed envelope on
 // private calls (api_key/nonce/sig in the body, sig recomputed), code->error
-// mapping, transport-exception folding, and unique correlation ids.
+// mapping, transport-exception folding, and unique correlation ids. The
+// exception is the last test: it makes the production client talk to a
+// SilentListener on loopback, to show that its HttpTimeouts reach the
+// transport (plan 042).
 
 #include "exchange/cryptocom/rest_client.hpp"
 
 #include "assert_has_value.hpp"
 #include "cryptocom_account_example_json.hpp"
 #include "cryptocom_rest_example_json.hpp"
+#include "silent_listener.hpp"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
+#include <chrono>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -163,4 +168,24 @@ TEST(CryptoComClient, AssignsUniqueCorrelationIds) {
 
     ASSERT_EQ(ids.size(), 2u);
     EXPECT_NE(ids[0], ids[1]);
+}
+
+// The production constructor hands its HttpTimeouts to the transport. The
+// server accepts the connection and never answers; one limit is an hour, so
+// only the total limit can end the call. A client that dropped its timeouts
+// would wait the default 30 s and name that limit instead (plan 042, #56).
+TEST(CryptoComClient, ProductionClientHandsItsTimeoutsToTheTransport) {
+    const CurlGlobal curl;
+    ASSERT_TRUE(curl.ok());
+    const SilentListener silent;
+    ASSERT_TRUE(silent.listening());
+    const HttpTimeouts timeouts{.connect = std::chrono::hours(1), .total = std::chrono::milliseconds(1)};
+    CryptoComRestClient client(silent.url("http"), timeouts);
+
+    const auto resp = client.execute(CryptoComInstrumentsRequest{});
+    EXPECT_FALSE(resp.ok);
+    ASSERT_EQ(resp.errors.size(), 1u);
+    EXPECT_NE(resp.errors[0].find("request failed: curl_easy_perform failed: Timeout was reached"), std::string::npos)
+        << resp.errors[0];
+    EXPECT_NE(resp.errors[0].find("total limit 1 ms"), std::string::npos) << resp.errors[0];
 }

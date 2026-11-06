@@ -11,14 +11,18 @@
 // with an injected mock HTTP performer — the Binance analog of Kraken's
 // test_client.cpp. Each test asserts the exact signed wire request
 // (deterministic via BinanceAuth's injectable ClockFn) and the parsed
-// RestResponse<T>. No network or libcurl involved.
+// RestResponse<T>. No network or libcurl involved, except in the last test:
+// it makes the production client talk to a SilentListener on loopback, to show
+// that its HttpTimeouts reach the transport (plan 042).
 
 #include "exchange/binance/rest_client.hpp"
 #include "assert_has_value.hpp"
 #include "binance_account_example_json.hpp"
 #include "binance_rest_example_json.hpp"
+#include "silent_listener.hpp"
 
 #include <gtest/gtest.h>
+#include <chrono>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -212,4 +216,24 @@ TEST(BinanceClient, NonHmacAlgorithmFoldsIntoErrorResponse) {
     const auto resp = client.execute(BinanceAccountRequest{}, BinanceAuth(creds));
     EXPECT_FALSE(resp.ok);
     EXPECT_FALSE(resp.errors.empty());
+}
+
+// The production constructor hands its HttpTimeouts to the transport. The
+// server accepts the connection and never answers; one limit is an hour, so
+// only the total limit can end the call. A client that dropped its timeouts
+// would wait the default 30 s and name that limit instead (plan 042, #56).
+TEST(BinanceClient, ProductionClientHandsItsTimeoutsToTheTransport) {
+    const CurlGlobal curl;
+    ASSERT_TRUE(curl.ok());
+    const SilentListener silent;
+    ASSERT_TRUE(silent.listening());
+    const HttpTimeouts timeouts{.connect = std::chrono::hours(1), .total = std::chrono::milliseconds(1)};
+    BinanceRestClient client(silent.url("http"), timeouts);
+
+    const auto resp = client.execute(BinanceServerTimeRequest{});
+    EXPECT_FALSE(resp.ok);
+    ASSERT_EQ(resp.errors.size(), 1u);
+    EXPECT_NE(resp.errors[0].find("request failed: curl_easy_perform failed: Timeout was reached"), std::string::npos)
+        << resp.errors[0];
+    EXPECT_NE(resp.errors[0].find("total limit 1 ms"), std::string::npos) << resp.errors[0];
 }

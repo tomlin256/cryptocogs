@@ -16,8 +16,9 @@ namespace exchange::binance::rest {
 
 // Production constructor — wires perform_ to the shared CurlHttpClient transport.
 // (The libcurl handling itself lives in exchange::rest::CurlHttpClient — plan 010.)
-BinanceRestClient::BinanceRestClient(std::string base_url)
-    : transport_(std::make_shared<CurlHttpClient>(std::move(base_url)))
+// `timeouts` go to the transport, which applies them to every call (plan 042, #56).
+BinanceRestClient::BinanceRestClient(std::string base_url, const HttpTimeouts timeouts)
+    : transport_(std::make_shared<CurlHttpClient>(std::move(base_url), timeouts))
     , perform_([t = transport_](const HttpRequest& h) { return t->perform(h); })
 {}
 

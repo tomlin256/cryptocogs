@@ -28,11 +28,14 @@ namespace exchange::kraken::rest {
 
 using exchange::rest::CurlHttpClient;
 using exchange::rest::HttpResponse;
+using exchange::rest::HttpTimeouts;
 
 class KrakenRestClient {
 public:
-    // Production constructor — uses the shared libcurl transport.
-    explicit KrakenRestClient(std::string base_url = "https://api.kraken.com");
+    // Production constructor — uses the shared libcurl transport. `timeouts` bound every call (HttpTimeouts, #56): a call that exceeds
+    // them comes back with ok == false and "request failed: curl_easy_perform failed: Timeout was reached …" in errors, and that text
+    // says whether the request was sent. Throws std::invalid_argument if a limit is not positive.
+    explicit KrakenRestClient(std::string base_url = "https://api.kraken.com", HttpTimeouts timeouts = {});
 
     KrakenRestClient(const KrakenRestClient&) = delete;
     KrakenRestClient& operator=(const KrakenRestClient&) = delete;
