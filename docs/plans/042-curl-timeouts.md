@@ -1,7 +1,7 @@
 # Plan 042 — `CurlHttpClient::perform` gives up on a server that stops answering
 
-**Status:** Steps 0 to 3 done (2026-11-06). Rob approved the plan as written, so D1 to D6 stood at the defaults below (no release). Step 4
-(the sanitizers) is recorded in the *Outcome* when it has run.
+**Status:** Done (2026-11-06), apart from the release that D6 left to Rob. Rob approved the plan as written, so D1 to D6 stood at the
+defaults below (no release). Steps 0 to 4 are recorded in the *Outcome*.
 
 Closes [#56](https://github.com/tomlin256/cryptocogs/issues/56).
 
@@ -254,8 +254,8 @@ Bump the version in `CMakeLists.txt:35` and the `GIT_TAG` example in `README.md:
 
 ## Outcome
 
-Steps 0 to 3 are done (2026-11-06). Step 4 is measured after the push and recorded at the end of this section. D6 stood at no release:
-`v2.1.0`, for [#51](https://github.com/tomlin256/cryptocogs/issues/51) and #56 together, is still Rob's to say.
+Steps 0 to 4 are done (2026-11-06); Step 4 is at the end of this section. D6 stood at no release: `v2.1.0`, for
+[#51](https://github.com/tomlin256/cryptocogs/issues/51) and #56 together, is still Rob's to say.
 
 ### Commits
 
@@ -264,7 +264,8 @@ Steps 0 to 3 are done (2026-11-06). Step 4 is measured after the push and record
 | 0 | `3e6f2e8` | this plan, approved as written |
 | 1 | `f4d74cf` | `HttpTimeouts`; `perform` sets `CURLOPT_NOSIGNAL`, `CURLOPT_CONNECTTIMEOUT_MS` and `CURLOPT_TIMEOUT_MS` on each call, after the reset; the text of a timeout; `SilentListener`; seven tests |
 | 2 | `7359107` | the four REST clients take `HttpTimeouts` and hand it to the transport; four tests |
-| 3 | the commit that adds this section | `README.md`, `CLAUDE.md` and this *Outcome*; #56 closed by hand after the push |
+| 3 | `023fa0b` | `README.md`, `CLAUDE.md` and this *Outcome*; #56 closed by hand after the push |
+| 4 | the commit that adds the last section below | the record of the sanitizer runs |
 
 ### Red, then green
 
@@ -371,3 +372,19 @@ constructor, the namespace row, and the two *Coding conventions* bullets (the on
   type removes it.
 - **Four mutations in Step 2, one per client**, where the plan said "a mutation that forwards in three adapters and not the fourth": the
   table above is that mutation four times.
+
+### After the push (Step 4)
+
+Run on `023fa0b`, which has the code of `7359107`. No finding, so no issue.
+
+| Tree | Result |
+|---|---|
+| `asan-macos-arm64` (ASan and UBSan, Apple clang 21.0.0) with `ASAN_OPTIONS=detect_stack_use_after_return=1:strict_string_checks=1` and `UBSAN_OPTIONS=print_stacktrace=1` | 584 of 584, 9.3 s of tests; no report; no warning |
+| `tsan-macos-arm64` with `TSAN_OPTIONS=second_deadlock_stack=1` | 583 of 583, 21.7 s of tests; no report; no warning |
+| CI `Sanitizers`, `which=asan` (Linux, GCC 15.2, LeakSanitizer on), run 42286334863 | 584 of 584, 39.0 s of tests; no report; the job took 10 min 26 s |
+| CI `Sanitizers`, `which=tsan`, run 42287925386 | 583 of 583, 35.0 s of tests; no report; the job took 5 min 31 s |
+| CI on the documentation commit `023fa0b`: `release-linux-x86_64`, `clang-tidy` | 581 of 581 (14.5 s of tests; the job took 40 s), 95 of 95 (101.9 s of tests; 2 min 41 s) |
+
+The 584 and 583 are the 581 and the sanitizer's own tests (the canaries and the coverage test). TSan was the one the plan watched: its
+slowdown moves the 1 ms limits, and every live test passed under it, on the Mac and in CI (the phase moves, the outcome does not).
+LeakSanitizer, which the Mac cannot run, ran the new tests in CI and reported nothing.
