@@ -12,8 +12,9 @@
 # (the Mac, the ubuntu-dev container) and the one the editor reads (.clangd).
 #
 # A workflow of its own, like sanitizers.yml, so that a red lint run cannot mask whether the normal gate is green. It has no
-# caches on purpose (plan 040, D1): a hit of the main workflow's would save about 23 s of a job of some 2.5 minutes, and would
-# force the Release tree and leave the benchmarks off. Shallow clones (#54) are the way to a shorter cold configure.
+# caches on purpose (plan 040, D1): a hit of the main workflow's would save about 23 s of a job of 3 to 4.5 minutes (three runs
+# measured), and would force the Release tree and leave the benchmarks off. Shallow clones (#54) are the way to a shorter cold
+# configure.
 #
 # The LLVM major is written once, in the env below, and test_ci_clang_tidy holds it to CRYPTOCOGS_CLANG_TIDY_MAJOR in
 # cmake/cryptocogs_clang_tidy.cmake; clang_tidy_version fails the run on any other major. apt.llvm.org is the LLVM project's own
