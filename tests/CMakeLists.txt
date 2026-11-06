@@ -295,6 +295,28 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 endif()
 
 #-------------------------------------------------------------------------------
+# CLAUDE.md stays small (plan 044, cryptocogs#60): plain cmake -P scripts
+#-------------------------------------------------------------------------------
+
+# Claude Code loads the root CLAUDE.md whole at the start of every session, and a CLAUDE.md in a subdirectory when it first reads a
+# file there, keeping only the start of one past 40000 characters. This holds the root to 21000 bytes and every CLAUDE.md in the
+# checkout to 38000 characters, so that a docs step that appends to the file is stopped by a test. A plain script, so it runs in
+# every tree. Top level only, where the checkout it reads is this project's own.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_test(NAME test_claude_md_budget
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/doc_checks/check_claude_md_budget.cmake)
+
+    # The check itself: small checkouts at and over each limit are made at run time and the check is run over each. A check that
+    # accepted everything would pass the test above.
+    add_test(NAME test_claude_md_budget_fixtures
+             COMMAND ${CMAKE_COMMAND}
+                     -DSCRATCH_ROOT=${CMAKE_CURRENT_BINARY_DIR}/doc_checks
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/doc_checks/check_claude_md_budget_fixtures.cmake)
+endif()
+
+#-------------------------------------------------------------------------------
 # Sanitizers (plan 032): plain cmake -P scripts
 #-------------------------------------------------------------------------------
 

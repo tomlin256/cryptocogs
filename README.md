@@ -317,8 +317,10 @@ auto [ack, handle] = client->subscribe(req, [](const BinanceAggTradeEvent& e) {
 ```
 
 The full Binance type/endpoint/channel reference — including the trading WS API
-(`order.place` / `order.cancel`) and how its per-request signing works — is in
-[CLAUDE.md → Binance adapter reference](CLAUDE.md#binance-adapter-reference).
+(`order.place` / `order.cancel`) and how its per-request signing works — is in the
+comment block at the top of each header in [`include/exchange/binance/`](include/exchange/binance/)
+(`auth.hpp`, `rest_api.hpp`, `ws_streams.hpp`, `ws_api.hpp`); the captured wire formats are in
+[docs/plans/001-appendix-binance-message-formats.md](docs/plans/001-appendix-binance-message-formats.md).
 
 ---
 
@@ -645,7 +647,7 @@ ctest --test-dir build --output-on-failure                # the tree the quick s
 
 clang-tidy runs as tests too, off until a configure names the tool. It is LLVM 23: `brew install llvm` on a Mac (keg-only, so link
 its `clang-tidy` and `clangd` into a directory on your `PATH`), `clang-tidy-23` from [apt.llvm.org](https://apt.llvm.org) on Ubuntu.
-The tests are green ([plan 037](docs/plans/037-clear-clang-tidy-findings.md), [#46](https://github.com/tomlin256/cryptocogs/issues/46)), so a new finding turns its unit red; `CLAUDE.md` says what each one proves. CI runs them on every push and pull request that changes more than documentation ([`clang-tidy.yml`](.github/workflows/clang-tidy.yml), [plan 040](docs/plans/040-clang-tidy-ci-job.md)).
+The tests are green ([plan 037](docs/plans/037-clear-clang-tidy-findings.md), [#46](https://github.com/tomlin256/cryptocogs/issues/46)), so a new finding turns its unit red; [`cmake/cryptocogs_clang_tidy.cmake`](cmake/cryptocogs_clang_tidy.cmake) says what each one proves. CI runs them on every push and pull request that changes more than documentation ([`clang-tidy.yml`](.github/workflows/clang-tidy.yml), [plan 040](docs/plans/040-clang-tidy-ci-job.md)).
 
 ```bash
 cmake --preset debug-macos-arm64 -DCRYPTOCOGS_CLANG_TIDY=clang-tidy

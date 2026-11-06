@@ -1,7 +1,7 @@
 # Adding a New Exchange — Agent Playbook
 
 This is a self-contained playbook for integrating a **new exchange** into this
-library. It assumes no prior context beyond what the user gives you and the two
+library. It assumes no prior context beyond what the user gives you and the four
 adapters already in the repo:
 
 - **Binance** (`include/exchange/binance/`, `src/binance/`) — the **primary
@@ -10,10 +10,16 @@ adapters already in the repo:
 - **Kraken** (`include/exchange/kraken/`, `src/kraken/`) — the **secondary
   reference**, notably for the optional `identify_message`/`MessageKind`
   caller-facing frame classifier.
+- **Coinbase** (`include/exchange/coinbase/`, `src/coinbase/`) — the reference
+  for a feed with no per-request correlation id: a bespoke `CoinbaseStreamClient`
+  over `IWsConnection`, not an `ExchangeWsClient` alias.
+- **Crypto.com** (`include/exchange/cryptocom/`, `src/cryptocom/`) — the
+  reference for a mandatory keepalive: an `ExchangeWsClient` behind a
+  `HeartbeatResponder` connection decorator, and a signature inside the JSON body.
 
 Everything generic lives in `include/exchange/common/` (the `exchange_common`
-library). **You will not modify it.** A new exchange is built entirely on top of
-it, the same way Binance and Kraken are.
+and `exchange_http` libraries). **You will not modify it.** A new exchange is
+built entirely on top of it, the same way the four adapters are.
 
 Where this guide says "follow this pattern", it names a real file and — when the
 change is non-obvious — a commit on the `feature/multi-exchange-abstraction`
@@ -44,14 +50,16 @@ never skip, weaken, or delete a test to move on.
 
 ### The build model (Step 9)
 
-Three peer static libraries:
+Two always-built common libraries and one peer library per adapter:
 
-- `exchange_common` — the generic engine, always built. **Never edited by an
-  adapter.**
-- `kraken`, `binance` — peers, each linking `exchange_common PUBLIC`;
-  neither links the other.
+- `exchange_common` — the generic engine, curl-free, always built. **Never
+  edited by an adapter.**
+- `exchange_http` — the shared libcurl transport (`CurlHttpClient`), always
+  built; every REST adapter links it.
+- `kraken`, `binance`, `coinbase`, `cryptocom` — peers, each linking
+  `exchange_common`, `exchange_http` and OpenSSL `PUBLIC`; none links another.
 
-Your new exchange becomes a **fourth peer** library, `<name>`, behind a
+Your new exchange becomes another peer library, `<name>`, behind a
 `CRYPTOCOGS_BUILD_<NAME>` flag (default `ON`). When the flag is `OFF`, none of its
 targets exist. See [checklist item 8](#3--implementation-checklist) and
 reference commits `9e73dc1`, `28179fd`.
@@ -127,16 +135,16 @@ one). **Either is fine** — pick whichever matches your exchange's envelope; ju
 return a `RestResponse`-shaped type the client can hand back. Always check
 `resp.ok` before `resp.result`.
 
-### Auth (usually header-only)
+### Auth
 
-`BinanceAuth : exchange::rest::IRestAuth` (`auth.hpp:91`) implements the
-`IRestAuth` interface (`rest.hpp:43`). The crypto helpers (`hmac_sha256`,
-`to_hex`, …) are **inline in the header** under a `detail::` namespace — there
-is **no `src/binance/auth.cpp`**. Only add a `src/<name>/auth.cpp` if your
-signing genuinely needs out-of-line code (rare). Credentials are a plain struct:
+`BinanceAuth : exchange::rest::IRestAuth` (`auth.hpp`) implements the
+`IRestAuth` interface (`rest.hpp`). Headers are declarative (plan 016):
+`auth.hpp` declares the crypto helpers (`hmac_sha256`, `to_hex`, …) under a
+`detail::` namespace, and `src/<name>/auth.cpp` defines them
+(`src/binance/auth.cpp`). Credentials are a plain struct:
 
 ```cpp
-struct BinanceCredentials { std::string api_key, secret_key; int recv_window_ms{5000}; };  // auth.hpp:66
+struct BinanceCredentials { std::string api_key, secret_key; int recv_window_ms{5000}; };  // auth.hpp
 ```
 
 Reference: `4350ce6` (step 4) introduced both the auth header and the REST
@@ -212,22 +220,33 @@ Two worked examples, two shapes:
   `subscribe_async` calls. Reference: `TypedStreamSubscribeRequest` in
   `ws_streams.hpp` (`b833587`).
 
-### WebSocket: the client is a bare alias + inline factory
+### WebSocket: the client is a bare alias + a one-line factory
 
-There is **no `src/binance/ws_client.cpp`**. The WS client is:
+There is **no `src/binance/ws_client.cpp`**: the WS client is an alias, and the
+factory declared beside it binds your descriptor once. The alias and the
+factory's declaration are in the header (`ws_api.hpp`); since plan 016 the
+factory's body is in `src/binance/ws_api.cpp`, with the request and event
+bodies:
 
 ```cpp
-using BinanceWsApiClient = exchange::ws::ExchangeWsClient;                 // ws_api.hpp
-inline std::shared_ptr<BinanceWsApiClient>
-make_binance_ws_api_client(std::shared_ptr<IWsConnection> conn,
-                           std::shared_ptr<IWsErrorHandler> eh = nullptr) {
-    return exchange::ws::make_exchange_ws_client(std::move(conn),
-                                                 binance_ws_api_frame_descriptor, std::move(eh));
+// ws_api.hpp
+using BinanceWsApiClient = exchange::ws::ExchangeWsClient;
+std::shared_ptr<BinanceWsApiClient>
+make_binance_ws_api_client(std::shared_ptr<IWsConnection>  conn,
+                           std::shared_ptr<IWsErrorHandler> error_handler = nullptr);
+
+// src/binance/ws_api.cpp
+std::shared_ptr<BinanceWsApiClient>
+make_binance_ws_api_client(std::shared_ptr<IWsConnection>  conn,
+                           std::shared_ptr<IWsErrorHandler> error_handler) {
+    return exchange::ws::make_exchange_ws_client(
+        std::move(conn), binance_ws_api_frame_descriptor, std::move(error_handler));
 }
 ```
 
-Budget for **zero** non-template WS source in your adapter — same as Binance and
-Kraken. The factory binds your descriptor once; everything else is inherited.
+Your adapter has no WS client class of its own, as Binance and Kraken have none.
+The factory binds your descriptor once; everything else is inherited from
+`ExchangeWsClient`.
 
 ---
 
@@ -238,14 +257,14 @@ pattern from (and a commit for the non-obvious ones). `<name>` is your slug.
 
 | # | Implement | Create | Reference (file · commit) |
 |---|---|---|---|
-| 1 | **Auth** (header-only by default) | `include/exchange/<name>/auth.hpp` *(+ `src/<name>/auth.cpp` only if signing needs out-of-line code)* | `exchange/binance/auth.hpp` · `4350ce6` |
+| 1 | **Auth** | `include/exchange/<name>/auth.hpp`, `src/<name>/auth.cpp` | `exchange/binance/auth.hpp`, `src/binance/auth.cpp` · `4350ce6` |
 | 2 | **Exchange types + enum converters** | `include/exchange/<name>/types.hpp` | `exchange/binance/types.hpp` · `145bf70` |
 | 3 | **REST request/response structs** (`+ parse_<name>_response`) | `include/exchange/<name>/rest_api.hpp` | `exchange/binance/rest_api.hpp` · `352efd0`, `c8e42c4` |
 | 4 | **REST client** | `include/exchange/<name>/rest_client.hpp`, `src/<name>/rest_client.cpp` | `exchange/binance/rest_client.hpp`, `src/binance/rest_client.cpp` · `4350ce6` |
 | 5 | **REST fixtures + tests** | `tests/unit/<name>_rest_example_json.hpp`, `test_<name>_auth.cpp`, `test_<name>_rest_requests.cpp`, `test_<name>_rest_responses.cpp`, `test_<name>_client.cpp` | `binance_rest_example_json.hpp`, `binance_account_example_json.hpp`, `test_binance_auth.cpp`, `test_binance_rest_*.cpp`, `test_binance_client.cpp` · `352efd0`, `8b63fa9` |
-| 6 | **WS structs + `<name>_frame_descriptor`** *(+ separate `ws_streams.hpp` if the exchange splits stream vs. trading protocols)* | `include/exchange/<name>/ws_api.hpp` *(`ws_streams.hpp`)* | `exchange/binance/ws_api.hpp`, `exchange/binance/ws_streams.hpp` · `7d461fc`, `398d2a8` |
-| 7 | **WS client alias + factory** (header-only) | in `ws_api.hpp` / `ws_streams.hpp` — bare `using` alias + `inline make_<name>_*_client` | inline factories in `exchange/binance/ws_api.hpp` + `ws_streams.hpp`; separate-header style: `exchange/kraken/ws_client.hpp` |
-| — | **WS source** — *almost never needed*; only if you have genuinely non-template WS code | `src/<name>/ws_client.cpp` | *(Binance has none — header-only)* |
+| 6 | **WS structs + `<name>_frame_descriptor`** *(+ separate `ws_streams.hpp` if the exchange splits stream vs. trading protocols)* | `include/exchange/<name>/ws_api.hpp`, `src/<name>/ws_api.cpp` *(`ws_streams.hpp`, `ws_streams.cpp`)* | `exchange/binance/ws_api.hpp`, `exchange/binance/ws_streams.hpp` (bodies in `src/binance/`) · `7d461fc`, `398d2a8` |
+| 7 | **WS client alias + factory** | in `ws_api.hpp` / `ws_streams.hpp` — bare `using` alias + the `make_<name>_*_client` declaration; the body is in `src/<name>/ws_api.cpp` / `ws_streams.cpp` | factories in `exchange/binance/ws_api.hpp` + `ws_streams.hpp`; separate-header style: `exchange/kraken/ws_client.hpp` + `src/kraken/ws_client.cpp` |
+| — | **WS source** — *almost never needed*; only if you have genuinely non-template WS code beyond the bodies above | `src/<name>/ws_client.cpp` | *(Binance has none: its WS bodies are in `ws_api.cpp` and `ws_streams.cpp`)* |
 | 8 | **CMake wiring** | `CRYPTOCOGS_BUILD_<NAME>` option + guard in `CMakeLists.txt`; `<name>` target in `src/CMakeLists.txt`; test + example targets behind the guard in `tests/CMakeLists.txt` + `tests/unit/CMakeLists.txt` | Binance blocks in each · `9e73dc1`, `28179fd` |
 | 9 | **WS fixtures + tests** | `tests/unit/<name>_ws_example_json.hpp`, `test_<name>_ws_client.cpp` | `binance_ws_stream_example_json.hpp`, `binance_ws_api_example_json.hpp`, `test_binance_ws_client.cpp` · `b833587`, `d9592c7` |
 | 10 | **REST CLI example** | `tests/examples/<name>/<name>_rest_client_example.cpp` | `tests/examples/binance/binance_rest_client_example.cpp` |
@@ -253,11 +272,13 @@ pattern from (and a commit for the non-obvious ones). `<name>` is your slug.
 
 ### CMake specifics (item 8)
 
-- `src/CMakeLists.txt`: `add_library(<name> STATIC <name>/rest_client.cpp)`
-  inside `if(CRYPTOCOGS_BUILD_<NAME>)`; link
-  `PUBLIC exchange_common OpenSSL::SSL OpenSSL::Crypto CURL::libcurl`
-  (OpenSSL/curl are **PUBLIC** — your `auth.hpp`/`rest_client.hpp` expose them
-  inline; see `9e73dc1`). Give the library `target_compile_features(<name> PUBLIC
+- `src/CMakeLists.txt`: `add_library(<name> STATIC <name>/types.cpp
+  <name>/auth.cpp <name>/rest_api.cpp <name>/rest_client.cpp …)` (every `.cpp` of
+  the adapter) inside `if(CRYPTOCOGS_BUILD_<NAME>)`; link
+  `PUBLIC exchange_common exchange_http OpenSSL::SSL OpenSSL::Crypto`
+  (OpenSSL is **PUBLIC** because `auth.hpp` declares HMAC helpers in a public
+  header; libcurl reaches consumers through `exchange_http`; see `9e73dc1`).
+  Give the library `target_compile_features(<name> PUBLIC
   cxx_std_23)` like the others: the install export hands it to a `find_package`
   consumer, and `test_standard_requirement` fails for a library in `src/` that
   would compile its consumers at any other standard.
