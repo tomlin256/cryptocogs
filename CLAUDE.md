@@ -129,6 +129,7 @@ cryptocogs/
     ├── CMakeLists.txt                   # Fetches spdlog/CLI11/backward-cpp; wires examples + unit tests
     ├── clang_tidy_checks/               # The opt-in clang-tidy step: cmake -P checks (module, wiring, config, units) + canaries/ fixtures (plan 035)
     ├── warning_checks/                  # The warning flags: cmake -P checks of the mapping and of where the flags land (plan 036)
+    ├── example_checks/                  # test_kraken_example: runs the built kraken_example, holds its WebSocket frames to a file (plan 039)
     ├── examples/
     │   ├── public_rest.cpp              # Fetch recent trades (no credentials)
     │   ├── private_rest.cpp             # Get WS token from ~/.kraken/default
@@ -136,7 +137,7 @@ cryptocogs/
     │   ├── private_ws.cpp               # Subscribe to balances over authenticated WS
     │   ├── ws_client_example.cpp        # KrakenWsClient all public channels + connection reuse demo
     │   ├── rest_client_example.cpp      # CLI11 demo of every public REST endpoint via KrakenRestClient
-    │   ├── kraken_example.cpp           # REST + WebSocket combined demo
+    │   ├── kraken_example.cpp           # REST + WebSocket combined demo (the one example that is run: test_kraken_example reads its WS frames)
     │   ├── binance/                     # Binance demos (each behind CRYPTOCOGS_BUILD_BINANCE)
     │   │   ├── binance_rest_client_example.cpp   # CLI11 demo of every public Binance REST endpoint
     │   │   ├── binance_ws_client_example.cpp     # All 8 market-data streams + connection-reuse demo
@@ -567,8 +568,8 @@ green, and it has no caches.
 ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure and a 120 s timeout per test
 ```
 
-There are thirty-one test executables (548 tests, plus sixteen `cmake -P` checks that are listed after the table — 564 in
-ctest) — thirteen Kraken/common, six Binance, six Coinbase, six Crypto.com:
+There are thirty-one test executables (548 tests, plus sixteen `cmake -P` checks and the one that runs `kraken_example`, both
+listed after the table — 565 in ctest) — thirteen Kraken/common, six Binance, six Coinbase, six Crypto.com:
 
 | Binary | Source | What it tests |
 |---|---|---|
@@ -625,6 +626,13 @@ The sixteen `cmake -P` checks need no build and finish in seconds (`test_warning
 | `test_warning_flags` | `tests/warning_checks/check_warning_flags.cmake` | the mapping in `cmake/cryptocogs_warnings.cmake` (compiler, top level, option → flags): GNU, Clang and AppleClang give the four flags, and `-Werror` last with the option; any other compiler, a near-miss id, or a subproject gives none; the option and the top-level flag are true and false by the rules of `if()`; 186 cases (plan 036) |
 | `test_warning_option` | `tests/warning_checks/check_warning_option.cmake` | the flags reach the project's own targets and nothing else: it configures the real root offline into scratch trees (no option, `=OFF`, as a subproject of a parent project, and with the benchmarks where the tree has google benchmark) and reads each `compile_commands.json`; it holds the default of `CRYPTOCOGS_WARNINGS_AS_ERRORS` too (plan 036) |
 
+One more `cmake -P` check runs a built program, so it needs the build, and it is registered with the Kraken adapter, beside the
+example in `tests/CMakeLists.txt` (a tree without the adapter has no example and no test):
+
+| Test | Script | What it holds |
+|---|---|---|
+| `test_kraken_example` | `tests/example_checks/check_kraken_example.cmake` | `kraken_example` runs and exits 0; the eleven `[WS SEND]` frames that its stub transport prints are the lines of `tests/example_checks/kraken_example_ws_frames.txt`, same count and order; and no frame has an empty token, a rule that does not read the file, so a regenerated file cannot hide one. The REST lines carry a nonce and are not read. A deliberate change to the demo is accepted by regenerating the file (the command is in the script's header) and reading the diff. It cannot see the `side` and `order_type` copies of the `add_order` frame: a bare request already holds `Buy` and `Limit` (plan 039, [#50](https://github.com/tomlin256/cryptocogs/issues/50), [#52](https://github.com/tomlin256/cryptocogs/issues/52)) |
+
 A tree configured with `CRYPTOCOGS_SANITIZE` adds the tests that prove its options are live (`sanitizer_canary_*` and
 `test_sanitizer_coverage`; see [Sanitizers](#sanitizers)), and one configured with `CRYPTOCOGS_CLANG_TIDY` adds the `clang_tidy_*`
 tests (88 in the default tree; see [clang-tidy (opt-in)](#clang-tidy-opt-in)).
@@ -635,8 +643,8 @@ The flag matrix splits cleanly: each exchange flag drops its own suite. A
 Crypto.com-only tree (`-DCRYPTOCOGS_BUILD_KRAKEN=OFF -DCRYPTOCOGS_BUILD_BINANCE=OFF
 -DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 141 gtests — the 94-test Crypto.com suite plus the
 exchange-agnostic 11 `TickPrice`, 9 `read_toml_credentials`, 5 `MockWsConnection`, 4 `IxWsConnection`, 10 `ASSERT_HAS_VALUE`,
-5 `make_curl_header_list` and 3 `CurlHttpClient::perform` tests, which build in any tree — and the sixteen `cmake -P` checks:
-157 in ctest.
+5 `make_curl_header_list` and 3 `CurlHttpClient::perform` tests, which build in any tree — and the sixteen `cmake -P` checks (not
+`test_kraken_example`, which belongs to the Kraken adapter): 157 in ctest.
 
 ### Test suite breakdown
 
@@ -660,6 +668,7 @@ exchange-agnostic 11 `TickPrice`, 9 `read_toml_credentials`, 5 `MockWsConnection
 | `test_kraken_ws_api_defaults.cpp` | A `const` default-initialised request compiles only if every member has an initialiser, which is the compile-time half; the values (`Limit`, `Buy`, `Ticker`) and the exact frames of `to_json()` are the other half |
 | `test_kraken_auth.cpp`, `test_coinbase_auth.cpp` | base64 encode and decode against RFC 4648 and high-bit vectors (`0xFF`, `0x80`, mixes), and golden `API-Sign` / `CB-ACCESS-SIGN` values computed with openssl: they pin the signing path whose shifts plan 037 made unsigned |
 | `test_ws_reconnect_session.cpp` (`*ContainsAThrowFromDisconnect*`) | A `DisconnectFn` that throws is contained in `stop()`, in the destructor and in the worker thread, and the worker goes on to reconnect: the three tests behind the two `NOLINT`ed catches in `reconnect_session.inl` |
+| `check_kraken_example.cmake` (`test_kraken_example`) | The only example that is run. Its stub transport prints each WebSocket frame it builds and nothing else looked at them: the `add_order` frame carried one field of the order it was built from (an empty symbol, a zero quantity) and no private frame carried the token, until the check ([#50](https://github.com/tomlin256/cryptocogs/issues/50), [#52](https://github.com/tomlin256/cryptocogs/issues/52)). It was shown to bite by 17 hand-made changes to the demo: deleting any copy or any token is red and names its frame, except `side` and `order_type`, which are green (plan 039) |
 
 ---
 

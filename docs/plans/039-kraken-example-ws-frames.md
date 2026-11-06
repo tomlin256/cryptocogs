@@ -1,7 +1,8 @@
 # Plan 039 — `kraken_example`'s WebSocket frames carry the order and the token
 
-**Status:** Approved as written (2026-11-06), so D1 stands at the default below. Rob asked for it to be done quickly, since it is only an
-example: the *Outcome* says what was kept and what was cut.
+**Status:** Steps 0 to 2 done (2026-11-06); Step 3's sanitizer run is in flight. Approved as written, so D1 stood at the default below.
+You asked for it to be done quickly, since it is only an example: the *Outcome* says what was kept and what was cut. #50 and #52 are
+closed.
 
 Closes [#50](https://github.com/tomlin256/cryptocogs/issues/50) and [#52](https://github.com/tomlin256/cryptocogs/issues/52) (#52 was
 raised while planning #50, and you asked for it to be included).
@@ -216,4 +217,57 @@ assigned into, but only the dispatch shows. *Done when:* the Mac trees are green
 
 ## Outcome
 
-*To be written when the steps are done.*
+*As built, 2026-11-06.* Every step and every piece of evidence of the plan stood, with the two cuts under *Differences*.
+
+| Step | Commit | `debug-macos-arm64`, clang-tidy gate on | CI |
+|---|---|---|---|
+| 0 Approval | `f1d17a7`; comments on [#50](https://github.com/tomlin256/cryptocogs/issues/50#issuecomment-6689282235) and [#52](https://github.com/tomlin256/cryptocogs/issues/52#issuecomment-6689282658) | none (documentation) | none: documentation only |
+| 1 The check and the fixes | `047d02c` | baseline **652 of 652**; red first; then **653 of 653** (565 + 88 gate), no warning | [run 42249330660](https://github.com/tomlin256/cryptocogs/actions/runs/42249330660) green: `release-linux-x86_64`, GCC 15.2, `-Werror`; 565 of 565, `test_kraken_example` among them |
+| 2 Docs | the commit that adds this row | not rebuilt (documentation only); the gate turned off again: **565 of 565** | none: documentation only |
+| 3 After the push | none | not run (*Differences*, 1) | the `Sanitizers` run, below |
+
+**Red first (Step 1).** On the demo as it was (a copy of its binary) the check named frames 0, 1, 2, 3, 4, 8 and 9 as differing from the
+file and frames 0 to 4 as having an empty token, as predicted. The four frames that the fixes leave alone (the three public subscribes
+and the ping) matched the file, which was written by hand from the plan before the demo was touched. With the fixes: green, 11 frames.
+
+**Hand-made changes (Step 1).** One script; the example's object deleted first and 1 object compiled each time; the control first
+(green); the source identical to the saved copy of the fixed demo at the end (`cmp`), and rebuilt green:
+
+| | Change | Result |
+|---|---|---|
+| a-e | delete `add_order`'s `symbol`, `order_qty`, `limit_price`, `order_userref`, `token` | red, frame 0 |
+| f, g | delete `side`, `order_type` | **green** (D1, as planned) |
+| h | `op.side = Side::Sell`, every copy in place | red, and frame 0 reads `"side":"sell"` |
+| i-n | delete the token of `amend_order`, `cancel_order`, `cancel_after`, `batch_add`, `executions`, `balances` | red, frames 1, 2, 3, 4, 8, 9 |
+| o | delete the `add_order` `ws_send` | red: frames 0 to 10 named (each is out of place, the last is missing) |
+| p | send it twice | red: frames 1 to 11 named (the last is extra) |
+| q | delete the `amend_order` token, regenerate the file from that demo | red, with `frame 1 has an empty token` and no frame diff: the rule bites alone |
+
+**Differences from the plan as written.**
+
+1. **The two Mac sanitizer trees were not run.** Step 3 named the full suites of `asan-macos-arm64` and `tsan-macos-arm64`, then the Linux
+   dispatches. For an example, as you asked, only the dispatch was done: `sanitizers.yml` with `which=both`, one run (GCC 15.2 on Linux),
+   which is where Step 3's risk lives (GCC 15's `-Wmaybe-uninitialized` on a request local) and the only place with LeakSanitizer. What
+   is missing is the check running under Apple's sanitizer runtimes.
+2. **The Crypto.com-only count was shown, not measured by a full build.** `test_kraken_example` is registered only inside
+   `if(CRYPTOCOGS_BUILD_KRAKEN)`, so that tree's 157 cannot change. A configure-only scratch tree with the other three exchanges off
+   lists no `test_kraken_example`, and the default tree lists it.
+3. **q's counts in my script's results file are off by one.** The script counted lines containing "expected" and "has an empty token", and
+   the message's own header ("11 printed, 11 expected), or one has an empty token") contains both. I read the output: one empty-token
+   block, no frame diff.
+4. **The hand-made changes were compared with a saved copy of the fixed demo, not with `HEAD`**, since the fixes were not committed
+   while they ran.
+
+**Found along the way, and not fixed here.** [#53](https://github.com/tomlin256/cryptocogs/issues/53) (documentation, low): the demo's
+header comment names `kraken_types.hpp`, which went in v0.1.1; the other mentions are in the historical plans.
+
+**Counts, measured (Step 2).**
+
+| | Before | After |
+|---|---|---|
+| `debug-macos-arm64`, ctest, gate off | 564 | **565** (548 gtests, 16 `cmake -P` checks, `test_kraken_example`) |
+| clang-tidy gate, default tree | 88 | **88** (no new unit: the example's own was already one, and it passed with the new lines) |
+| both, gate on | 652 | **653** |
+| Crypto.com-only tree, ctest | 157 | 157 (Differences, 2) |
+
+**Step 3, after the push.** The `Sanitizers` workflow was dispatched for both modes at `047d02c` ([run 42249623424](https://github.com/tomlin256/cryptocogs/actions/runs/42249623424)); its result is recorded in the next commit.
