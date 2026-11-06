@@ -24,6 +24,7 @@
 
 #include <curl/curl.h>
 
+#include <chrono>
 #include <memory>
 #include <string>
 
@@ -37,14 +38,31 @@ struct HttpResponse {
     std::string body;
 };
 
+// The two limits on one request (#56). libcurl's own defaults are no limit on a transfer and 300 s on a connection, so a server that
+// stops answering would block the calling thread forever, and in a trading loop that thread is the one that cancels orders. Both limits
+// are set on every call, and both must be positive: 0 would reach libcurl as "no limit" (total) or "300 s" (connect), the hang these
+// exist to prevent. The total includes the connect, so a total below the connect limit leaves the connect limit unreachable.
+struct HttpTimeouts {
+    std::chrono::milliseconds connect{10'000};  // name resolution, TCP connect and TLS: until the request can be sent
+    std::chrono::milliseconds total{30'000};    // the whole call, the connect included
+};
+
 class CurlHttpClient {
 public:
-    explicit CurlHttpClient(std::string base_url);
+    // `timeouts` bound every call to perform. Throws std::invalid_argument if either limit is not positive.
+    explicit CurlHttpClient(std::string base_url, HttpTimeouts timeouts = {});
 
     // Executes one request against base_url + path (+ ?query), returning the
     // status and body. Throws std::runtime_error on a libcurl failure: a
-    // transport error, or libcurl unable to allocate the request's header list
-    // (nothing is sent then, rather than a request with headers missing).
+    // transport error, a timeout (HttpTimeouts), or libcurl unable to allocate
+    // the request's header list (nothing is sent then, rather than a request
+    // with headers missing).
+    //
+    // A timeout says in its text whether the request was sent (#56). "was not
+    // sent" means libcurl never began to send it, so sending it again is safe.
+    // Otherwise it may have been received and acted on and its outcome is
+    // unknown: an order has to be looked for at the exchange before it is sent
+    // again.
     //
     // Each call stands alone: nothing set for an earlier request (its headers,
     // body or method) reaches the next, one that threw included, while
@@ -59,8 +77,18 @@ private:
 
     using Handle = std::unique_ptr<CURL, void (*)(CURL*)>;
 
-    std::string base_url_;
-    Handle      curl_;
+    std::string  base_url_;
+    HttpTimeouts timeouts_;
+    Handle       curl_;
 };
+
+namespace detail {
+
+// The text of the error for a call that libcurl stopped at one of its limits: which limits were set, and either that the request was
+// not sent or that it may have been and its outcome is unknown. Apart from perform so that both texts can be tested without a timer
+// (a plain-HTTP timeout at a few milliseconds is a race between the connect and the clock). Not part of the supported surface.
+std::string timeout_message(bool request_may_have_been_sent, const HttpTimeouts& limits);
+
+} // namespace detail
 
 } // namespace exchange::rest

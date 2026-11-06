@@ -18,26 +18,42 @@
 // (#51). The tests that send several requests through one client check that each reaches the server with what it asked for and with
 // nothing of the one before it, a call that threw included. The server's reply says "Connection: close", so libcurl never tries a
 // connection that the server is closing: there is no timing in them.
+//
+// Timeouts (plan 042, #56). A SilentListener, a TCP listener that never accepts, stands for a server that has stopped answering. The two
+// live tests give one limit a value that cannot end the call within the test's life (an hour) and the other 1 ms, so only the option
+// under test can end it: an option that is missing, misplaced or set on the first call only leaves the call blocked until the preset's
+// 120 s timeout. At 1 ms the outcome is certain, because libcurl's own timer ends the call (1,200 of 1,200 runs on macOS and on Linux),
+// but the phase is not: whether a plain-HTTP request had begun varied from 99 of 300 runs on macOS to 300 of 300 on Linux. So no live
+// test asserts it. The text for each phase is tested as a pure function, and the live phase test is the TLS handshake that is never
+// answered, where nothing is ever sent.
 
 #include "exchange/common/http_client.hpp"
+
+#include "silent_listener.hpp"
 
 #include <gtest/gtest.h>
 #include <ixwebsocket/IXHttpServer.h>
 
 #include <unistd.h>
 
+#include <chrono>
 #include <cstddef>
+#include <initializer_list>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 using exchange::rest::CurlHttpClient;
 using exchange::rest::HttpRequest;
 using exchange::rest::HttpResponse;
+using exchange::rest::HttpTimeouts;
+
+using namespace std::chrono_literals;
 
 namespace {
 
@@ -201,6 +217,25 @@ void expect_only_its_own(const SeenRequest& seen, const HttpRequest& asked, cons
     } else {
         EXPECT_EQ(header_of(seen, "Content-Length"), std::to_string(asked.body.size()));
     }
+}
+
+// The text of the exception that `call` throws, which must be an E: "<nothing thrown>" if it throws nothing, and "<another exception>"
+// and a failure if it throws something else.
+template <typename E, typename Call>
+std::string thrown_message(const Call& call) {
+    try {
+        call();
+    } catch (const E& e) {
+        return e.what();
+    } catch (...) {
+        ADD_FAILURE() << "an exception of another type than the one expected";
+        return "<another exception>";
+    }
+    return "<nothing thrown>";
+}
+
+bool has(const std::string& text, const std::string_view needle) {
+    return text.find(needle) != std::string::npos;
 }
 
 // The library's own rule (CLAUDE.md): libcurl is initialised once, before the first client, and cleaned up after the last.
@@ -374,4 +409,89 @@ TEST_F(CurlHttpClientPerform, ARequestSendsOnlyItsOwnWhateverCameBefore) {
             expect_only_its_own(seen.back(), second.request, kinds);
         }
     }
+}
+
+// #56, the issue's case: a server that accepted the connection and never answers. Only the total limit can end the call (the connect limit
+// is an hour), and three calls on one client, because the options are set on each call: the reset at the top of perform clears them, so
+// set once, in the constructor or on the first call, they would be gone. Each call must throw a runtime_error that names the limits.
+TEST_F(CurlHttpClientPerform, EveryCallToAServerThatNeverRepliesTimesOut) {
+    const SilentListener silent;
+    ASSERT_TRUE(silent.listening());
+    CurlHttpClient client(silent.url("http"), HttpTimeouts{.connect = 1h, .total = 1ms});
+    const HttpRequest request = make_request(HttpRequest::Method::GET, "/quiet", "", {});
+
+    for (int call = 1; call <= 3; ++call) {
+        SCOPED_TRACE(call);
+        const std::string text = thrown_message<std::runtime_error>([&] { client.perform(request); });
+        EXPECT_TRUE(has(text, "Timeout was reached")) << text;
+        EXPECT_TRUE(has(text, "connect limit 3600000 ms")) << text;
+        EXPECT_TRUE(has(text, "total limit 1 ms")) << text;
+    }
+}
+
+// A TLS handshake that is never answered ends in the connect limit (the total is an hour), and nothing is ever sent, on every run and on
+// both systems that were measured. So this is the one live test that can say which text a timeout gets.
+TEST_F(CurlHttpClientPerform, ATlsHandshakeThatNeverCompletesTimesOutBeforeAnythingIsSent) {
+    const SilentListener silent;
+    ASSERT_TRUE(silent.listening());
+    CurlHttpClient client(silent.url("https"), HttpTimeouts{.connect = 1ms, .total = 1h});
+    const HttpRequest request = make_request(HttpRequest::Method::POST, "/order", "symbol=X&secret=1", {{"X-Key", "k"}});
+
+    const std::string text = thrown_message<std::runtime_error>([&] { client.perform(request); });
+    EXPECT_TRUE(has(text, "Timeout was reached")) << text;
+    EXPECT_TRUE(has(text, "connect limit 1 ms")) << text;
+    EXPECT_TRUE(has(text, "total limit 3600000 ms")) << text;
+    EXPECT_TRUE(has(text, "The request was not sent.")) << text;
+    EXPECT_FALSE(has(text, "outcome is unknown")) << text;
+}
+
+// A limit that is not positive would reach libcurl as 0, which it reads as "no limit" (total) or 300 s (connect): the hang this removes.
+// The constructor refuses it before it asks libcurl for anything, and names the limit.
+TEST(CurlHttpClientTimeouts, ANonPositiveConnectTimeoutIsRefused) {
+    for (const std::chrono::milliseconds bad : {0ms, -1ms}) {
+        SCOPED_TRACE(bad.count());
+        const std::string text = thrown_message<std::invalid_argument>(
+            [&] { const CurlHttpClient client("http://127.0.0.1:1", HttpTimeouts{.connect = bad, .total = 1s}); });
+        EXPECT_TRUE(has(text, "connect timeout must be positive")) << text;
+        EXPECT_FALSE(has(text, "total")) << text;
+    }
+}
+
+TEST(CurlHttpClientTimeouts, ANonPositiveTotalTimeoutIsRefused) {
+    for (const std::chrono::milliseconds bad : {0ms, -1ms}) {
+        SCOPED_TRACE(bad.count());
+        const std::string text = thrown_message<std::invalid_argument>(
+            [&] { const CurlHttpClient client("http://127.0.0.1:1", HttpTimeouts{.connect = 1s, .total = bad}); });
+        EXPECT_TRUE(has(text, "total timeout must be positive")) << text;
+        EXPECT_FALSE(has(text, "connect")) << text;
+    }
+}
+
+// The documented defaults: neither limit fires on a healthy exchange, and both bound the worst case.
+TEST(CurlHttpClientTimeouts, TheDefaultsAreTenSecondsToConnectAndThirtyInTotal) {
+    const HttpTimeouts defaults;
+    EXPECT_EQ(defaults.connect.count(), 10'000);
+    EXPECT_EQ(defaults.total.count(), 30'000);
+}
+
+// The two texts, without a timer. A timeout of a plain-HTTP request at a few milliseconds is a race between libcurl's connect and its
+// clock, so the text for "the request may have gone out" cannot be got from a live call that always means it; here it is asked for.
+TEST(CurlHttpClientTimeouts, ATimeoutAfterTheRequestMayHaveGoneOutSaysItsOutcomeIsUnknown) {
+    const std::string text = exchange::rest::detail::timeout_message(true, HttpTimeouts{.connect = 2s, .total = 5s});
+    EXPECT_TRUE(has(text, "Timeout was reached")) << text;
+    EXPECT_TRUE(has(text, "connect limit 2000 ms")) << text;
+    EXPECT_TRUE(has(text, "total limit 5000 ms")) << text;
+    EXPECT_TRUE(has(text, "outcome is unknown")) << text;
+    EXPECT_TRUE(has(text, "check the exchange before sending it again")) << text;
+    EXPECT_FALSE(has(text, "was not sent")) << text;
+}
+
+TEST(CurlHttpClientTimeouts, ATimeoutBeforeTheRequestWentOutSaysItWasNotSent) {
+    const std::string text = exchange::rest::detail::timeout_message(false, HttpTimeouts{.connect = 2s, .total = 5s});
+    EXPECT_TRUE(has(text, "Timeout was reached")) << text;
+    EXPECT_TRUE(has(text, "connect limit 2000 ms")) << text;
+    EXPECT_TRUE(has(text, "total limit 5000 ms")) << text;
+    EXPECT_TRUE(has(text, "The request was not sent.")) << text;
+    EXPECT_FALSE(has(text, "outcome is unknown")) << text;
+    EXPECT_FALSE(has(text, "sending it again")) << text;
 }

@@ -11,10 +11,32 @@
 
 #include "exchange/common/curl_header_list.hpp"
 
+#include <chrono>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
 namespace exchange::rest {
+
+namespace {
+
+// A limit that is not positive would reach libcurl as 0, which it reads as "no limit" (total) or "300 s" (connect): the hang that the
+// limits exist to prevent (#56). Refused before the handle is made, with the limit named.
+void require_positive(const std::chrono::milliseconds limit, const std::string_view name) {
+    if (limit.count() > 0)
+        return;
+    std::string message("CurlHttpClient: the ");
+    message.append(name).append(" timeout must be positive, got ").append(std::to_string(limit.count())).append(" ms");
+    throw std::invalid_argument(message);
+}
+
+HttpTimeouts checked(const HttpTimeouts& timeouts) {
+    require_positive(timeouts.connect, "connect");
+    require_positive(timeouts.total, "total");
+    return timeouts;
+}
+
+} // namespace
 
 // ---------------------------------------------------------------------------
 // write_cb — curl write callback; appends received data to a std::string.
@@ -25,13 +47,30 @@ size_t CurlHttpClient::write_cb(char* ptr, size_t size, size_t nmemb, void* user
     return size * nmemb;
 }
 
-CurlHttpClient::CurlHttpClient(std::string base_url)
+CurlHttpClient::CurlHttpClient(std::string base_url, const HttpTimeouts timeouts)
     : base_url_(std::move(base_url))
+    , timeouts_(checked(timeouts))
     , curl_(curl_easy_init(), &curl_easy_cleanup)
 {
     if (!curl_)
         throw std::runtime_error("CurlHttpClient: curl_easy_init() failed");
 }
+
+namespace detail {
+
+std::string timeout_message(const bool request_may_have_been_sent, const HttpTimeouts& limits) {
+    std::string text("curl_easy_perform failed: ");
+    text.append(curl_easy_strerror(CURLE_OPERATION_TIMEDOUT));
+    text.append(" (connect limit ").append(std::to_string(limits.connect.count()));
+    text.append(" ms, total limit ").append(std::to_string(limits.total.count())).append(" ms). ");
+    if (request_may_have_been_sent)
+        text.append("The request may have been received and acted on: its outcome is unknown, so check the exchange before sending it again.");
+    else
+        text.append("The request was not sent.");
+    return text;
+}
+
+} // namespace detail
 
 HttpResponse CurlHttpClient::perform(const HttpRequest& http) {
     CURL* curl = curl_.get();
@@ -42,6 +81,15 @@ HttpResponse CurlHttpClient::perform(const HttpRequest& http) {
     // way out of the previous call, a throw included, leaves anything behind. An option that should hold for every request is set below,
     // on each call.
     curl_easy_reset(curl);
+
+    // The options that hold for every request are set here, on each call: the reset above clears them, so set once (in the constructor, or
+    // on the first call) they would be gone (#56). The two limits bound the call, a server that stops answering included. NOSIGNAL is
+    // libcurl's advice for a program with threads that uses timeouts: a build with the synchronous resolver enforces a name-lookup timeout
+    // with SIGALRM, which a threaded program cannot take. With the threaded resolver, and with the numeric addresses that the tests use,
+    // it changes nothing that a test can see.
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, static_cast<long>(timeouts_.connect.count()));
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(timeouts_.total.count()));
 
     // Build full URL.
     std::string url = base_url_ + http.path;
@@ -75,7 +123,16 @@ HttpResponse CurlHttpClient::perform(const HttpRequest& http) {
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &CurlHttpClient::write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, static_cast<void*>(&response));
 
-    CURLcode rc = curl_easy_perform(curl);
+    const CURLcode rc = curl_easy_perform(curl);
+    if (rc == CURLE_OPERATION_TIMEDOUT) {
+        // How far did the call get? The pre-transfer time is 0 until libcurl is about to send the request, so 0 proves that nothing was sent,
+        // and anything above 0 means that it may have been. If libcurl cannot say, assume that it went out: the other claim is the dangerous
+        // one, because it would let a caller send an order again.
+        curl_off_t began_us = 0;
+        const bool may_have_been_sent =
+            curl_easy_getinfo(curl, CURLINFO_PRETRANSFER_TIME_T, &began_us) != CURLE_OK || began_us > 0;
+        throw std::runtime_error(detail::timeout_message(may_have_been_sent, timeouts_));
+    }
     if (rc != CURLE_OK)
         throw std::runtime_error(
             std::string("curl_easy_perform failed: ") + curl_easy_strerror(rc));
