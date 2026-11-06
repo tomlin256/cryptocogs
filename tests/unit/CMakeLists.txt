@@ -42,6 +42,13 @@ add_executable(test_curl_header_list test_curl_header_list.cpp)
 target_link_libraries(test_curl_header_list exchange_http GTest::gtest_main)
 gtest_discover_tests(test_curl_header_list)
 
+# CurlHttpClient::perform against a loopback ix::HttpServer (plan 038): what a request carries over a real libcurl transfer. Real
+# sockets on 127.0.0.1, no network, no sleeps. Like test_ix_ws_connection it links ixwebsocket for the server; exchange-agnostic, so
+# it builds in any flag configuration.
+add_executable(test_http_client test_http_client.cpp)
+target_link_libraries(test_http_client exchange_http ixwebsocket GTest::gtest_main)
+gtest_discover_tests(test_http_client)
+
 #-------------------------------------------------------------------------------
 # Kraken unit tests
 #-------------------------------------------------------------------------------
