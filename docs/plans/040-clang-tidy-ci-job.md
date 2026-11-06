@@ -1,6 +1,7 @@
 # Plan 040 — A clang-tidy job in CI
 
-**Status:** Approved as written (2026-11-06), so D1 to D5 stand at the defaults below. Step 0 is the commit that adds this file.
+**Status:** Done (2026-11-06). Approved as written, so D1 to D5 stood at the defaults below. The *Outcome* says what was measured and
+what differed from the plan. #49 is closed.
 
 Closes [#49](https://github.com/tomlin256/cryptocogs/issues/49) — "CI: add a clang-tidy job now that the gate is green (plan 035 left it out until then)".
 
@@ -297,3 +298,151 @@ the counts.
 - **Behaviour change:** a new workflow, a stricter `test_ci_paths`, one new test. No library file, no public header.
 - **I assume** you want the benchmarks held too (95, not 88), the Debug tree, and no cache, as above. Each is a one-line change in the
   file if you say otherwise.
+
+## Outcome
+
+*As built, 2026-11-06.* Every step was done, with the differences listed below. Eight files changed (the new workflow and its check, the
+check of the ignore lists and `tests/CMakeLists.txt`, a comment in the main workflow, the README, `CLAUDE.md` and this plan); no
+library, header, C++ test or `.clang-tidy` file, and the 22 `NOLINT`s outside the documents are the 22 there were. Two estimates were
+off: the job takes 3 min 12 s to 4 min 26 s when `apt` is quick, not 2.5 to 3.5 minutes, and 6 to 7 minutes when it is not; and Step 4
+grew from one commit to five. Both are under *Differences*.
+
+| Step | Commit | `debug-macos-arm64`, gate off | CI |
+|---|---|---|---|
+| 0 Approval | `9748954`; [comment on #49](https://github.com/tomlin256/cryptocogs/issues/49#issuecomment-6690180771) | none (documentation) | none: documentation only |
+| 1 The workflow (dispatch only) and `test_ci_clang_tidy` | `645be9b` | baseline **565 of 565**; red first; then **566 of 566**, no warning | main [run 42256584695](https://github.com/tomlin256/cryptocogs/actions/runs/42256584695) green: `release-linux-x86_64`, GCC 15.2, `-Werror`, **566 of 566**, no warning, 70 s |
+| 2 Two dispatches | none | none | lint [run 42256662878](https://github.com/tomlin256/cryptocogs/actions/runs/42256662878) and [run 42257284836](https://github.com/tomlin256/cryptocogs/actions/runs/42257284836): both green, **95 of 95** |
+| 3 The triggers, and `test_ci_paths` for every workflow | `b6285f6` | **566 of 566**, no warning | main [run 42258438871](https://github.com/tomlin256/cryptocogs/actions/runs/42258438871) green (566 of 566, 81 s); lint [run 42258438927](https://github.com/tomlin256/cryptocogs/actions/runs/42258438927), the first by a push: green, **95 of 95** |
+| 4a README sentence | `5905d3b` | `test_cmake_floor` and `test_ci_paths` only (*Differences*, 5) | main [run 42259335891](https://github.com/tomlin256/cryptocogs/actions/runs/42259335891) green (566 of 566, 56 s); lint [run 42259335975](https://github.com/tomlin256/cryptocogs/actions/runs/42259335975) green (95 of 95) |
+| 4b The workflow's header gives the measured cost | `acd96fd` | `test_ci_clang_tidy`, `test_ci_paths` and actionlint only (*Differences*, 5) | main [run 42259783112](https://github.com/tomlin256/cryptocogs/actions/runs/42259783112) green (566 of 566; 4 min 4 s, of which `apt` 3 min 12 s); lint [run 42259783147](https://github.com/tomlin256/cryptocogs/actions/runs/42259783147) green (95 of 95; 6 min 7 s, of which `apt` 3 min 5 s) |
+| 4c `test_ci_paths` says "nothing" when it found no list | `99062ab` | **566 of 566**, no warning | main [run 42260400305](https://github.com/tomlin256/cryptocogs/actions/runs/42260400305) green (566 of 566, 1 min 38 s); lint [run 42260400128](https://github.com/tomlin256/cryptocogs/actions/runs/42260400128) green (95 of 95; 7 min 8 s, of which `apt` 4 min 4 s) |
+| 4d `CLAUDE.md` | `31708cc` | not run (documentation only) | none started (*The ignore lists, on the real thing*) |
+| 4e This Outcome | the commit that adds it | not run (documentation only) | none started, the same way |
+
+**Red first (Step 1).** `test_ci_clang_tidy` with no workflow: red, "`.github/workflows/clang-tidy.yml` does not exist". With the
+workflow: green.
+
+**Hand-made changes (Step 1).** 22, on a scratch copy made from git's file list (so no `build*` is copied), each through the real check:
+17 red, each naming its problem (the major in either file, a literal major in the install line or the apt source, the benchmark flag or
+the gate flag deleted, the `ctest` selection without its caret or absent, `continue-on-error`, `|| true`, a misspelt preset or one with
+no test preset, a literal `--preset`, `LLVM_MAJOR` twice or not a number, the workflow deleted or empty) and 5 green (the control; the
+major written as `${{ env.LLVM_MAJOR }}` and as `${LLVM_MAJOR}`; the rules mentioned in a comment; the major unquoted with a trailing
+comment). The first run of the set had one unexpected green: the change meant to delete the benchmark flag deleted only the copy in the
+header comment, which comes first; it now deletes every copy, and is red. The set was run twice more, with no unexpected verdict.
+
+**What the runs showed.** Runner image `ubuntu26/20261101.186` in all six lint runs, 4 cores; GCC 15.2.0 (Ubuntu
+15.2.0-16ubuntu1), CMake 4.4.5, clang-tidy `Ubuntu LLVM version 23.1.6`. `Total Tests: 95` and 95 passed in every run, so the Mac's number
+is Linux's too. The risk the plan named, that clang-tidy 23 would not parse this project's headers over GCC 15.2's libstdc++ (curl,
+OpenSSL, ixwebsocket, gtest, nlohmann/json, toml++), did not happen: no finding, no parse error, no file changed to satisfy it and no
+`NOLINT` added, and no unit was killed for memory. The benchmark option configures in CI for the first time without trouble: google
+benchmark v1.9.5 is cloned and configured, and the lines that read "Failed" in its output are its probes (for LLVM FileCheck and for
+flags only Clang has), not errors. The configure prints CMake's two deprecation notices for dependencies (backward-cpp's and CLI11's
+`cmake_minimum_required`), as the main workflow's does; no lint log has a line that matches `warning:` or `error:`.
+
+**Cost, measured.** Jobs on the 4-core runner, by the timestamps of the steps:
+
+| Run | Trigger, commit | Job | Install | Configure | `clang_tidy_` tests |
+|---|---|---|---|---|---|
+| 42256662878 | dispatch, `645be9b` | 3 min 12 s | 15 s | 32 s | 2 min 22 s |
+| 42257284836 | dispatch, `645be9b` | 4 min 26 s | 15 s | 35 s | 3 min 30 s |
+| 42258438927 | push, `b6285f6` | 4 min 19 s | 14 s | 36 s | 3 min 23 s |
+| 42259335975 | push, `5905d3b` | 4 min 16 s | 13 s | 33 s | 3 min 25 s |
+| 42259783147 | push, `acd96fd` | 6 min 7 s | **3 min 5 s** | 35 s | 2 min 20 s |
+| 42260400128 | push, `99062ab` | 7 min 8 s | **4 min 4 s** | 34 s | 2 min 22 s |
+
+When the install is quick the tests are the cost: 95 translation units on four cores, 2 min 20 s to 3 min 30 s. The install is the
+other cost, and it is not the workflow's: 13 s to 15 s in four runs, and 3 min 5 s and 4 min 4 s in the last two, where 5 MB to 6 MB of
+Ubuntu packages came from `azure.archive.ubuntu.com` at 35.8 kB/s and 22.3 kB/s (`Fetched 5660 kB in 2min 38s`, `Fetched 5032 kB in
+3min 46s`) while the 72 MB of clang-tidy from `apt.llvm.org` took 1 s in the same step. The main workflow's install step was slow for
+the first of those two commits (3 min 12 s) and quick for the second (22 s), the pairs having started within a second of each other, so
+it is the runner and the moment, not the workflow. It is the variation that [#41](https://github.com/tomlin256/cryptocogs/issues/41)
+records for the main workflow (10 s to 156 s); [a comment there](https://github.com/tomlin256/cryptocogs/issues/41#issuecomment-6691154566)
+adds these four.
+
+The plan estimated the job at 2.5 to 3.5 minutes, from flywheel-dag's 1 min 49 s and the extra units: low by up to a minute when the
+install is quick, and by more when it is not. Against the main workflow's 56 s to 1 min 38 s (4 min 4 s once, in its own slow install),
+a code push now waits about two to three minutes longer for its last green, the two workflows running side by side; a documentation
+push, none. `timeout-minutes: 15` stands, about twice the slowest run. D1 stands too: a dependency cache would save about 23 s.
+
+**Hand-made changes (Step 3).** 21 changes to the workflows, on a scratch copy made the same way, each through the real check; the
+previous check (the one at `HEAD` before `b6285f6`) was run alongside on the first 20:
+
+| | Change | `test_ci_paths` | Previous check |
+|---|---|---|---|
+| 0 | the tree as it was: the lint workflow has only `workflow_dispatch` | green: one workflow read, `clang-tidy.yml` and `sanitizers.yml` skipped | green |
+| a | the lint workflow with the real triggers and lists (the end state) | green: two workflows read, `sanitizers.yml` skipped | green |
+| b | its `push` list without `CLAUDE.md` | red: the lists differ | **green** |
+| c | its `pull_request` list deleted | red: names `clang-tidy.yml` and the trigger | **green** |
+| d | `README.md` added to both of its lists | red: the lists differ, and `test_cmake_floor` reads README | **green** |
+| e | a `push` trigger and no `paths-ignore` | red: names `clang-tidy.yml` and `push` | **green** |
+| f | `on: [push, pull_request, workflow_dispatch]` | red: needs the block layout | **green** |
+| g | a third workflow with only `schedule` | green: skipped, and named | green |
+| h | the main workflow's `pull_request` list deleted | red | red |
+| i | no workflow files | red: found no workflow | red |
+| j | a `.yaml` workflow with both triggers and no lists | red | **green** |
+| k | the lint workflow's `on` key quoted (`"on":`) | red: no top-level `on:` key | **green** |
+| l | the lint workflow's triggers indented four spaces | red: no trigger it can read | **green** |
+| m | the lint workflow with a `pull_request` trigger only | red: has no `push` trigger | **green** |
+| n | both of its lists `docs/**` only | red: the lists differ from the main workflow's | **green** |
+| o | `sanitizers.yml` with a `push` trigger | red: names `sanitizers.yml` | **green** |
+| p | `notes/**` added to both of its lists | red: the lists differ, and it matches no file | **green** |
+| q | `cmake/**` added to both of its lists | red: the lists differ, it covers 5 CMake or C++ sources that the build reads, and 13 pairs of a file and a check that reads it | **green** |
+| r | a comment after `on:`, entries unquoted, double-quoted and reordered, a comment inside the list | green | green |
+| s | the lint workflow deleted | green: one workflow left | green |
+| t | only `sanitizers.yml` left (Step 4c) | red: found no workflow with a `push` or a `pull_request` trigger | not run |
+
+So 16 red and 5 green, none unexpected, and the previous check was green on 13 of the 15 reds it was run on: every change to the lint
+workflow alone, which is the hole the change closes. It was red only on h and i, the two that touch the main workflow or delete the
+workflows.
+
+**Counts, measured.**
+
+| | Count |
+|---|---|
+| `debug-macos-arm64`, ctest, gate off | 565 at the baseline, **566** after (548 gtests, 17 `cmake -P` checks, `test_kraken_example`), no warning |
+| the main workflow, `release-linux-x86_64`, ctest | **566** in every run from Step 1 on, no warning (`CLAUDE.md` said 565) |
+| a Crypto.com-only tree, built and tested in a scratch tree (Mac, Debug) | **158** (141 gtests and the 17 checks), no warning; `CLAUDE.md` said 157 |
+| the clang-tidy gate in CI (Linux, Debug, benchmarks on) | **95 of 95**, in every run |
+
+**Differences from the plan as written.**
+
+1. **The job takes 3 min 12 s to 4 min 26 s when `apt` is quick, not 2.5 to 3.5 minutes, and 6 to 7 minutes when it is not**; see *Cost,
+   measured*. The workflow's own header carried the plan's figure and was corrected in Step 4b with the three runs then measured; it
+   says "3 to 4.5 minutes (three runs measured)" and does not mention the slow install, which this section and `CLAUDE.md` do.
+2. **Step 3's hand-made changes are 21, not 9.** The plan's a to i, plus twelve from reading the check for rules the table did not
+   reach: a `.yaml` workflow, a quoted or a missing `on`, other indentation, one trigger only, lists across workflows, an entry that
+   matches nothing, the build's sources ignored, comments and quoting that must stay legal, a workflow deleted, and the control. One of
+   them, t, had never run the path of "no workflow has either trigger", and showed that its message read "which ignore , but:" (Step 4c).
+3. **`check_paths.cmake` reads `*.yaml` as well as `*.yml`**, and tells a missing trigger from a missing list in its message. The plan
+   said `*.yml`.
+4. **Step 4 is five commits, not one.** `README.md` is not documentation-only (`test_cmake_floor` reads it), and the commit that is must
+   start no run, so the README sentence is a commit of its own (4a). 4b was not foreseen (the stale figure in the workflow's header); 4c
+   came from t. `CLAUDE.md` (4d) and this Outcome (4e) are two commits so that the Outcome can cite what the first one did on the real
+   thing.
+5. **4a and 4b were not built and tested in full on the Mac.** Nothing that a build reads changed in either (a sentence in the README, a
+   comment in a workflow); 4a ran `test_cmake_floor` and `test_ci_paths`, 4b ran `test_ci_clang_tidy`, `test_ci_paths` and actionlint,
+   and the main workflow's full build and 566 tests ran on each commit.
+6. **The Crypto.com-only count was measured, not derived**: a scratch tree with the other three exchanges off, built and tested in full.
+7. **The gate stayed off in the Mac tree** throughout. Nothing a unit reads changed in this plan, so CI's 95 of 95 is the new
+   measurement and the Mac's 88 and 95 are as they were.
+
+**The ignore lists, on the real thing.** `31708cc` changed only `CLAUDE.md`, and was the first documentation-only push since the lint
+workflow had its triggers. `gh run list`, for each of the two workflows, about a minute and a half after the push, showed no run for it:
+the newest of both were still those of `99062ab`. (The approval commit `9748954`, which changed only `docs/`, started no run either, but then the
+lint workflow had no `push` trigger.) The commit that adds this Outcome is documentation only too; the same check is in the comment
+that closes #49.
+
+**Found along the way, and not fixed here.**
+
+- [#55](https://github.com/tomlin256/cryptocogs/issues/55) (enhancement, low): actionlint's SC2046 note on the unquoted `$(nproc)` in
+  `cmake-single-platform.yml` and `sanitizers.yml`.
+- [flywheel-dag#69](https://github.com/tomlin256/flywheel-dag/issues/69) (enhancement): what this job does that flywheel-dag's does not,
+  read-only: one LLVM major in the workflow's `env:` and a check that holds it (flywheel-dag writes `23` in five places), `paths-ignore`
+  for documentation-only changes with a check on the lists (it has none), and shallow clones (360 MB against 29 MB for nlohmann_json
+  alone).
+- A comment on [#29](https://github.com/tomlin256/cryptocogs/issues/29#issuecomment-6690827131): a macOS leg of the lint can join when that
+  issue adds the macOS runner, with the two things to settle then (Homebrew's `llvm` moves on its own; `test_ci_clang_tidy` holds one
+  `PRESET`).
+- A comment on [#41](https://github.com/tomlin256/cryptocogs/issues/41#issuecomment-6691154566): the slow `apt` step, four more runs of it
+  and three of them above the range in the issue's title; the new job has the same step and the same exposure.
+- [#54](https://github.com/tomlin256/cryptocogs/issues/54), raised while planning, would take most of the 32 s to 36 s of the configure.
