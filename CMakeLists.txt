@@ -32,7 +32,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
         "The platform this build tree was first configured on (plan 028)")
 endif()
 
-project(CRYPTOCOGS VERSION 1.0.1 LANGUAGES CXX)
+project(CRYPTOCOGS VERSION 2.0.0 LANGUAGES CXX)
 
 # Allow fetched dependencies that ask for less than CMake 3.5: CMake 4 removed compatibility below it and
 # stops on them. backward-cpp v1.6 says 3.0 and ixwebsocket v12.1.0 says 3.4.1...3.17.2 (plan 029). This stays

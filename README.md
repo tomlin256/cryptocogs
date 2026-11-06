@@ -351,7 +351,7 @@ with; `cmake --preset <tree> -UCRYPTOCOGS_WARNINGS_AS_ERRORS` sets it back to th
 include(FetchContent)
 FetchContent_Declare(cryptocogs
     GIT_REPOSITORY https://github.com/tomlin256/cryptocogs.git
-    GIT_TAG        v1.0.0
+    GIT_TAG        v2.0.0
 )
 FetchContent_MakeAvailable(cryptocogs)
 
@@ -359,6 +359,8 @@ target_link_libraries(my_app PRIVATE cryptocogs::kraken)   # and/or cryptocogs::
 ```
 
 v1.0.0 is the first release that is C++23 and needs CMake 4.0; v0.6.0 and the tags before it are C++17 and CMake 3.15.
+v2.0.0 gave the 14 public enums an underlying type of `std::uint8_t`, which changes the layout of the structs that hold
+them: moving from 1.x, rebuild everything that includes the headers.
 
 The library is C++23. Linking a `cryptocogs::` target asks CMake for `cxx_std_23`, so your target is compiled as C++23
 (a higher standard of your own is left alone), and a header included below C++23 stops with `cryptocogs requires C++23`;
@@ -377,12 +379,13 @@ This installs the four static libraries, the public headers, and a CMake package
 config. A downstream project then just:
 
 ```cmake
-find_package(cryptocogs 1 REQUIRED)      # add -DCMAKE_PREFIX_PATH=/your/prefix
+find_package(cryptocogs 2 REQUIRED)      # add -DCMAKE_PREFIX_PATH=/your/prefix
 target_link_libraries(my_app PRIVATE cryptocogs::kraken)   # and/or cryptocogs::binance
 ```
 
-`find_package(cryptocogs 1)` accepts any 1.y.z release and nothing older or newer (`SameMajorVersion`), so a project
-that still asks for 0.6 is refused rather than handed a library that needs C++23.
+`find_package(cryptocogs 2)` accepts any 2.y.z release and nothing older or newer (`SameMajorVersion`), so a project
+that still asks for 1 is refused rather than handed a library whose public enums, and the structs that hold them, are
+laid out differently.
 
 The install is **self-contained**: OpenSSL and libcurl are resolved via
 `find_dependency`, and the header-only `nlohmann_json` is vendored into the
