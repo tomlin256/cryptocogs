@@ -481,6 +481,34 @@ if (resp.ok && resp.result)
     spdlog::info("txid: {}", resp.result->txids[0]);
 ```
 
+### REST — timeouts
+
+Every REST client bounds each call. By default it gives up on a connection that is not made within 10 s, and on a call that has not
+finished within 30 s. To change either limit, pass `exchange::rest::HttpTimeouts` as the second constructor argument. Both limits must
+be positive (`std::invalid_argument` otherwise):
+
+```cpp
+using namespace std::chrono_literals;
+
+exchange::kraken::rest::KrakenRestClient client(
+    "https://api.kraken.com", exchange::rest::HttpTimeouts{.connect = 5s, .total = 15s});
+```
+
+`BinanceRestClient`, `CoinbaseRestClient` and `CryptoComRestClient` take the same argument.
+
+A call that runs out of time comes back with `resp.ok == false` and one line in `resp.errors` that gives both limits and says whether
+the request was sent:
+
+```
+request failed: curl_easy_perform failed: Timeout was reached (connect limit 5000 ms, total limit 15000 ms). The request was not sent.
+request failed: curl_easy_perform failed: Timeout was reached (connect limit 5000 ms, total limit 15000 ms). The request may have been received and acted on: its outcome is unknown, so check the exchange before sending it again.
+```
+
+After the first, nothing reached the server and the call can be repeated. After the second, an order may be live at the exchange: check
+your open orders before you send it again, or you may place it twice. The second text is also the one used when libcurl cannot say how
+far the call got. The shared transport, `exchange::rest::CurlHttpClient`, throws a `std::runtime_error` with the same text; the four
+clients catch it and put it in `resp.errors`.
+
 ### WebSocket — `KrakenWsClient` (recommended)
 
 `KrakenWsClient` is the high-level wrapper. It handles connection lifecycle, auto-assigns request IDs, matches responses to pending handlers, and exposes typed callbacks.

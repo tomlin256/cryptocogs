@@ -1,7 +1,7 @@
 # Plan 042 — `CurlHttpClient::perform` gives up on a server that stops answering
 
-**Status:** In progress. Rob approved the plan as written on 2026-11-06, so D1 to D6 stand at the defaults below (no release). Step 0 is
-done; the others are recorded in the *Outcome* as they finish.
+**Status:** Steps 0 to 3 done (2026-11-06). Rob approved the plan as written, so D1 to D6 stood at the defaults below (no release). Step 4
+(the sanitizers) is recorded in the *Outcome* when it has run.
 
 Closes [#56](https://github.com/tomlin256/cryptocogs/issues/56).
 
@@ -254,4 +254,120 @@ Bump the version in `CMakeLists.txt:35` and the `GIT_TAG` example in `README.md:
 
 ## Outcome
 
-Not yet written.
+Steps 0 to 3 are done (2026-11-06). Step 4 is measured after the push and recorded at the end of this section. D6 stood at no release:
+`v2.1.0`, for [#51](https://github.com/tomlin256/cryptocogs/issues/51) and #56 together, is still Rob's to say.
+
+### Commits
+
+| Step | Commit | What |
+|---|---|---|
+| 0 | `3e6f2e8` | this plan, approved as written |
+| 1 | `f4d74cf` | `HttpTimeouts`; `perform` sets `CURLOPT_NOSIGNAL`, `CURLOPT_CONNECTTIMEOUT_MS` and `CURLOPT_TIMEOUT_MS` on each call, after the reset; the text of a timeout; `SilentListener`; seven tests |
+| 2 | `7359107` | the four REST clients take `HttpTimeouts` and hand it to the transport; four tests |
+| 3 | the commit that adds this section | `README.md`, `CLAUDE.md` and this *Outcome*; #56 closed by hand after the push |
+
+### Red, then green
+
+**Step 1** (`debug-macos-arm64`, Apple clang 21.0.0, libcurl 8.7.1). Each test alone, as ctest runs it, under a 10 s alarm. "Without" is
+the test file over a `perform` that has the declarations and none of the behaviour (change (a) below); it was not committed.
+
+| Test | Without | With |
+|---|---|---|
+| 1 `EveryCallToAServerThatNeverRepliesTimesOut` | blocked until the alarm fired (the issue's evidence) | passes |
+| 2 `ATlsHandshakeThatNeverCompletesTimesOutBeforeAnythingIsSent` | blocked until the alarm fired | passes |
+| 3 and 4 `ANonPositive…TimeoutIsRefused` | fail by assertion: nothing throws | pass |
+| 5 `TheDefaultsAreTenSecondsToConnectAndThirtyInTotal` | passes: the defaults are in the struct | passes |
+| 6 and 7 the two texts of a timeout | fail by assertion: the text is empty | pass |
+
+**Step 2.** "Without" is the four REST clients with a constructor that accepts `HttpTimeouts` and ignores it, so the transport has the
+defaults. Each test alone, under a 90 s alarm, the four at once.
+
+| Test | Without | With |
+|---|---|---|
+| `KrakenRestClient.ProductionClientHandsItsTimeoutsToTheTransport` | fails (exit 1) after 30.011 s | passes (0.02 s in ctest) |
+| `BinanceClient.ProductionClientHandsItsTimeoutsToTheTransport` | fails (exit 1) after 30.016 s | passes (0.02 s) |
+| `CoinbaseClient.ProductionClientHandsItsTimeoutsToTheTransport` | fails (exit 1) after 30.008 s | passes (0.02 s) |
+| `CryptoComClient.ProductionClientHandsItsTimeoutsToTheTransport` | fails (exit 1) after 30.011 s | passes (0.02 s) |
+
+Each fails on the message and for no other reason: the call timed out, and the text reads `connect limit 10000 ms, total limit 30000 ms`
+where the test wants `total limit 1 ms`. This is what the plan expected, 30 s each.
+
+### Hand-made changes
+
+**Step 1**, to `perform` and `timeout_message` in `http_client.cpp`. Each in the tree with its object deleted first (Apple's Make 3.81
+compares whole seconds), the number of objects compiled printed (1 every time), and each test run alone under the 10 s alarm. `hang` is
+the alarm (exit 142), `red` a failed assertion. The seven tests that existed before this plan were green in every row.
+
+| Change | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|
+| (a) the declarations and none of the behaviour | hang | hang | red | red | green | red | red |
+| (b) `CURLOPT_TIMEOUT_MS` removed | hang | green | green | green | green | green | green |
+| (c) `CURLOPT_CONNECTTIMEOUT_MS` removed | green | hang | green | green | green | green | green |
+| (d) the three options set before the reset | hang | hang | green | green | green | green | green |
+| (e) the options set on the first call only | hang | green | green | green | green | green | green |
+| (f) `may_have_been_sent` inverted | green | red | green | green | green | green | green |
+| (g) the branch texts swapped in `timeout_message` | green | red | green | green | green | red | red |
+| (h) `CURLOPT_NOSIGNAL` removed | green | green | green | green | green | green | green |
+| the fix restored (byte-identical to the committed source) | green | green | green | green | green | green | green |
+
+(e) hangs test 1 on its second call: that is what `EveryCall…` is for. (g) turns test 2 red too, because it reads the sentence. (h) is
+the one the plan said no test can see: a numeric address does no lookup and the libcurl here has the threaded resolver. D4's gap stands as
+written: a `may_have_been_sent` that is always `false` is caught by no test, because the only live assertion of the phase is the TLS case,
+which wants `false`; tests 6 and 7 hold the two texts as a function of the flag, not where the flag comes from.
+
+**Step 2**, to the production constructor of one client at a time (it hands the transport `HttpTimeouts{}` and ignores its argument), the
+other three forwarding. After each build the four tests were run at once under a 90 s alarm.
+
+| Client that ignores its timeouts | Kraken | Binance | Coinbase | Crypto.com |
+|---|---|---|---|---|
+| Kraken | red | green | green | green |
+| Binance | green | red | green | green |
+| Coinbase | green | green | red | green |
+| Crypto.com | green | green | green | red |
+| all four forward (restored; the checkpoint below) | green | green | green | green |
+
+Each test sees its own client alone, which is what a test of the wiring should do.
+
+### Counts (measured)
+
+| Tree | Result |
+|---|---|
+| `debug-macos-arm64`, gate on, before Step 1 | 658 of 658 |
+| `debug-macos-arm64`, gate on, after Step 1 | 665 of 665 |
+| `debug-macos-arm64`, gate on, after Step 2 | 669 of 669 (581, and the 88 `clang_tidy_*`); no warning |
+| `debug-macos-arm64`, gate off, after Step 2 | 581 tests (`ctest -N -E '^clang_tidy_'`): 563 gtests, 17 `cmake -P` checks and `test_kraken_example` |
+| Crypto.com-only (the other three exchanges off), gate on, after Step 2 | built with no warning and listed with `ctest -N`, not run: 205 tests, 35 gate tests and 170 others, of which 153 gtests, 14 of them `CurlHttpClient` (9 `CurlHttpClientPerform`, 5 `CurlHttpClientTimeouts`) and 7 `CryptoComClient` |
+| `ubuntu-dev` `debug-linux-arm64` (GCC 13.3, `-Werror`), after Step 1 | 577 of 577; no warning |
+| `ubuntu-dev` `debug-linux-arm64`, after Step 2 | 581 of 581; no warning; the eight gate units of the files that Step 2 touched pass under clang-tidy 23 |
+| CI `release-linux-x86_64` (GCC 15.2), `f4d74cf` | 577 of 577, 20.4 s of tests; the job took 2 min 11 s |
+| CI `clang-tidy`, `f4d74cf` | 95 of 95, 157.0 s of tests; the job took 3 min 37 s |
+| CI `release-linux-x86_64`, `7359107` | 581 of 581, 16.6 s of tests; the job took 4 min 36 s |
+| CI `clang-tidy`, `7359107` | 95 of 95, 148.1 s of tests; the job took 3 min 25 s |
+
+The gate's 95 units did not change, as planned: no `.cpp` was added. `CLAUDE.md` carries the new numbers: 552 → 563 gtests and 570 → 581
+in ctest; the Crypto.com-only line 145 → 153 gtests (the Crypto.com suite 94 → 95) and 162 → 170; 7 `CurlHttpClient::perform` tests → 14
+`CurlHttpClient` tests; and, for the structure tree, the rows of the four clients and `test_http_client`, the `KrakenRestClient`
+constructor, the namespace row, and the two *Coding conventions* bullets (the one from plan 041 now points at the new one).
+
+### Opened outside this plan
+
+- [#57](https://github.com/tomlin256/cryptocogs/issues/57) (enhancement): the other failures after a request went out
+  (`Server returned nothing`, `Failure when receiving data from the peer`) still carry libcurl's words, which say nothing about whether the
+  exchange acted on the request.
+- [#58](https://github.com/tomlin256/cryptocogs/issues/58) (bug): when the server closes a reused connection after the request was sent
+  and before any byte of a reply, libcurl sends the request again on a new connection and `perform` returns the second reply, so a POST can
+  reach the server twice. Plan 041 keeps connections across the reset, which is how a client comes to have one to reuse.
+
+### What differed from the plan
+
+- **The documentation push is not "documentation only" to CI.** Step 3 said no workflow would run. The `paths-ignore` lists of both
+  workflows name `docs/**` and `CLAUDE.md` and not `README.md`, because `test_cmake_floor` reads it; so the push that carries the new
+  README subsection runs both. The plan document alone would not.
+- **`CLAUDE.md` said all I/O in the tests is mocked**, except two executables. The four adapter tests connect the production client to a
+  `SilentListener` on 127.0.0.1, so that sentence, and the header comment of each of the three client test files that said "no libcurl", now
+  name them.
+- **The adapter tests spell `std::chrono::hours(1)` and `std::chrono::milliseconds(1)`** where the Step 1 tests use the literals `1h` and
+  `1ms`. clangd's unused-include hint does not count a user-defined literal as a use of `<chrono>` and flagged the include; naming the
+  type removes it.
+- **Four mutations in Step 2, one per client**, where the plan said "a mutation that forwards in three adapters and not the fourth": the
+  table above is that mutation four times.
