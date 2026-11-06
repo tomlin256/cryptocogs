@@ -42,7 +42,9 @@ public:
     explicit CurlHttpClient(std::string base_url);
 
     // Executes one request against base_url + path (+ ?query), returning the
-    // status and body. Throws std::runtime_error on a libcurl transport failure.
+    // status and body. Throws std::runtime_error on a libcurl failure: a
+    // transport error, or libcurl unable to allocate the request's header list
+    // (nothing is sent then, rather than a request with headers missing).
     HttpResponse perform(const HttpRequest& http);
 
     // Move-only (owns a curl handle); copy is implicitly deleted by the

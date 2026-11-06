@@ -56,6 +56,7 @@ target_compile_features(exchange_common PUBLIC cxx_std_23)
 
 add_library(exchange_http STATIC
     exchange/common/http_client.cpp
+    exchange/common/curl_header_list.cpp
 )
 add_library(cryptocogs::http ALIAS exchange_http)
 target_include_directories(exchange_http PUBLIC

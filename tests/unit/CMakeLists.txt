@@ -35,6 +35,13 @@ add_executable(test_ix_ws_connection test_ix_ws_connection.cpp)
 target_link_libraries(test_ix_ws_connection exchange_common ixwebsocket GTest::gtest_main)
 gtest_discover_tests(test_ix_ws_connection)
 
+# make_curl_header_list (curl_header_list.hpp, compiled into exchange_http): the "Key: value" list that CurlHttpClient::perform hands
+# to libcurl, and what it does when libcurl cannot grow the list (plan 038, #48). Real libcurl lists and a replaceable append
+# function, no network; exchange-agnostic, so it builds in any flag configuration.
+add_executable(test_curl_header_list test_curl_header_list.cpp)
+target_link_libraries(test_curl_header_list exchange_http GTest::gtest_main)
+gtest_discover_tests(test_curl_header_list)
+
 #-------------------------------------------------------------------------------
 # Kraken unit tests
 #-------------------------------------------------------------------------------

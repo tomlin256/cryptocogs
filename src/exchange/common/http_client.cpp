@@ -9,6 +9,8 @@
 
 #include "exchange/common/http_client.hpp"
 
+#include "exchange/common/curl_header_list.hpp"
+
 #include <stdexcept>
 #include <string>
 
@@ -40,21 +42,10 @@ HttpResponse CurlHttpClient::perform(const HttpRequest& http) {
         url += '?' + http.query;
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
 
-    // Build header list from HttpRequest::headers.
-    auto chunk_deleter = [](curl_slist* p) { if (p) curl_slist_free_all(p); };
-    std::unique_ptr<curl_slist, decltype(chunk_deleter)> chunk(nullptr, chunk_deleter);
-    for (const auto& [key, val] : http.headers) {
-        // "Key: value", appended onto one string instead of chained with operator+
-        // (performance-inefficient-string-concatenation). curl_slist_append copies it.
-        std::string line;
-        line.reserve(key.size() + 2 + val.size());
-        line += key;
-        line += ": ";
-        line += val;
-        chunk.reset(curl_slist_append(chunk.release(), line.c_str()));
-    }
-    if (chunk)
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk.get());
+    // Build the header list from HttpRequest::headers. If libcurl cannot allocate it this throws before anything is sent (#48).
+    const auto header_list = detail::make_curl_header_list(http.headers);
+    if (header_list)
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list.get());
 
     // Method-specific options. The handle is reused across calls, so clear any
     // sticky CUSTOMREQUEST a prior DELETE may have left before choosing a method
