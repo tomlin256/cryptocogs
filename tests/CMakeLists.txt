@@ -280,6 +280,20 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 endif()
 
 #-------------------------------------------------------------------------------
+# What the clang-tidy workflow runs (plan 040): a plain cmake -P script
+#-------------------------------------------------------------------------------
+
+# The workflow cannot be run here, so this holds what a run would find out late or not at all: that it names the LLVM major the
+# project holds the gate to, in one place; that it turns the gate and the benchmarks on; that it runs only the clang_tidy_
+# tests; and that nothing lets it pass by failing. Top level only, where the checkout it reads is this project's own.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_test(NAME test_ci_clang_tidy
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/ci_checks/check_clang_tidy_workflow.cmake)
+endif()
+
+#-------------------------------------------------------------------------------
 # Sanitizers (plan 032): plain cmake -P scripts
 #-------------------------------------------------------------------------------
 

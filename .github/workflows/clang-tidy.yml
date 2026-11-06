@@ -1,0 +1,93 @@
+# clang-tidy over this project's own sources, as a CI job: the clang_tidy_ tests of plan 035 (#34). See
+# docs/plans/040-clang-tidy-ci-job.md (#49).
+#
+# Why it exists. Plan 035 added the gate off by default and left CI out, because 72 of its 77 units were red and a job that is
+# red gates nothing. Plan 037 cleared the findings (#46), and since then nothing has stopped a new one from landing unseen
+# except somebody turning the gate on by hand.
+#
+# What it runs. Nothing is built: clang-tidy reads <tree>/compile_commands.json, so the job configures a tree with
+# CRYPTOCOGS_CLANG_TIDY set and runs the tests whose names begin clang_tidy_: one per translation unit, and the six that prove
+# the gate bites (the version, the checks, the units, three canaries). CRYPTOCOGS_BUILD_BENCHMARKS is ON so that the seven
+# benchmark units are held too: 95 tests, where a plain tree has 88. The tree is the Debug one, the kind the gate was proven on
+# (the Mac, the ubuntu-dev container) and the one the editor reads (.clangd).
+#
+# A workflow of its own, like sanitizers.yml, so that a red lint run cannot mask whether the normal gate is green. It has no
+# caches on purpose (plan 040, D1): a hit of the main workflow's would save about 23 s of a job of some 2.5 minutes, and would
+# force the Release tree and leave the benchmarks off. Shallow clones (#54) are the way to a shorter cold configure.
+#
+# The LLVM major is written once, in the env below, and test_ci_clang_tidy holds it to CRYPTOCOGS_CLANG_TIDY_MAJOR in
+# cmake/cryptocogs_clang_tidy.cmake; clang_tidy_version fails the run on any other major. apt.llvm.org is the LLVM project's own
+# apt repository, one per major and Ubuntu codename. Its signing key is checked against the fingerprint LLVM publishes before apt
+# is told to trust it (the same value as in flywheel-dag's job and in docker-ubuntu's Dockerfile). If the repository has no
+# source for a new codename, apt-get update fails and there is no fallback to another major.
+#
+# When it runs. For now on demand only (plan 040, D2: the toolchain's opinion is read before it can put a red mark on main):
+# Actions > clang-tidy > Run workflow, or `gh workflow run clang-tidy.yml --ref main`. The push and pull-request triggers come
+# in a later commit of the plan.
+#
+# The same locally (the Mac's tree is debug-macos-arm64, and its clang-tidy is Homebrew's):
+#   cmake --preset debug-linux-x86_64 -DCRYPTOCOGS_BUILD_BENCHMARKS=ON -DCRYPTOCOGS_CLANG_TIDY=clang-tidy-23
+#   ctest --preset debug-linux-x86_64 -R '^clang_tidy_' -j4
+name: clang-tidy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # The LLVM major of the tool. Written here once: the apt source, the package and the command below say $LLVM_MAJOR.
+  LLVM_MAJOR: "23"
+  # The preset (CMakePresets.json) names the tree, build/debug-linux-x86_64, and sets its build type, Debug. A runner of another
+  # architecture fails at the Configure step, and the build-tree guard in CMakeLists.txt says which preset to use.
+  PRESET: debug-linux-x86_64
+
+jobs:
+  clang-tidy:
+    runs-on: ubuntu-latest
+
+    # Hard ceiling, so that a hung step cannot hold a runner for the default six hours. flywheel-dag's job on the same image
+    # takes under two minutes, and this one has a cold configure and more units, so 15 minutes is several times what to expect.
+    timeout-minutes: 15
+
+    steps:
+    - uses: actions/checkout@v6
+
+    # The key is fetched to the runner's temp directory and checked against the fingerprint before apt is told to trust it.
+    - name: Add apt.llvm.org
+      run: |
+        . /etc/os-release
+        curl -fsSL -o "$RUNNER_TEMP/llvm.asc" https://apt.llvm.org/llvm-snapshot.gpg.key
+        found=$(gpg --show-keys --with-colons "$RUNNER_TEMP/llvm.asc" | awk -F: '/^fpr/ { print $10; exit }')
+        test "$found" = 6084F3CF814B57C1CF12EFD515CF4D18AF4F7421 || { echo "apt.llvm.org's key is $found" >&2; exit 1; }
+        sudo install -D -m 0644 "$RUNNER_TEMP/llvm.asc" /etc/apt/keyrings/apt.llvm.org.asc
+        echo "deb [signed-by=/etc/apt/keyrings/apt.llvm.org.asc] https://apt.llvm.org/$VERSION_CODENAME/ llvm-toolchain-$VERSION_CODENAME-$LLVM_MAJOR main" | sudo tee /etc/apt/sources.list.d/llvm.list
+
+    # One apt-get update for both sources. libcurl4-openssl-dev only suggests the other two on Ubuntu, so all three are named, as
+    # in the main workflow; nothing is compiled, so no ccache.
+    - name: Install dependencies and clang-tidy
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libcurl4-openssl-dev libssl-dev zlib1g-dev
+        sudo apt-get install -y --no-install-recommends "clang-tidy-$LLVM_MAJOR"
+
+    # What the runner is, in the log, because the compile database is GCC's and clang-tidy reads the headers that GCC would.
+    - name: Tool versions
+      run: |
+        cmake --version | head -1
+        c++ --version | head -1
+        "clang-tidy-$LLVM_MAJOR" --version | head -2
+
+    # Nothing is built: clang-tidy reads <tree>/compile_commands.json. The benchmarks are on so that their units are held too.
+    - name: Configure CMake
+      run: cmake --preset ${{env.PRESET}} -DCRYPTOCOGS_BUILD_BENCHMARKS=ON "-DCRYPTOCOGS_CLANG_TIDY=clang-tidy-$LLVM_MAJOR"
+
+    # The test preset carries --output-on-failure, so a red unit prints clang-tidy's findings, and fails a run that selects no
+    # test. The first command only prints how many tests the run is (the Total Tests line); nproc is echoed so that the runner's
+    # core count stays a measurement and not an assumption.
+    - name: clang-tidy
+      run: |
+        echo "runner cores: $(nproc)"
+        ctest --preset ${{env.PRESET}} -N -R '^clang_tidy_' | tail -1
+        ctest --preset ${{env.PRESET}} -R '^clang_tidy_' -j "$(nproc)"
