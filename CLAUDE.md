@@ -119,7 +119,7 @@ Our own targets compile with `-Wall -Wextra -Wpedantic -Werror=deprecated-declar
 
 ## Releasing
 
-A release is a `chore: bump version to X.Y.Z` commit (the `project(CRYPTOCOGS VERSION X.Y.Z …)` line of `CMakeLists.txt`, which `test_package_version` derives its table from, and the `GIT_TAG` example in `README.md`; a major also changes the `find_package(cryptocogs N)` lines there), an annotated tag `vX.Y.Z` whose message starts `vX.Y.Z - <summary>`, and a GitHub Release: `gh release create vX.Y.Z --verify-tag --title … --notes-file …`, Markdown notes with a `compare/vPREV...vX.Y.Z` link. A tag alone is not a release. A layout change to a public type is a major (`find_package(cryptocogs N)` is `SameMajorVersion`).
+A release is a `chore: bump version to X.Y.Z` commit (the `project(CRYPTOCOGS VERSION X.Y.Z …)` line of `CMakeLists.txt`, which `test_package_version` derives its table from, and the `GIT_TAG` example in `README.md`; a major also changes the `find_package(cryptocogs N)` lines there), an annotated tag `vX.Y.Z` whose message starts `vX.Y.Z - <summary>`, and a GitHub Release: `gh release create vX.Y.Z --verify-tag --title … --notes-file …`, Markdown notes with a `compare/vPREV...vX.Y.Z` link. A tag alone is not a release. A layout change to a public type is a major (`find_package(cryptocogs N)` is `SameMajorVersion`). What to check before the notes are written: `docs/dev-recipes.md` "Before the release notes".
 
 ## Keeping this file short
 

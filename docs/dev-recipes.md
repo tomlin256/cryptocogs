@@ -57,3 +57,12 @@ macOS has no LeakSanitizer, so the proof that a test catches a leak is a Linux r
 
 3. The old code is reported with its allocation site and the test is red. Put the fixed file back the same way (`git show HEAD:<path> | docker exec -i ubuntu-dev tee …`) and run the script again: it is clean.
 4. Remove the copy when done: `docker exec ubuntu-dev rm -rf /tmp/leakproof`.
+
+## Before the release notes
+
+`CLAUDE.md` "Releasing" says what a release is; this is what to check before the notes are written.
+
+1. `git log vPREV..HEAD` lists every commit since the last tag, not only the planned fix, and `gh issue view <n>` on each fix since the tag: the previous notes can list one as still open.
+2. Measure `sizeof` of the public classes at `vPREV` (`git archive vPREV include` into a scratch directory) and at `HEAD` with a ten-line program. A layout change is what makes a major release, and a class that grew in a minor release is said in the notes (`CurlHttpClient` went from 40 to 56 bytes in 2.1.0).
+3. Tag the bump commit with `git tag -a vX.Y.Z <bump sha> -F file`. No line of the file starts with `#`, because git strips those. `gh api repos/<owner>/cryptocogs/git/ref/tags/vX.Y.Z` shows the tag points at the bump commit.
+4. A later docs commit marks the plans the release carries as released.
