@@ -1,7 +1,8 @@
 # Plan 038 — `CurlHttpClient` stops when `curl_slist_append` fails
 
 **Status:** Done (2026-11-06). Rob approved the plan as written, so D1 to D5 stood at the defaults below. #48 is closed; the *Outcome* at
-the end has the record, the sanitizer evidence of Step 4 included.
+the end has the record, the sanitizer evidence of Step 4 included. Released in
+[v2.1.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.1.0) (2026-11-06) with plans 041, 042 and 043; the record is in plan 043, Step 4.
 
 Closes [#48](https://github.com/tomlin256/cryptocogs/issues/48).
 

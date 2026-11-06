@@ -1,7 +1,8 @@
 # Plan 043 — `CurlHttpClient::perform` never lets libcurl send a POST or a DELETE twice
 
-**Status:** Done (2026-11-06), apart from the release that D4 left to Rob. Rob approved the plan as written, so D1 to D4 stood at the
-defaults below (no release). Steps 0 to 3 are recorded in the *Outcome*.
+**Status:** Done (2026-11-06), released as [v2.1.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.1.0) (2026-11-06). Rob
+approved the plan as written, so D1 to D4 stood at the defaults below (no release), and then asked for the release. Steps 0 to 4 are
+recorded in the *Outcome*.
 
 Closes [#58](https://github.com/tomlin256/cryptocogs/issues/58).
 
@@ -261,9 +262,9 @@ Bump the version in `CMakeLists.txt` and the `GIT_TAG` example in `README.md`, f
 
 ## Outcome
 
-Steps 0 to 3 are done (2026-11-06); Step 3 is at the end of this section. D4 stood at no release: `v2.1.0`, for
-[#51](https://github.com/tomlin256/cryptocogs/issues/51), [#56](https://github.com/tomlin256/cryptocogs/issues/56) and #58 together, is
-still Rob's to say.
+Steps 0 to 4 are done (2026-11-06); Steps 3 and 4 are at the end of this section. D4 stood at no release; Rob then asked for it
+(*"Do the release"*), and `v2.1.0` was released for [#48](https://github.com/tomlin256/cryptocogs/issues/48),
+[#51](https://github.com/tomlin256/cryptocogs/issues/51), [#56](https://github.com/tomlin256/cryptocogs/issues/56) and #58 together.
 
 ### Commits
 
@@ -272,7 +273,9 @@ still Rob's to say.
 | 0 | `03d2d94` | this plan, approved as written |
 | 1 | `1a34a3e` | `perform` sets `CURLOPT_FRESH_CONNECT` on every request that is not a GET, on each call, after the reset; `KeepAliveServer`; five tests |
 | 2 | `7ae151c` | `README.md`, `CLAUDE.md` and this *Outcome*; #58 closed by hand after the push |
-| 3 | the commit that adds the last section below | the record of the sanitizer runs |
+| 3 | `a46fbf8` | the record of the sanitizer runs |
+| 4 | `cec63b5` | `chore: bump version to 2.1.0`; the annotated tag `v2.1.0` on it and the GitHub release (Latest) |
+| 4 | the commit that adds the last section below | the record of the release, and the status lines of plans 038, 041 and 042 |
 
 ### Red, then green
 
@@ -377,3 +380,31 @@ and every test that uses it passed under TSan on the Mac and in CI. Each of the 
 Under TSan on the Mac every `CurlHttpClientPerform` test takes about 2.1 s, the nine that existed before this plan included; the
 `CurlHttpClientTimeouts` tests take 0.03 s to 0.06 s. That was not looked into. LeakSanitizer, which the Mac cannot run, ran the new
 tests in CI and reported nothing.
+
+### Release (Step 4)
+
+Rob asked for it (*"Do the release"*), so D4's "yes" ran, with the version that plans 042 and 043 named: `v2.1.0`, a minor release, for the
+fixes of plans 038 (#48), 041 (#51), 042 (#56) and this one (#58), none of which was in a tag. The bump commit `cec63b5` changes
+`project(CRYPTOCOGS VERSION …)` in `CMakeLists.txt` and the `GIT_TAG` example in `README.md`, and nothing else.
+
+| Check | Result |
+|---|---|
+| `debug-macos-arm64` and `release-macos-arm64` after the bump | both build with no warning (0 and 21 objects compiled) and pass 586 of 586 |
+| an install of the release tree to a scratch prefix | `find_package(cryptocogs 2)`, `2.1` and `2.1.0` find 2.1.0; `1`, `3` and `2.2` are refused with "The version found is not compatible with the version requested" |
+| CI `release-linux-x86_64` (GCC 15.2), `cec63b5` | 586 of 586, 12.9 s of tests; the job took 55 s |
+| CI `clang-tidy`, `cec63b5` | 95 of 95, 143.9 s of tests; the job took 6 min 25 s |
+| the tag | annotated, `v2.1.0` on `cec63b5`, pushed after both runs were green; the GitHub release is not a draft and is Latest |
+
+- **The notes name more than the plan said.** Step 4 named #51, #56 and #58. The notes also name #48, which was fixed after v2.0.0 (plan
+  038) while v2.0.0's own notes list it as still open, and, under *Also in this tag*, #49, #50 and #52 (CI and an example, not the
+  library).
+- **The layout.** `CurlHttpClient` grows from 40 to 56 bytes (Apple clang 21, libc++, arm64) because it holds its `HttpTimeouts`. The four
+  REST clients keep their size (48, 48, 48 and 56): they hold the transport through a `std::shared_ptr`. Plan 042's D6 chose a minor
+  version for "a new defaulted constructor parameter" and did not measure this, and v2.0.0 was a major release for a layout change (the 14
+  enums). The notes say it and tell a consumer to rebuild what includes the headers, as v2.0.0's did. The number stands, since a tag is not
+  moved; `CurlHttpClient` is the one public class whose size changed, and the REST clients construct it for the caller.
+- **Two tests were left out of the local runs.** While this was done the working tree held changes that are not part of this plan and
+  were not committed with it: `tests/doc_checks/` and an edit of `tests/CMakeLists.txt` (a size budget for `CLAUDE.md`, plan 044, #60).
+  Its `test_claude_md_budget` fails by design on today's `CLAUDE.md` (159,987 characters against 38,000). The two budget tests were
+  excluded from the local ctest runs above (588 tests with them, 586 without, one red), and the bump commit was made with
+  `git commit -o CMakeLists.txt README.md`, so it holds none of that work. CI ran on the commit alone.

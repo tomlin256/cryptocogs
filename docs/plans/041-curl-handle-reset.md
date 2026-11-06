@@ -1,7 +1,10 @@
 # Plan 041 — `CurlHttpClient::perform` starts every call from a reset handle
 
-**Status:** In progress. Rob approved the plan as written on 2026-11-06, so D1 to D5 stood at the defaults below (no release). Steps 0 to
-2 are done (see the *Outcome*); Step 3, the sanitizer trees and Linux, is measured after the push.
+**Status:** Steps 0 to 2 are done (2026-11-06; see the *Outcome*), and the fix is released in
+[v2.1.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.1.0) (2026-11-06) with plans 038, 042 and 043; the record is in plan 043,
+Step 4. Rob approved the plan as written, so D1 to D5 stood at the defaults below (no release). Step 3, the sanitizer trees and Linux, was
+never written up here: the sanitizer runs of plans 042 and 043 are on code that includes this plan's reset and are clean, and the run
+against the old `perform` in `ubuntu-dev` was not done.
 
 Closes [#51](https://github.com/tomlin256/cryptocogs/issues/51).
 
@@ -222,8 +225,8 @@ Bump the version in the two places above, run the full ctest, commit, push, wait
 
 ## Outcome
 
-Steps 0 to 2 are done (2026-11-06). Step 3 is measured after the push and recorded at the end of this section. D3 stood at no release:
-`v2.0.1` is still Rob's to say.
+Steps 0 to 2 are done (2026-11-06). Step 3 is measured after the push and recorded at the end of this section. D3 stood at no release
+and recommended `v2.0.1`; the fix went out in `v2.1.0` instead (plan 043, Step 4), with the fixes of plans 038, 042 and 043.
 
 ### Commits
 

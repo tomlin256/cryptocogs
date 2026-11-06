@@ -1,7 +1,8 @@
 # Plan 042 — `CurlHttpClient::perform` gives up on a server that stops answering
 
-**Status:** Done (2026-11-06), apart from the release that D6 left to Rob. Rob approved the plan as written, so D1 to D6 stood at the
-defaults below (no release). Steps 0 to 4 are recorded in the *Outcome*.
+**Status:** Done (2026-11-06), released as [v2.1.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.1.0) (2026-11-06) with plans
+038, 041 and 043; the record is in plan 043, Step 4. Rob approved the plan as written, so D1 to D6 stood at the defaults below (no
+release), and then asked for the release. Steps 0 to 4 are recorded in the *Outcome*.
 
 Closes [#56](https://github.com/tomlin256/cryptocogs/issues/56).
 
@@ -254,8 +255,9 @@ Bump the version in `CMakeLists.txt:35` and the `GIT_TAG` example in `README.md:
 
 ## Outcome
 
-Steps 0 to 4 are done (2026-11-06); Step 4 is at the end of this section. D6 stood at no release: `v2.1.0`, for
-[#51](https://github.com/tomlin256/cryptocogs/issues/51) and #56 together, is still Rob's to say.
+Steps 0 to 4 are done (2026-11-06); Step 4 is at the end of this section. D6 stood at no release; Rob then asked
+for it, and `v2.1.0` was released on 2026-11-06 for [#48](https://github.com/tomlin256/cryptocogs/issues/48),
+[#51](https://github.com/tomlin256/cryptocogs/issues/51), #56 and [#58](https://github.com/tomlin256/cryptocogs/issues/58) together (plan 043, Step 4).
 
 ### Commits
 
