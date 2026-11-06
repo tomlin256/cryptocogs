@@ -76,6 +76,15 @@ if(CRYPTOCOGS_BUILD_KRAKEN)
     add_executable (kraken_example examples/kraken_example.cpp)
     target_link_libraries(kraken_example kraken ixwebsocket spdlog::spdlog CLI11::CLI11 example_backward)
 
+    # The one example that is run: its stub transport prints the WebSocket frames it builds, and nothing else looked at them
+    # (plan 039, #50 and #52). Registered here, so a tree without the Kraken adapter has no example and no test. The check needs
+    # the example built, as every test needs its executable.
+    add_test(NAME test_kraken_example
+             COMMAND ${CMAKE_COMMAND}
+                     -DEXAMPLE=$<TARGET_FILE:kraken_example>
+                     -DGOLDEN=${CMAKE_CURRENT_SOURCE_DIR}/example_checks/kraken_example_ws_frames.txt
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/example_checks/check_kraken_example.cmake)
+
     add_executable (ws_client_example examples/ws_client_example.cpp)
     target_link_libraries(ws_client_example kraken ixwebsocket spdlog::spdlog CLI11::CLI11 example_backward)
 

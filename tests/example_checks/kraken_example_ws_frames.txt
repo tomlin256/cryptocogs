@@ -1,0 +1,11 @@
+{"method":"add_order","params":{"limit_price":26500.0,"order_qty":1.2,"order_type":"limit","order_userref":100054,"side":"buy","symbol":"BTC/USD","token":"my_ws_token"},"req_id":123456}
+{"method":"amend_order","params":{"limit_price":27000.0,"order_id":"AA5JGQ-SBMRC-SCJ7J7","token":"my_ws_token"},"req_id":0}
+{"method":"cancel_order","params":{"order_id":["AA5JGQ-SBMRC-SCJ7J7"],"token":"my_ws_token"},"req_id":0}
+{"method":"cancel_after","params":{"timeout":300,"token":"my_ws_token"},"req_id":0}
+{"method":"batch_add","params":{"orders":[{"limit_price":26000.0,"order_qty":0.5,"order_type":"limit","side":"buy","symbol":"BTC/USD"},{"limit_price":25500.0,"order_qty":0.5,"order_type":"limit","side":"buy","symbol":"BTC/USD"}],"symbol":"BTC/USD","token":"my_ws_token"},"req_id":0}
+{"method":"subscribe","params":{"channel":"ticker","symbol":["BTC/USD","ETH/USD"]},"req_id":0}
+{"method":"subscribe","params":{"channel":"book","depth":10,"symbol":["BTC/USD"]},"req_id":0}
+{"method":"subscribe","params":{"channel":"ohlc","interval":60,"symbol":["BTC/USD"]},"req_id":0}
+{"method":"subscribe","params":{"channel":"executions","snapshot":true,"snapshot_trades":true,"token":"my_ws_token"},"req_id":0}
+{"method":"subscribe","params":{"channel":"balances","token":"my_ws_token"},"req_id":0}
+{"method":"ping","req_id":42}

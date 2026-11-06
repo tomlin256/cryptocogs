@@ -142,11 +142,17 @@ int main(int argc, char* argv[]) {
             auto http = rest_req.build(creds);
             std::cout << "POST " << http.path << " body=" << http.body.substr(0,60) << "...\n";
 
-            // --- WebSocket: same params, just change the symbol to WS format ---
+            // --- WebSocket: the same order. The pair is in WS format (BTC/USD) and the frame carries the token. ---
             op.symbol = "BTC/USD";
             ws::AddOrderRequest ws_req;
-            ws_req.order_type = op.order_type;
-            ws_req.req_id = 123456;
+            ws_req.order_type    = op.order_type;
+            ws_req.side          = op.side;
+            ws_req.order_qty     = op.order_qty;
+            ws_req.symbol        = op.symbol;
+            ws_req.limit_price   = op.limit_price;
+            ws_req.order_userref = op.order_userref;
+            ws_req.token         = ws_creds.token;
+            ws_req.req_id        = 123456;
             ws_send(ws_req.to_json(), ws_creds);
 
             // Parse REST response
@@ -169,6 +175,7 @@ int main(int argc, char* argv[]) {
             ws::AmendOrderRequest ws_amend;
             ws_amend.order_id    = "AA5JGQ-SBMRC-SCJ7J7";
             ws_amend.limit_price = TickPrice::from(27000.0, 1);
+            ws_amend.token       = ws_creds.token;
             ws_send(ws_amend.to_json(), ws_creds);
         }
 
@@ -181,6 +188,7 @@ int main(int argc, char* argv[]) {
 
             ws::CancelOrderRequest ws_cancel;
             ws_cancel.order_ids = std::vector<std::string>{"AA5JGQ-SBMRC-SCJ7J7"};
+            ws_cancel.token     = ws_creds.token;
             ws_send(ws_cancel.to_json(), ws_creds);
         }
 
@@ -193,6 +201,7 @@ int main(int argc, char* argv[]) {
 
             ws::CancelOnDisconnectRequest ws_dms;
             ws_dms.timeout = 300;
+            ws_dms.token   = ws_creds.token;
             ws_send(ws_dms.to_json(), ws_creds);
         }
 
@@ -224,6 +233,7 @@ int main(int argc, char* argv[]) {
             ws::BatchAddRequest ws_batch;
             ws_batch.symbol = "BTC/USD";
             ws_batch.orders = std::move(ops);
+            ws_batch.token  = ws_creds.token;
             ws_send(ws_batch.to_json(), ws_creds);
         }
 
@@ -261,12 +271,14 @@ int main(int argc, char* argv[]) {
             sub.channel         = ws::SubscribeChannel::Executions;
             sub.snapshot        = true;
             sub.snapshot_trades = true;
+            sub.token           = ws_creds.token;
             ws_send(sub.to_json(), ws_creds);
         }
 
         {
             ws::SubscribeRequest sub;
             sub.channel = ws::SubscribeChannel::Balances;
+            sub.token   = ws_creds.token;
             ws_send(sub.to_json(), ws_creds);
         }
 
