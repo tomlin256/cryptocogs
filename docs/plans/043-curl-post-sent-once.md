@@ -1,7 +1,7 @@
 # Plan 043 — `CurlHttpClient::perform` never lets libcurl send a POST or a DELETE twice
 
-**Status:** Steps 0 to 2 are done (2026-11-06), and are recorded in the *Outcome*. Step 3, the sanitizer runs, comes after the push, and
-the release that D4 left to Rob is his to say. Rob approved the plan as written, so D1 to D4 stood at the defaults below (no release).
+**Status:** Done (2026-11-06), apart from the release that D4 left to Rob. Rob approved the plan as written, so D1 to D4 stood at the
+defaults below (no release). Steps 0 to 3 are recorded in the *Outcome*.
 
 Closes [#58](https://github.com/tomlin256/cryptocogs/issues/58).
 
@@ -261,9 +261,9 @@ Bump the version in `CMakeLists.txt` and the `GIT_TAG` example in `README.md`, f
 
 ## Outcome
 
-Steps 0 to 2 are done (2026-11-06); Step 3, the sanitizer runs, is added by a later commit at the end of this section. D4 stood at no
-release: `v2.1.0`, for [#51](https://github.com/tomlin256/cryptocogs/issues/51), [#56](https://github.com/tomlin256/cryptocogs/issues/56)
-and #58 together, is still Rob's to say.
+Steps 0 to 3 are done (2026-11-06); Step 3 is at the end of this section. D4 stood at no release: `v2.1.0`, for
+[#51](https://github.com/tomlin256/cryptocogs/issues/51), [#56](https://github.com/tomlin256/cryptocogs/issues/56) and #58 together, is
+still Rob's to say.
 
 ### Commits
 
@@ -271,7 +271,7 @@ and #58 together, is still Rob's to say.
 |---|---|---|
 | 0 | `03d2d94` | this plan, approved as written |
 | 1 | `1a34a3e` | `perform` sets `CURLOPT_FRESH_CONNECT` on every request that is not a GET, on each call, after the reset; `KeepAliveServer`; five tests |
-| 2 | the commit that adds this section | `README.md`, `CLAUDE.md` and this *Outcome*; #58 closed by hand after the push |
+| 2 | `7ae151c` | `README.md`, `CLAUDE.md` and this *Outcome*; #58 closed by hand after the push |
 | 3 | the commit that adds the last section below | the record of the sanitizer runs |
 
 ### Red, then green
@@ -357,3 +357,23 @@ that a POST can reach the server twice, and a new bullet records this plan. `REA
   `ctest -N`.
 - **The first version of `KeepAliveServer::serve` had two identical branches** that each closed the connection (the editor's clang-tidy,
   `bugprone-branch-clone`); they became one condition, `drop_(request) || !send_all(...)`, before the first build.
+
+### After the push (Step 3)
+
+Run on `7ae151c`, which has the code of `1a34a3e`. No finding, so no issue.
+
+| Tree | Result |
+|---|---|
+| `asan-macos-arm64` (ASan and UBSan, Apple clang 21.0.0) with `ASAN_OPTIONS=detect_stack_use_after_return=1:strict_string_checks=1` and `UBSAN_OPTIONS=print_stacktrace=1` | 589 of 589, 27.8 s of tests; no report; no warning; 18 objects compiled |
+| `tsan-macos-arm64` with `TSAN_OPTIONS=second_deadlock_stack=1` | 588 of 588, 84.2 s of tests; no report; no warning; 18 objects compiled |
+| CI `Sanitizers`, `which=asan` (Linux, GCC 15.2, LeakSanitizer on), run 42295809369 | 589 of 589, 33.4 s of tests; no report; the job took 8 min 22 s |
+| CI `Sanitizers`, `which=tsan`, run 42297040688 | 588 of 588, 35.0 s of tests; no report; the job took 5 min 31 s |
+| CI on the documentation commit `7ae151c`: `release-linux-x86_64`, `clang-tidy` | 586 of 586 (16.1 s of tests; the job took 43 s), 95 of 95 (125.6 s of tests; 2 min 59 s) |
+
+The 589 and 588 are the 586 and the sanitizer's own tests (the canaries and the coverage test). The two Mac runs were serial, as the
+commands in `CLAUDE.md` are written, which is why their times are longer than the parallel runs of plan 042. TSan was the one the plan
+watched: the server thread of `KeepAliveServer` and the test thread share the request list and the connection count, behind one mutex,
+and every test that uses it passed under TSan on the Mac and in CI. Each of the five new tests passes under both sanitizers on the Mac.
+Under TSan on the Mac every `CurlHttpClientPerform` test takes about 2.1 s, the nine that existed before this plan included; the
+`CurlHttpClientTimeouts` tests take 0.03 s to 0.06 s. That was not looked into. LeakSanitizer, which the Mac cannot run, ran the new
+tests in CI and reported nothing.
