@@ -399,8 +399,10 @@ cmake --preset debug-macos-arm64 -DCRYPTOCOGS_CLANG_TIDY=               # off ag
     the growth without `reserve` on purpose ([plan 026](docs/plans/026-kraken-reserve-vector-growth.md)).
   - `src/binance/ws_streams.cpp`, one `NOLINTNEXTLINE(bugprone-return-const-ref-from-parameter)` from plan 016: `stream_payload`
     returns a reference to its own argument or to a part of it, on purpose.
-- **A CI job is [#49](https://github.com/tomlin256/cryptocogs/issues/49)**, now that the gate is green; plan 035 left it out until
-  then. It is small: `clang-tidy-23` from apt.llvm.org, configure only, `ctest -R '^clang_tidy_'`.
+- **CI runs it** ([plan 040](docs/plans/040-clang-tidy-ci-job.md), [#49](https://github.com/tomlin256/cryptocogs/issues/49)):
+  `.github/workflows/clang-tidy.yml` installs `clang-tidy-23` from apt.llvm.org, configures a Debug tree with the gate and the
+  benchmarks on, and runs `ctest -R '^clang_tidy_'` (95 tests) for every push and pull request that changes more than
+  documentation. A finding turns the run red, so a new one is fixed before it lands, not after. See [CI](#ci).
 
 ### Compiler warnings
 
@@ -526,10 +528,11 @@ compiler and CMake versions, and `ubuntu-latest` hands out more than one CMake a
   directory, and tar takes everything under it.
 - **Both caches assume the runner's fixed workspace path**, `/home/runner/work/cryptocogs/cryptocogs`. A container or a
   self-hosted runner breaks that.
-- **Documentation-only changes start no run** ([plan 031](docs/plans/031-ci-skip-docs-only.md)): `paths-ignore` lists `docs/**`
-  and `CLAUDE.md` under both `push` and `pull_request`. A run starts unless every changed path matches, so a path that nobody
-  named runs CI. `README.md` is not named, because `test_cmake_floor` reads it. `test_ci_paths` fails when the two lists differ,
-  when an entry names no file, and when an entry covers a file that a check reads or a CMake or C++ source.
+- **Documentation-only changes start no run** ([plan 031](docs/plans/031-ci-skip-docs-only.md), [plan 040](docs/plans/040-clang-tidy-ci-job.md)):
+  `paths-ignore` lists `docs/**` and `CLAUDE.md` under both `push` and `pull_request`, here and in `clang-tidy.yml`. A run starts
+  unless every changed path matches, so a path that nobody named runs CI. `README.md` is not named, because `test_cmake_floor`
+  reads it. `test_ci_paths` reads every workflow with either trigger and fails when the four lists are not the same, when an entry
+  names no file, and when an entry covers a file that a check reads or a CMake or C++ source.
 - **The build is strict, and neither workflow says so** ([plan 036](docs/plans/036-warnings-as-errors.md)):
   `CRYPTOCOGS_WARNINGS_AS_ERRORS` defaults to `ON`, so GCC 15.2's warnings fail the build, and `test_warning_option` (which runs in
   CI's tree) fails if the default changes. The flags went in a commit before the default (run 42067692222: GCC 15.2 at `-O3`, flags on,
@@ -560,6 +563,32 @@ green, and it has no caches.
   ([Compiler warnings](#compiler-warnings)), and the dispatch after the fix (run 42073767196) was green in both modes: `asan` 129
   units and 529 tests, `tsan` 128 and 528, GCC 15.2, no warning in either log.
 
+The third workflow, `.github/workflows/clang-tidy.yml` ([plan 040](docs/plans/040-clang-tidy-ci-job.md),
+[#49](https://github.com/tomlin256/cryptocogs/issues/49)), runs the gate of [clang-tidy (opt-in)](#clang-tidy-opt-in). It is separate
+for the reason the sanitizers are: a red lint run cannot mask whether the normal gate is green.
+
+- **When.** Every push and pull request to `main` that changes more than documentation (the main workflow's `paths-ignore` lists,
+  held equal by `test_ci_paths`), and on demand: `gh workflow run clang-tidy.yml --ref main`. It was run on demand twice before it had
+  the other triggers (plan 040, D2), so that the toolchain's opinion was read before it could put a red mark on `main`: both green,
+  95 of 95.
+- **What.** One job on `ubuntu-latest`: `clang-tidy-23` from apt.llvm.org (its signing key is checked against the fingerprint LLVM
+  publishes before apt is told to trust it), then `cmake --preset debug-linux-x86_64 -DCRYPTOCOGS_BUILD_BENCHMARKS=ON
+  -DCRYPTOCOGS_CLANG_TIDY=clang-tidy-23` and `ctest --preset debug-linux-x86_64 -R '^clang_tidy_' -j $(nproc)`: 95 tests, the 88 of a
+  default tree and the seven benchmark units. Nothing is built; clang-tidy reads the tree's `compile_commands.json`. The tree is the
+  Debug one because that is the kind the gate was proven on and the one `.clangd` reads.
+- **Cost.** Six runs on the 4-core runner (GCC 15.2.0, CMake 4.4.5, clang-tidy 23.1.6) took 3 min 12 s to 4 min 26 s in four, and
+  6 min 7 s and 7 min 8 s in the two where the install was slow. The install is 13 s to 15 s, and was 3 min 5 s and 4 min 4 s in those
+  two: 5 MB to 6 MB of Ubuntu packages came from `azure.archive.ubuntu.com` at 22 kB/s to 36 kB/s, while the 72 MB of clang-tidy from
+  apt.llvm.org took 1 s ([#41](https://github.com/tomlin256/cryptocogs/issues/41) records the same variation in the main workflow's
+  step). The configure is 32 s to 36 s (a cold clone of the dependencies, [#54](https://github.com/tomlin256/cryptocogs/issues/54))
+  and the tests 2 min 20 s to 3 min 30 s. `timeout-minutes` is 15, about 2 times the slowest. There are no caches (plan 040, D1):
+  the main workflow's dependency cache would save about 23 s, and would force its Release tree and leave the benchmarks off.
+- **Moving the LLVM major** is the one commit of [clang-tidy (opt-in)](#clang-tidy-opt-in), with `LLVM_MAJOR` in the workflow's
+  `env:` moved in it. `test_ci_clang_tidy` fails until the two agree and while any line of the workflow says a literal major;
+  `clang_tidy_version` fails the run on any other major.
+- **Red.** A finding in the project's code turns its `clang_tidy_<path>` test red, and the test preset's `--output-on-failure` puts
+  clang-tidy's findings in the log. Fix it; a `NOLINT` needs Rob's OK (*Fix a finding*, above).
+
 ---
 
 ## Running tests
@@ -568,8 +597,8 @@ green, and it has no caches.
 ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure and a 120 s timeout per test
 ```
 
-There are thirty-one test executables (548 tests, plus sixteen `cmake -P` checks and the one that runs `kraken_example`, both
-listed after the table — 565 in ctest) — thirteen Kraken/common, six Binance, six Coinbase, six Crypto.com:
+There are thirty-one test executables (548 tests, plus seventeen `cmake -P` checks and the one that runs `kraken_example`, both
+listed after the table — 566 in ctest) — thirteen Kraken/common, six Binance, six Coinbase, six Crypto.com:
 
 | Binary | Source | What it tests |
 |---|---|---|
@@ -605,7 +634,7 @@ listed after the table — 565 in ctest) — thirteen Kraken/common, six Binance
 | `<tree>/bin/test_cryptocom_client` | `test_cryptocom_client.cpp` | `CryptoComRestClient::execute()` signed-envelope round-trip via mock performer |
 | `<tree>/bin/test_cryptocom_ws_client` | `test_cryptocom_ws_client.cpp` | `HeartbeatResponder` auto-reply, a frame that is not a heartbeat forwarded without a throw (a non-string `method`, not JSON, not an object; #44), and its callback outliving the responder (a frame and a heartbeat after it is destroyed, heap and stack, no reference cycle; plan 034), + id-correlated subscribe/ack/push lifecycle with `MockWsConnection` |
 
-The sixteen `cmake -P` checks need no build and finish in seconds (`test_warning_option` takes about 3 s); they are registered at the top level, in every tree:
+The seventeen `cmake -P` checks need no build and finish in seconds (`test_warning_option` takes about 3 s); they are registered at the top level, in every tree:
 
 | Test | Script | What it holds |
 |---|---|---|
@@ -617,7 +646,8 @@ The sixteen `cmake -P` checks need no build and finish in seconds (`test_warning
 | `test_standard_guard` | `tests/cmake_checks/check_standard_guard.cmake` | every `include/exchange/*/*.hpp` refuses to preprocess at `-std=c++17` and `-std=c++20` with "requires C++23"; GCC and Clang only (plan 029) |
 | `test_package_version` | `tests/cmake_checks/check_package_version.cmake` | which `find_package(cryptocogs <version>)` requests `cryptocogsConfigVersion.cmake` accepts — `SameMajorVersion` — derived from the project's own version (plan 029) |
 | `test_ci_cache_key` | `tests/ci_checks/check_cache_key.cmake` | the CI cache of the fetched dependencies is keyed over every file that declares one: each `CMakeLists.txt`, `*.cmake` and `*.cmake.in` with a `FetchContent_Declare` call is in the `hashFiles(...)` list of the `deps-` key in `.github/workflows/cmake-single-platform.yml`, and each listed file exists (plan 030) |
-| `test_ci_paths` | `tests/ci_checks/check_paths.cmake` | the `paths-ignore` lists under the workflow's `push` and `pull_request` triggers are equal, each entry names an existing file or `<dir>/**`, and no entry covers a file that a check reads or a CMake or C++ source (plan 031) |
+| `test_ci_paths` | `tests/ci_checks/check_paths.cmake` | the `paths-ignore` lists under the `push` and `pull_request` triggers of every workflow that has either (`cmake-single-platform.yml` and `clang-tidy.yml`; `sanitizers.yml` has neither, so it is skipped and named in the status line) are present under both triggers and all the same, each entry names an existing file or `<dir>/**`, and no entry covers a file that a check reads or a CMake or C++ source; a workflow in a layout the check cannot read (`on: [push, pull_request]`, other indentation, a quoted `"on"` key) fails and is never skipped (plan 031, plan 040) |
+| `test_ci_clang_tidy` | `tests/ci_checks/check_clang_tidy_workflow.cmake` | `.github/workflows/clang-tidy.yml` runs the whole gate at the project's LLVM major: `LLVM_MAJOR` is set once and is `CRYPTOCOGS_CLANG_TIDY_MAJOR`, and no line has a literal major (the package, the apt source and the tool say `$LLVM_MAJOR`); the configure turns the gate and the benchmarks on; every `ctest` command selects `-R '^clang_tidy_'`; nothing lets the job pass by failing (`continue-on-error`, `\|\| true`); `PRESET` is both a configure and a test preset, and every `--preset` is that variable (plan 040) |
 | `test_sanitize_flags` | `tests/sanitize_checks/check_sanitize_flags.cmake` | the `CRYPTOCOGS_SANITIZE` mode → options mapping in `cmake/cryptocogs_sanitize.cmake`: `OFF`, `asan` and `tsan` give exactly their options, and each near miss (`ASAN`, `thread`, `ON`, …) is refused naming the value and the modes (plan 032) |
 | `test_sanitize_option` | `tests/sanitize_checks/check_sanitize_option.cmake` | the option in the root `CMakeLists.txt` reaches the project's targets: it configures the real project offline with no option and with each mode, and reads the `compile_commands.json` each writes (plan 032) |
 | `test_clang_tidy_module` | `tests/clang_tidy_checks/check_clang_tidy_module.cmake` | the helpers in `cmake/cryptocogs_clang_tidy.cmake`: the tool (empty is off; a name or a path; a generator that writes no `compile_commands.json` is refused), the macOS SDK (against stand-in `xcrun` scripts), the arguments and their order, the test names from paths, and the selection of units; every refusal names what it refused (plan 035) |
@@ -643,8 +673,8 @@ The flag matrix splits cleanly: each exchange flag drops its own suite. A
 Crypto.com-only tree (`-DCRYPTOCOGS_BUILD_KRAKEN=OFF -DCRYPTOCOGS_BUILD_BINANCE=OFF
 -DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 141 gtests — the 94-test Crypto.com suite plus the
 exchange-agnostic 11 `TickPrice`, 9 `read_toml_credentials`, 5 `MockWsConnection`, 4 `IxWsConnection`, 10 `ASSERT_HAS_VALUE`,
-5 `make_curl_header_list` and 3 `CurlHttpClient::perform` tests, which build in any tree — and the sixteen `cmake -P` checks (not
-`test_kraken_example`, which belongs to the Kraken adapter): 157 in ctest.
+5 `make_curl_header_list` and 3 `CurlHttpClient::perform` tests, which build in any tree — and the seventeen `cmake -P` checks (not
+`test_kraken_example`, which belongs to the Kraken adapter): 158 in ctest.
 
 ### Test suite breakdown
 
