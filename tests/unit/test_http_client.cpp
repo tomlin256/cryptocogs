@@ -7,14 +7,17 @@
 // full license information.
 // =============================================================================
 
-// CurlHttpClient::perform against a loopback ix::HttpServer (plan 038, #48): what a request carries over a real libcurl transfer.
+// CurlHttpClient::perform against a loopback ix::HttpServer (plan 038, #48; plan 041, #51): what a request carries over a real libcurl
+// transfer, and that nothing of an earlier request on the same client comes with it.
 //
 // perform builds the header list from HttpRequest::headers and hands it to libcurl, and nothing else in the suite runs the transport
 // (the adapter tests inject a performer). Real sockets on 127.0.0.1, no network. No sleeps: perform() returns once the server has
 // replied, and the request the server saw is read after that. A wait that never ends is stopped by the test preset's 120 s timeout.
 //
-// One request per client, on purpose. A second request on the same client is #51: the handle keeps the previous call's header list
-// and body, so a request with no headers after one with headers crashes in libcurl. The tests for #51 belong in this file.
+// A client reuses one libcurl handle for every call, and libcurl's options stay set until they are changed or the handle is reset
+// (#51). The tests that send several requests through one client check that each reaches the server with what it asked for and with
+// nothing of the one before it, a call that threw included. The server's reply says "Connection: close", so libcurl never tries a
+// connection that the server is closing: there is no timing in them.
 
 #include "exchange/common/http_client.hpp"
 
@@ -23,9 +26,14 @@
 
 #include <unistd.h>
 
+#include <cstddef>
+#include <map>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 
 using exchange::rest::CurlHttpClient;
 using exchange::rest::HttpRequest;
@@ -41,7 +49,7 @@ struct SeenRequest {
     ix::WebSocketHttpHeaders headers;
 };
 
-// An HTTP server on 127.0.0.1 that answers every request 200 "ok" and keeps the last request it saw. ixwebsocket cannot report the
+// An HTTP server on 127.0.0.1 that answers every request 200 "ok" and keeps the requests it saw, in order. ixwebsocket cannot report the
 // port it bound when asked for port 0, so this scans upward from a port derived from the process id until one binds, the way
 // test_ix_ws_connection finds one: two test processes under ctest -j then settle on different ports without any randomness.
 class LoopbackHttpServer {
@@ -54,8 +62,10 @@ public:
             candidate->setOnConnectionCallback(
                 [this](const ix::HttpRequestPtr& request, const std::shared_ptr<ix::ConnectionState>&) {
                     remember(*request);
-                    return std::make_shared<ix::HttpResponse>(200, "OK", ix::HttpErrorCode::Ok, ix::WebSocketHttpHeaders(),
-                                                              "ok");
+                    // ix::HttpServer closes the connection after every reply and does not say so. Saying it keeps libcurl from trying a
+                    // connection that is going away, whose outcome (a dead-connection check, or a retry) would depend on timing.
+                    return std::make_shared<ix::HttpResponse>(200, "OK", ix::HttpErrorCode::Ok,
+                                                              ix::WebSocketHttpHeaders{{"Connection", "close"}}, "ok");
                 });
             if (candidate->listenAndStart()) {
                 port_   = port;
@@ -64,7 +74,7 @@ public:
         }
     }
 
-    // Stops the server, which joins its threads, before any member is destroyed: the callback above uses mutex_ and last_.
+    // Stops the server, which joins its threads, before any member is destroyed: the callback above uses mutex_ and seen_.
     ~LoopbackHttpServer() {
         if (server_)
             server_->stop();
@@ -76,21 +86,27 @@ public:
     bool        running() const { return server_ != nullptr; }
     std::string base_url() const { return "http://127.0.0.1:" + std::to_string(port_); }
 
-    // The request the server saw last. Read it after perform() has returned: the server stored it before it sent its reply, and the
-    // mutex orders the two.
+    // The request the server saw last, or an empty one if it saw none. Read it after perform() has returned: the server stored it before
+    // it sent its reply, and the mutex orders the two.
     SeenRequest last() {
         const std::lock_guard<std::mutex> lock(mutex_);
-        return last_;
+        return seen_.empty() ? SeenRequest{} : seen_.back();
+    }
+
+    // Every request the server saw, in the order it saw them; read after perform() has returned, as for last().
+    std::vector<SeenRequest> requests() {
+        const std::lock_guard<std::mutex> lock(mutex_);
+        return seen_;
     }
 
 private:
     void remember(const ix::HttpRequest& request) {
         const std::lock_guard<std::mutex> lock(mutex_);
-        last_ = SeenRequest{request.method, request.uri, request.body, request.headers};
+        seen_.push_back(SeenRequest{request.method, request.uri, request.body, request.headers});
     }
 
     std::mutex                      mutex_;
-    SeenRequest                     last_;
+    std::vector<SeenRequest>        seen_;
     std::unique_ptr<ix::HttpServer> server_{};
     int                             port_{0};
 };
@@ -99,6 +115,91 @@ private:
 std::string header_of(const SeenRequest& seen, const std::string& name) {
     const auto found = seen.headers.find(name);
     return found == seen.headers.end() ? std::string("<missing>") : found->second;
+}
+
+HttpRequest make_request(const HttpRequest::Method method, std::string path, std::string body,
+                         std::map<std::string, std::string> headers) {
+    HttpRequest request;
+    request.method  = method;
+    request.path    = std::move(path);
+    request.body    = std::move(body);
+    request.headers = std::move(headers);
+    return request;
+}
+
+std::string method_name(const HttpRequest::Method method) {
+    switch (method) {
+        case HttpRequest::Method::GET:    return "GET";
+        case HttpRequest::Method::POST:   return "POST";
+        case HttpRequest::Method::DELETE: return "DELETE";
+    }
+    return "<unknown>";
+}
+
+// A path that libcurl refuses: a control character makes the URL malformed, so perform() throws before anything is connected or sent.
+// Built in a function: a namespace-scope std::string would allocate before main (bugprone-throwing-static-initialization).
+std::string refused_path() {
+    std::string path = "/refused";
+    path += '\x01';
+    path += "path";
+    return path;
+}
+
+// A DELETE that asked for no body and carries the header X-Second must reach the server as exactly that: nothing of the POST that came
+// before it, which had a body and the header X-First (the bytes of the body are what #51 re-sent).
+void expect_a_plain_delete(const SeenRequest& seen) {
+    EXPECT_EQ(seen.method, "DELETE");
+    EXPECT_EQ(seen.uri, "/order/1");
+    EXPECT_EQ(seen.body, "");
+    EXPECT_EQ(header_of(seen, "X-Second"), "2");
+    EXPECT_EQ(header_of(seen, "X-First"), "<missing>");
+    EXPECT_EQ(header_of(seen, "Content-Length"), "<missing>");
+    EXPECT_EQ(header_of(seen, "Content-Type"), "<missing>");
+}
+
+// One kind of request for the table test. A kind that `fails` has a path that libcurl refuses, so perform() throws and nothing is sent.
+struct Kind {
+    std::string name;
+    HttpRequest request;
+    bool        fails{false};
+};
+
+// The kinds of request the table test sends. Each that has headers has one of its own, named for the kind, so a header that turns up on
+// another request can be traced to where it came from.
+std::vector<Kind> request_kinds() {
+    using M = HttpRequest::Method;
+    return {
+        Kind{"GET with a header", make_request(M::GET, "/get-with-header", "", {{"X-Get", "g"}}), false},
+        Kind{"bare GET", make_request(M::GET, "/get", "", {}), false},
+        Kind{"POST with a body", make_request(M::POST, "/post", "a=1&b=2", {{"X-Post", "p"}}), false},
+        Kind{"DELETE with a body", make_request(M::DELETE, "/delete-with-body", "c=3", {{"X-Delete", "d"}}), false},
+        Kind{"bare DELETE", make_request(M::DELETE, "/delete", "", {}), false},
+        Kind{"refused POST with a body", make_request(M::POST, refused_path(), "e=5&secret=1", {{"X-Refused-Post", "rp"}}), true},
+        Kind{"refused GET with a header", make_request(M::GET, refused_path(), "", {{"X-Refused-Get", "rg"}}), true},
+    };
+}
+
+// What the server must have seen for `asked`, whatever came before it on the client: its method, target and body; each of its headers
+// with its value; none of the headers that another kind carries; and a Content-Length and Content-Type only if there is a body to
+// describe (and then a Content-Length that is the body's size).
+void expect_only_its_own(const SeenRequest& seen, const HttpRequest& asked, const std::vector<Kind>& kinds) {
+    EXPECT_EQ(seen.method, method_name(asked.method));
+    EXPECT_EQ(seen.uri, asked.path);
+    EXPECT_EQ(seen.body, asked.body);
+    for (const auto& [name, value] : asked.headers)
+        EXPECT_EQ(header_of(seen, name), value) << name;
+    for (const Kind& other : kinds) {
+        for (const auto& entry : other.request.headers) {
+            if (asked.headers.find(entry.first) == asked.headers.end())
+                EXPECT_EQ(header_of(seen, entry.first), "<missing>") << entry.first << " belongs to another request";
+        }
+    }
+    if (asked.body.empty()) {
+        EXPECT_EQ(header_of(seen, "Content-Length"), "<missing>");
+        EXPECT_EQ(header_of(seen, "Content-Type"), "<missing>");
+    } else {
+        EXPECT_EQ(header_of(seen, "Content-Length"), std::to_string(asked.body.size()));
+    }
 }
 
 // The library's own rule (CLAUDE.md): libcurl is initialised once, before the first client, and cleaned up after the last.
@@ -173,4 +274,103 @@ TEST_F(CurlHttpClientPerform, PerformsARequestWithNoHeaders) {
     const SeenRequest seen = server.last();
     EXPECT_EQ(seen.method, "GET");
     EXPECT_EQ(seen.uri, "/bare");
+}
+
+// #51, the first sequence: a request with no headers after one with headers. The client handed libcurl the first request's header list
+// again, freed, and libcurl read it.
+TEST_F(CurlHttpClientPerform, AGetWithNoHeadersAfterOneWithHeadersSendsNone) {
+    LoopbackHttpServer server;
+    ASSERT_TRUE(server.running());
+    CurlHttpClient client(server.base_url());
+
+    const HttpRequest first  = make_request(HttpRequest::Method::GET, "/first", "", {{"X-Secret", "abc123"}});
+    const HttpRequest second = make_request(HttpRequest::Method::GET, "/second", "", {});
+
+    EXPECT_EQ(client.perform(first).status, 200);
+    const HttpResponse response = client.perform(second);
+    EXPECT_EQ(response.status, 200);
+    EXPECT_EQ(response.body, "ok");
+
+    const std::vector<SeenRequest> seen = server.requests();
+    ASSERT_EQ(seen.size(), 2U);
+    EXPECT_EQ(header_of(seen[0], "X-Secret"), "abc123");
+    EXPECT_EQ(seen[1].method, "GET");
+    EXPECT_EQ(seen[1].uri, "/second");
+    EXPECT_EQ(header_of(seen[1], "X-Secret"), "<missing>");
+}
+
+// #51, the second sequence: a DELETE with no body after a POST. The client left the POST's body, its length and its method on the handle,
+// so the DELETE went out with the POST's Content-Length and Content-Type and the bytes behind them. The DELETE has a header of its own, so
+// the header list is not what differs. Both requests outlive the calls, so the stale body is still readable and the failure is an
+// assertion, not undefined behaviour.
+TEST_F(CurlHttpClientPerform, ADeleteWithNoBodyAfterAPostSendsNoBody) {
+    LoopbackHttpServer server;
+    ASSERT_TRUE(server.running());
+    CurlHttpClient client(server.base_url());
+
+    const HttpRequest post = make_request(HttpRequest::Method::POST, "/order", "symbol=X&secret=1", {{"X-First", "1"}});
+    const HttpRequest del  = make_request(HttpRequest::Method::DELETE, "/order/1", "", {{"X-Second", "2"}});
+
+    EXPECT_EQ(client.perform(post).status, 200);
+    EXPECT_EQ(client.perform(del).status, 200);
+
+    const std::vector<SeenRequest> seen = server.requests();
+    ASSERT_EQ(seen.size(), 2U);
+    EXPECT_EQ(seen[0].body, "symbol=X&secret=1");
+    expect_a_plain_delete(seen[1]);
+}
+
+// A call that throws leaves the same state on the handle as one that returns. The first request has a path libcurl refuses, so perform()
+// throws and nothing is sent; the DELETE after it has a header of its own, so what could differ is the refused POST's body. (The header
+// list of a refused call is in the table test.)
+TEST_F(CurlHttpClientPerform, ARequestAfterAFailedOneSendsOnlyItsOwn) {
+    LoopbackHttpServer server;
+    ASSERT_TRUE(server.running());
+    CurlHttpClient client(server.base_url());
+
+    const HttpRequest refused = make_request(HttpRequest::Method::POST, refused_path(), "symbol=X&secret=1", {{"X-First", "1"}});
+    const HttpRequest del     = make_request(HttpRequest::Method::DELETE, "/order/1", "", {{"X-Second", "2"}});
+
+    EXPECT_THROW(client.perform(refused), std::runtime_error);
+    EXPECT_TRUE(server.requests().empty()) << "the refused request reached the server";
+    EXPECT_EQ(client.perform(del).status, 200);
+
+    const std::vector<SeenRequest> seen = server.requests();
+    ASSERT_EQ(seen.size(), 1U);
+    expect_a_plain_delete(seen[0]);
+}
+
+// Whatever a client did before, a request carries only what it asked for: every kind of request, then each kind that succeeds, on a
+// fresh client for each pair. Before #51 was fixed the pairs that start with a request that has headers or a body went wrong in one of
+// the ways above (a crash in libcurl, or the earlier request's body on the wire).
+TEST_F(CurlHttpClientPerform, ARequestSendsOnlyItsOwnWhateverCameBefore) {
+    LoopbackHttpServer server;
+    ASSERT_TRUE(server.running());
+    const std::vector<Kind> kinds = request_kinds();
+
+    for (const Kind& first : kinds) {
+        for (const Kind& second : kinds) {
+            if (second.fails)
+                continue;
+            std::string pair = first.name;
+            pair += ", then ";
+            pair += second.name;
+            SCOPED_TRACE(pair);
+
+            CurlHttpClient    client(server.base_url());
+            const std::size_t before = server.requests().size();
+            if (first.fails) {
+                EXPECT_THROW(client.perform(first.request), std::runtime_error);
+            } else {
+                EXPECT_EQ(client.perform(first.request).status, 200);
+            }
+            const HttpResponse response = client.perform(second.request);
+            EXPECT_EQ(response.status, 200);
+            EXPECT_EQ(response.body, "ok");
+
+            const std::vector<SeenRequest> seen = server.requests();
+            ASSERT_EQ(seen.size(), before + (first.fails ? 1U : 2U));
+            expect_only_its_own(seen.back(), second.request, kinds);
+        }
+    }
 }

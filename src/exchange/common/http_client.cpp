@@ -36,6 +36,13 @@ CurlHttpClient::CurlHttpClient(std::string base_url)
 HttpResponse CurlHttpClient::perform(const HttpRequest& http) {
     CURL* curl = curl_.get();
 
+    // The handle is reused, and libcurl's options stay set until they are changed. HTTPHEADER and POSTFIELDS are pointers, to a list that
+    // was freed and to a body that belonged to the previous call, so put every option back to its default before this request sets its
+    // own (#51). Live connections and the DNS and session caches are kept, so connections are still reused. This comes first so that no
+    // way out of the previous call, a throw included, leaves anything behind. An option that should hold for every request is set below,
+    // on each call.
+    curl_easy_reset(curl);
+
     // Build full URL.
     std::string url = base_url_ + http.path;
     if (!http.query.empty())
@@ -47,11 +54,8 @@ HttpResponse CurlHttpClient::perform(const HttpRequest& http) {
     if (header_list)
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list.get());
 
-    // Method-specific options. The handle is reused across calls, so clear any
-    // sticky CUSTOMREQUEST a prior DELETE may have left before choosing a method
-    // (otherwise a DELETE-then-GET on the same client would still send DELETE).
+    // Method-specific options. The reset above left no CUSTOMREQUEST, body or POST from an earlier call to undo.
     using M = HttpRequest::Method;
-    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, nullptr);
     if (http.method == M::GET) {
         curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
     } else if (http.method == M::DELETE) {

@@ -45,6 +45,10 @@ public:
     // status and body. Throws std::runtime_error on a libcurl failure: a
     // transport error, or libcurl unable to allocate the request's header list
     // (nothing is sent then, rather than a request with headers missing).
+    //
+    // Each call stands alone: nothing set for an earlier request (its headers,
+    // body or method) reaches the next, one that threw included, while
+    // connections stay open between calls (#51).
     HttpResponse perform(const HttpRequest& http);
 
     // Move-only (owns a curl handle); copy is implicitly deleted by the
