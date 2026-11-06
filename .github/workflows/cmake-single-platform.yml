@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
     # Documentation builds nothing and tests nothing, so a change to only these paths does not run CI (plan 031, #40). A run
     # starts unless every changed path matches, so a path that is not named here runs CI. README.md is not named on purpose:
-    # test_cmake_floor reads it. test_ci_paths holds this list, which must be the same under pull_request.
+    # test_cmake_floor reads it. test_ci_paths holds this list, which must be the same under pull_request and in clang-tidy.yml.
     paths-ignore:
       - 'docs/**'
       - 'CLAUDE.md'

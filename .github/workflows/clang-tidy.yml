@@ -21,9 +21,10 @@
 # is told to trust it (the same value as in flywheel-dag's job and in docker-ubuntu's Dockerfile). If the repository has no
 # source for a new codename, apt-get update fails and there is no fallback to another major.
 #
-# When it runs. For now on demand only (plan 040, D2: the toolchain's opinion is read before it can put a red mark on main):
-# Actions > clang-tidy > Run workflow, or `gh workflow run clang-tidy.yml --ref main`. The push and pull-request triggers come
-# in a later commit of the plan.
+# When it runs. For every push and pull request to main that changes more than documentation, and on demand: Actions >
+# clang-tidy > Run workflow, or `gh workflow run clang-tidy.yml --ref main`. The ignore lists are the main workflow's, and
+# test_ci_paths holds them equal to it, under both triggers (plan 040, D2). It was run on demand alone first, twice, so that the
+# toolchain's opinion was read before it could put a red mark on main.
 #
 # The same locally (the Mac's tree is debug-macos-arm64, and its clang-tidy is Homebrew's):
 #   cmake --preset debug-linux-x86_64 -DCRYPTOCOGS_BUILD_BENCHMARKS=ON -DCRYPTOCOGS_CLANG_TIDY=clang-tidy-23
@@ -31,6 +32,19 @@
 name: clang-tidy
 
 on:
+  push:
+    branches: [ "main" ]
+    # Documentation builds nothing and tests nothing, so a change to only these paths does not run the job (plan 031). A run
+    # starts unless every changed path matches. test_ci_paths holds this list equal to the main workflow's, and the same under
+    # pull_request.
+    paths-ignore:
+      - 'docs/**'
+      - 'CLAUDE.md'
+  pull_request:
+    branches: [ "main" ]
+    paths-ignore:
+      - 'docs/**'
+      - 'CLAUDE.md'
   workflow_dispatch:
 
 permissions:
