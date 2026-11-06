@@ -190,8 +190,9 @@ void expect_only_its_own(const SeenRequest& seen, const HttpRequest& asked, cons
         EXPECT_EQ(header_of(seen, name), value) << name;
     for (const Kind& other : kinds) {
         for (const auto& entry : other.request.headers) {
-            if (asked.headers.find(entry.first) == asked.headers.end())
+            if (asked.headers.find(entry.first) == asked.headers.end()) {
                 EXPECT_EQ(header_of(seen, entry.first), "<missing>") << entry.first << " belongs to another request";
+            }
         }
     }
     if (asked.body.empty()) {
