@@ -509,6 +509,22 @@ your open orders before you send it again, or you may place it twice. The second
 far the call got. The shared transport, `exchange::rest::CurlHttpClient`, throws a `std::runtime_error` with the same text; the four
 clients catch it and put it in `resp.errors`.
 
+### REST — connections
+
+A GET reuses an open connection when there is one. A POST or a DELETE never does: `exchange::rest::CurlHttpClient` gives each its own
+connection. When the server closes a connection that was idle, libcurl cannot tell a request that the server never read from one that
+it read and acted on, so it writes the request again on a new connection, and for an order that would be an order placed twice. With
+a connection of its own there is none to retry on, so the transport sends a POST or a DELETE at most once
+([#58](https://github.com/tomlin256/cryptocogs/issues/58)).
+
+The cost is a TCP connect, and a TLS handshake for `https`, for every POST and DELETE, the calls that only read included: every Kraken
+and Crypto.com private endpoint is a POST. A loop that polls one pays it on each poll
+([#59](https://github.com/tomlin256/cryptocogs/issues/59) is a way to avoid it for the calls that only read).
+
+If the connection of a POST or a DELETE closes without a reply, the call fails and the request may have been received and acted on:
+its outcome is unknown. Check your open orders before you send an order again, or you may place it twice. The four clients put the
+failure in `resp.errors`; its text does not say this yet ([#57](https://github.com/tomlin256/cryptocogs/issues/57)).
+
 ### WebSocket — `KrakenWsClient` (recommended)
 
 `KrakenWsClient` is the high-level wrapper. It handles connection lifecycle, auto-assigns request IDs, matches responses to pending handlers, and exposes typed callbacks.

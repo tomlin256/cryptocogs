@@ -1,7 +1,7 @@
 # Plan 043 — `CurlHttpClient::perform` never lets libcurl send a POST or a DELETE twice
 
-**Status:** In progress. Rob approved the plan as written on 2026-11-06, so D1 to D4 stand at the defaults below (no release). Step 0 is
-done; the rest is recorded in the *Outcome* as it is done.
+**Status:** Steps 0 to 2 are done (2026-11-06), and are recorded in the *Outcome*. Step 3, the sanitizer runs, comes after the push, and
+the release that D4 left to Rob is his to say. Rob approved the plan as written, so D1 to D4 stood at the defaults below (no release).
 
 Closes [#58](https://github.com/tomlin256/cryptocogs/issues/58).
 
@@ -261,4 +261,99 @@ Bump the version in `CMakeLists.txt` and the `GIT_TAG` example in `README.md`, f
 
 ## Outcome
 
-To be written as the steps are done.
+Steps 0 to 2 are done (2026-11-06); Step 3, the sanitizer runs, is added by a later commit at the end of this section. D4 stood at no
+release: `v2.1.0`, for [#51](https://github.com/tomlin256/cryptocogs/issues/51), [#56](https://github.com/tomlin256/cryptocogs/issues/56)
+and #58 together, is still Rob's to say.
+
+### Commits
+
+| Step | Commit | What |
+|---|---|---|
+| 0 | `03d2d94` | this plan, approved as written |
+| 1 | `1a34a3e` | `perform` sets `CURLOPT_FRESH_CONNECT` on every request that is not a GET, on each call, after the reset; `KeepAliveServer`; five tests |
+| 2 | the commit that adds this section | `README.md`, `CLAUDE.md` and this *Outcome*; #58 closed by hand after the push |
+| 3 | the commit that adds the last section below | the record of the sanitizer runs |
+
+### Red, then green
+
+**Step 1** (`debug-macos-arm64`, Apple clang 21.0.0, libcurl 8.7.1). Each test alone, as ctest runs it, under a 10 s alarm. "Without" is
+the new test file over `HEAD`'s `http_client.cpp`, which is change (a) below; it was not committed. Nothing hung: without the fix
+`perform` returns or throws.
+
+| Test | Without | With |
+|---|---|---|
+| 1 `APostThatTheServerClosesWithoutAReplyIsSentOnce` | fails by assertion: the server read `/order` 2 times, not 1 (the issue's evidence) | passes |
+| 2 `ADeleteThatTheServerClosesWithoutAReplyIsSentOnce` | fails by assertion: `/order/1` read 2 times | passes |
+| 3 `APostOrADeleteNeverRidesAConnectionAnEarlierRequestUsed` | fails in all four rows: 3 requests read where 2 were wanted ("the order was written more than once") | passes |
+| 4 `GetsKeepSharingOneConnection` | passes | passes |
+| 5 `AMixOfMethodsGivesPostAndDeleteAConnectionEach` | fails: 1 connection where 3 were wanted; the POST on a connection with `served_before == 1`, the DELETE with `served_before == 3` | passes |
+
+The same in `ubuntu-dev` (GCC 13.3, libcurl 8.5.0; the incremental `debug-linux-arm64` build, the object, the archive and the binary
+deleted before each build, 1 object compiled each time): red, red, red, green, red without the fix with the same values as above, and
+all five green with it.
+
+### Hand-made changes
+
+**Step 1**, to `perform` in `http_client.cpp`. Each in the tree with its object, the archive and the test binary deleted first (Apple's
+Make 3.81 compares whole seconds), the number of objects compiled printed (1 every time, no warning), the source compared with a saved
+copy of the fix afterwards (byte-identical), and each test run alone under the 10 s alarm. `red` is a failed assertion; no row hung or
+crashed. Every row is what the plan predicted.
+
+| Change | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| (a) no option (`HEAD`) | red | red | red | green | red |
+| (b) the option set before the reset, which clears it | red | red | red | green | red |
+| (c) `== M::POST` (DELETE left out) | green | red | red | green | red |
+| (d) `FORBID_REUSE` in place of `FRESH_CONNECT`, on POST and DELETE | green | green | red | green | red |
+| (e) `FRESH_CONNECT` on every method | green | green | green | red | red |
+| (f) `FORBID_REUSE` on every method | green | green | green | red | red |
+| (g) both options on POST and DELETE | green | green | green | green | green |
+| the fix restored (byte-identical to the committed source) | green | green | green | green | green |
+
+(d) is why test 3 has rows after a GET: `FORBID_REUSE` closes a connection after its transfer, so a POST that follows a GET still rides the
+GET's, and only those rows (and the sequence of test 5) see it. (e) and (f) are why test 4 exists: without it, an option on every method
+would pass tests 1 to 3 and undo plan 041 for market-data polling. (g) is D1's alternative (i): the guarantee is the same and no test can
+tell the two apart, nor should one. The nine `CurlHttpClientPerform` tests that existed before this plan were not run row by row; the
+full suite is the checkpoint below.
+
+### Repeated
+
+Each new test 200 times in a row, `ctest --repeat until-fail:200`, as ctest runs it: `debug-macos-arm64` 1000 of 1000 passes (10.9 s),
+`ubuntu-dev` `debug-linux-arm64` 1000 of 1000 (3.7 s). None failed.
+
+### Counts (measured)
+
+| Tree | Result |
+|---|---|
+| `debug-macos-arm64`, gate on, before Step 1 | 669 of 669 |
+| `debug-macos-arm64`, gate on, after Step 1 | 674 of 674 (586, and the 88 `clang_tidy_*`); no warning; 17 objects compiled |
+| `debug-macos-arm64`, gate off, after Step 1 | 586 tests (`ctest -N -E '^clang_tidy_'`): 568 gtests, 17 `cmake -P` checks and `test_kraken_example` |
+| Crypto.com-only (the other three exchanges off), gate on, after Step 1 | built with no warning and run: 210 of 210, 35 gate tests and 175 others, of which 158 gtests, 19 of them `CurlHttpClient` (14 `CurlHttpClientPerform`, 5 `CurlHttpClientTimeouts`) |
+| `ubuntu-dev` `debug-linux-arm64` (GCC 13.3, `-Werror`), after Step 1 | 586 of 586; no warning; 18 objects compiled |
+| `ubuntu-dev` `debug-linux-arm64`, gate on (clang-tidy 23.1.6) | the 88 `clang_tidy_*` pass, `clang_tidy_tests_unit_test_http_client` (which includes the new header) among them; the gate switched off in the tree again |
+| CI `release-linux-x86_64` (GCC 15.2), `1a34a3e` | 586 of 586, 17.8 s of tests; the job took 6 min 4 s, of which the apt step took 3 min 57 s ([#41](https://github.com/tomlin256/cryptocogs/issues/41)) |
+| CI `clang-tidy`, `1a34a3e` | 95 of 95, 214.5 s of tests; the job took 4 min 42 s (clang-tidy 23.1.6) |
+
+The gate's units did not change, as planned: no `.cpp` was added (88 in a default tree, 95 with the benchmarks, 35 in a Crypto.com-only
+one). `CLAUDE.md` carries the new numbers: 563 → 568 gtests and 581 → 586 in ctest; the Crypto.com-only line 153 → 158 gtests and 170 →
+175; 14 → 19 `CurlHttpClient` tests; and, for the structure tree, the `http_client.cpp` and `test_http_client.cpp` lines and the new
+`keepalive_server.hpp`, the `test_http_client` rows of the two test tables, and the *Coding conventions*: plan 042's bullet no longer says
+that a POST can reach the server twice, and a new bullet records this plan. `README.md` has a `### REST — connections` subsection after
+*timeouts*.
+
+### Opened outside this plan
+
+- [#59](https://github.com/tomlin256/cryptocogs/issues/59) (enhancement, priority low in the body): a per-request flag so that an adapter
+  can mark a request that only reads, and `perform` keeps connection reuse for it (D2). Every Kraken and Crypto.com private endpoint is a
+  POST and now pays a connect and a handshake; a wrong "read-only" mark on a state-changing endpoint would bring #58 back, which is why
+  it is separate from this plan.
+
+### What differed from the plan
+
+- **The Linux red half was run on its own.** The plan called the full 586-of-586 run in `ubuntu-dev` "also the Linux red-then-green
+  evidence"; a green run is only the green half. The five tests were run against the transport without the fix in the same container
+  (the table above), then with it.
+- **The Crypto.com-only tree was run, not only listed**: 210 of 210, where plan 042 recorded such a tree as built and listed with
+  `ctest -N`.
+- **The first version of `KeepAliveServer::serve` had two identical branches** that each closed the connection (the editor's clang-tidy,
+  `bugprone-branch-clone`); they became one condition, `drop_(request) || !send_all(...)`, before the first build.
