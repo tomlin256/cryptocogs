@@ -1,7 +1,7 @@
 # Plan 038 — `CurlHttpClient` stops when `curl_slist_append` fails
 
-**Status:** In progress (2026-11-06). Rob approved the plan as written, so D1 to D5 stood at the defaults below. Steps 0 to 2 are pushed and
-green on CI; Step 3 is the documentation, in the commit that adds the *Outcome*; Step 4, the measurements after the push, is open.
+**Status:** Done (2026-11-06). Rob approved the plan as written, so D1 to D5 stood at the defaults below. #48 is closed; the *Outcome* at
+the end has the record, the sanitizer evidence of Step 4 included.
 
 Closes [#48](https://github.com/tomlin256/cryptocogs/issues/48).
 
@@ -235,14 +235,15 @@ Not blocking the push (push, then measure).
 
 ## Outcome
 
-*Steps 0 to 3 as built, 2026-11-06. Step 4 is open: its results go in the next commit, which also sets the Status to Done.*
+*As built, 2026-11-06.*
 
 | Step | Commit | `debug-macos-arm64`, clang-tidy gate on | CI, `release-linux-x86_64` (GCC 15.2) |
 |---|---|---|---|
 | 0 Approval | `f63f47b` | none (documentation); comments on [#48](https://github.com/tomlin256/cryptocogs/issues/48#issuecomment-6688015104) and [#51](https://github.com/tomlin256/cryptocogs/issues/51#issuecomment-6688015561) | none: documentation only |
 | 1 The function, the fix, its tests | `3db5a69` | baseline **641 of 641** (556 + 85 gate); red first; then **648 of 648** (556 + 5 + 87 gate) | [run 42240818850](https://github.com/tomlin256/cryptocogs/actions/runs/42240818850) green |
 | 2 `perform` under test | `c09f39e` | **652 of 652** (564 + 88 gate) | [run 42241309526](https://github.com/tomlin256/cryptocogs/actions/runs/42241309526) green |
-| 3 Docs | the commit that adds this section | **652 of 652** with the gate on (nothing rebuilt), then the gate off again: **564 of 564** | none: documentation only (`paths-ignore`); the last commit with code is `c09f39e` |
+| 3 Docs | `0842ee4` | **652 of 652** with the gate on (nothing rebuilt), then the gate off again: **564 of 564** | none: documentation only (`paths-ignore`); the last commit with code is `c09f39e` |
+| 4 After the push | the commit that adds this row | the sanitizer trees, below | the two `Sanitizers` runs, below |
 
 No warning in any build. The counts the plan expected (561 and 87 after Step 1, 564 and 88 after Step 2) were right.
 
@@ -295,5 +296,21 @@ Both new test executables built in the Crypto.com-only tree: they are exchange-a
 **Found along the way, and not fixed here.** [#51](https://github.com/tomlin256/cryptocogs/issues/51) (high), in *Raised along the way*
 above. The same `chunk = curl_slist_append(chunk, …)` pattern is in `tests/examples/kapi.cpp:335-336`; no issue was opened (*Not here*).
 
-**To do after this commit is pushed.** Close #48 by hand with a comment (the commits, the red-then-green record, the counts), then
-Step 4.
+**Step 3, closing.** `0842ee4` is documentation only, so it started no CI run; the last commit with code, `c09f39e`, had a green
+`release-linux-x86_64` run. #48 was then closed by hand (`completed`, 15:24 UTC) with
+[a comment](https://github.com/tomlin256/cryptocogs/issues/48#issuecomment-6688405219) that lists the commits, the red-then-green record
+and the counts. No commit message carried a closing keyword.
+
+**Step 4, after the push.**
+
+| Check | Result |
+|---|---|
+| `asan-macos-arm64`, full suite, `ASAN_OPTIONS=detect_stack_use_after_return=1:strict_string_checks=1`, `UBSAN_OPTIONS=print_stacktrace=1` | **567 of 567** (the 564, the two canaries and the coverage test); 78 objects compiled, no warning, no sanitizer report; the 8 new tests took 0.01 to 0.03 s each |
+| `tsan-macos-arm64`, full suite, `TSAN_OPTIONS=second_deadlock_stack=1` | **566 of 566** (the 564, the canary and the coverage test); 78 objects compiled, no warning, no report. Each `CurlHttpClientPerform` test took 2.1 s (0.03 s under ASan); the `SignatureEquivalence` tests, which start no server, took 2.06 s too, so it is a cost of TSan on the Mac and not of the loopback server (the cause was not looked into; the limit is 120 s) |
+| Linux, `asan-linux-arm64` in `ubuntu-dev` (GCC 13.3, aarch64, LeakSanitizer on), `test_curl_header_list` only, a scratch copy of `0842ee4` made with `git archive` | the fixed file: 5 of 5, no report. **The old loop body: `AFailureAtAnyPositionThrowsAndStops` red, and LeakSanitizer reports 63 bytes in 6 allocations**, all made by `curl_slist_append`, called from `curl_header_list.cpp:16` (the old `list.reset(append(list.release(), …))`) inside that test: three nodes and their three strings, the ones that the failures at position 2 (one node) and position 3 (two nodes) released. The fixed file swapped back: 5 of 5, no report |
+| `sanitizers.yml` `which=asan` ([run 42242879936](https://github.com/tomlin256/cryptocogs/actions/runs/42242879936); GCC 15.2, x86_64, `detect_leaks=1`) | **green**: 567 of 567, 7 min 17 s |
+| `sanitizers.yml` `which=tsan` ([run 42244110104](https://github.com/tomlin256/cryptocogs/actions/runs/42244110104)) | **green**: 566 of 566, 5 min 42 s, `halt_on_error=1`, no report; the three `CurlHttpClientPerform` tests took 0.04 s each there |
+
+The Linux run is the independent check of the leak half, as planned: the Mac cannot see a leak, and the failure test catches a regression
+of the shape everywhere. `CLAUDE.md` gained two bullets in the commit that records this: *Sanitizers*, "Proving a leak fix" (the recipe of
+the third row), and *Coding conventions*, "Discard a result with `std::ignore = f();`".
