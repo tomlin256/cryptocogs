@@ -26,9 +26,17 @@
 // but the phase is not: whether a plain-HTTP request had begun varied from 99 of 300 runs on macOS to 300 of 300 on Linux. So no live
 // test asserts it. The text for each phase is tested as a pure function, and the live phase test is the TLS handshake that is never
 // answered, where nothing is ever sent.
+//
+// Connections (plan 043, #58). libcurl keeps connections between calls, and when a reused one ends before a byte of reply it writes the
+// request again on a new connection, so a POST that places an order could reach the server twice and perform() could not tell. The
+// ix::HttpServer above cannot show it: it closes every connection after its reply. A KeepAliveServer (keepalive_server.hpp) keeps them
+// open, records every request with the connection it came on, and closes a connection with no reply when its rule says so. The tests count
+// what the server read, after perform() has returned: no timer. A POST or DELETE must be read once, on a connection made for it, and a GET
+// keeps sharing a connection.
 
 #include "exchange/common/http_client.hpp"
 
+#include "keepalive_server.hpp"
 #include "silent_listener.hpp"
 
 #include <gtest/gtest.h>
@@ -36,6 +44,7 @@
 
 #include <unistd.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <initializer_list>
@@ -494,4 +503,131 @@ TEST(CurlHttpClientTimeouts, ATimeoutBeforeTheRequestWentOutSaysItWasNotSent) {
     EXPECT_TRUE(has(text, "The request was not sent.")) << text;
     EXPECT_FALSE(has(text, "outcome is unknown")) << text;
     EXPECT_FALSE(has(text, "sending it again")) << text;
+}
+
+// ---- Connections (plan 043, #58) ----------------------------------------------------------------------------------------------------
+
+namespace {
+
+// The rules of the KeepAliveServer. An order is any target that starts with /order.
+bool never_drop(const ReadRequest& /*request*/) {
+    return false;
+}
+
+// Every order is read and then closed with no reply, on whatever connection it comes.
+bool drops_every_order(const ReadRequest& request) {
+    return request.target.starts_with("/order");
+}
+
+// An order that comes on a connection which has carried a request before is read and then closed with no reply: a reused connection that
+// the server closes after reading the request, the issue's case. On a connection made for the order it is answered.
+bool drops_an_order_on_a_used_connection(const ReadRequest& request) {
+    return request.target.starts_with("/order") && request.served_before > 0;
+}
+
+// How many of the requests that the server read have this target.
+std::size_t times_read(const std::vector<ReadRequest>& reads, const std::string_view target) {
+    return static_cast<std::size_t>(
+        std::count_if(reads.begin(), reads.end(), [&](const ReadRequest& one) { return one.target == target; }));
+}
+
+// One row of the table: whatever the earlier request left, the order is read once, on a connection that was made for it.
+void expect_an_order_has_a_connection_of_its_own(const std::string& name, const HttpRequest& earlier, const HttpRequest& order) {
+    SCOPED_TRACE(name);
+    KeepAliveServer server(drops_an_order_on_a_used_connection);
+    ASSERT_TRUE(server.listening());
+    CurlHttpClient client(server.base_url());
+
+    EXPECT_EQ(client.perform(earlier).status, 200);
+    EXPECT_EQ(client.perform(order).status, 200);
+
+    const std::vector<ReadRequest> reads = server.requests();
+    ASSERT_EQ(reads.size(), 2U) << "the order was written more than once";
+    EXPECT_NE(reads[1].connection, reads[0].connection);
+    EXPECT_EQ(reads[1].served_before, 0);
+}
+
+} // namespace
+
+// The issue's test (#58). The server reads the order and closes the connection with no reply, on every connection, so the order is read at
+// least once whatever perform does. Before the fix libcurl wrote it again on a new connection and the server read it twice. perform throws
+// either way; the words of the exception are #57's, so only its type is checked.
+TEST_F(CurlHttpClientPerform, APostThatTheServerClosesWithoutAReplyIsSentOnce) {
+    KeepAliveServer server(drops_every_order);
+    ASSERT_TRUE(server.listening());
+    CurlHttpClient client(server.base_url());
+
+    const HttpRequest first = make_request(HttpRequest::Method::POST, "/first", "a=1", {});
+    const HttpRequest order = make_request(HttpRequest::Method::POST, "/order", "symbol=X&qty=1", {});
+
+    EXPECT_EQ(client.perform(first).status, 200);
+    EXPECT_THROW(client.perform(order), std::runtime_error);
+    EXPECT_EQ(times_read(server.requests(), "/order"), 1U);
+}
+
+// The same for a DELETE, a cancel: before the fix the reply that came back was the second attempt's, though the first had gone through.
+TEST_F(CurlHttpClientPerform, ADeleteThatTheServerClosesWithoutAReplyIsSentOnce) {
+    KeepAliveServer server(drops_every_order);
+    ASSERT_TRUE(server.listening());
+    CurlHttpClient client(server.base_url());
+
+    const HttpRequest first  = make_request(HttpRequest::Method::POST, "/first", "a=1", {});
+    const HttpRequest cancel = make_request(HttpRequest::Method::DELETE, "/order/1", "", {});
+
+    EXPECT_EQ(client.perform(first).status, 200);
+    EXPECT_THROW(client.perform(cancel), std::runtime_error);
+    EXPECT_EQ(times_read(server.requests(), "/order/1"), 1U);
+}
+
+// The issue's own case, as a table: the server closes an order with no reply only on a connection that has carried a request before, so the
+// order is answered if it has a connection of its own and is written twice if it rides one. The rows after a GET are the ones that an
+// option which only closes a connection after a transfer (FORBID_REUSE) would fail: the GET's connection is still there for the order.
+TEST_F(CurlHttpClientPerform, APostOrADeleteNeverRidesAConnectionAnEarlierRequestUsed) {
+    using M = HttpRequest::Method;
+    const HttpRequest post_first   = make_request(M::POST, "/first", "a=1", {});
+    const HttpRequest get_first    = make_request(M::GET, "/first", "", {});
+    const HttpRequest post_order   = make_request(M::POST, "/order", "symbol=X&qty=1", {});
+    const HttpRequest delete_order = make_request(M::DELETE, "/order/1", "", {});
+
+    expect_an_order_has_a_connection_of_its_own("a POST after a POST", post_first, post_order);
+    expect_an_order_has_a_connection_of_its_own("a DELETE after a POST", post_first, delete_order);
+    expect_an_order_has_a_connection_of_its_own("a POST after a GET", get_first, post_order);
+    expect_an_order_has_a_connection_of_its_own("a DELETE after a GET", get_first, delete_order);
+}
+
+// Plan 041 kept connections across the reset so that a GET can reuse one; the fix for #58 must not give that up. Passes before the fix too.
+TEST_F(CurlHttpClientPerform, GetsKeepSharingOneConnection) {
+    KeepAliveServer server(never_drop);
+    ASSERT_TRUE(server.listening());
+    CurlHttpClient client(server.base_url());
+
+    for (const char* path : {"/a", "/b", "/c"}) {
+        EXPECT_EQ(client.perform(make_request(HttpRequest::Method::GET, path, "", {})).status, 200) << path;
+    }
+
+    EXPECT_EQ(server.requests().size(), 3U);
+    EXPECT_EQ(server.connections(), 1);
+}
+
+// The whole policy in one sequence: the POST and the DELETE each have a connection of their own, and the GETs around them make none. It
+// does not say which cached connection a GET reuses, which is libcurl's choice.
+TEST_F(CurlHttpClientPerform, AMixOfMethodsGivesPostAndDeleteAConnectionEach) {
+    using M = HttpRequest::Method;
+    KeepAliveServer server(never_drop);
+    ASSERT_TRUE(server.listening());
+    CurlHttpClient client(server.base_url());
+
+    const std::vector<HttpRequest> sequence = {
+        make_request(M::GET, "/a", "", {}),      make_request(M::POST, "/b", "x=1", {}), make_request(M::GET, "/c", "", {}),
+        make_request(M::DELETE, "/d", "", {}),   make_request(M::GET, "/e", "", {}),
+    };
+    for (const HttpRequest& request : sequence) {
+        EXPECT_EQ(client.perform(request).status, 200) << request.path;
+    }
+
+    const std::vector<ReadRequest> reads = server.requests();
+    ASSERT_EQ(reads.size(), 5U);
+    EXPECT_EQ(server.connections(), 3);
+    EXPECT_EQ(reads[1].served_before, 0) << "the POST rode a connection that an earlier request used";
+    EXPECT_EQ(reads[3].served_before, 0) << "the DELETE rode a connection that an earlier request used";
 }

@@ -67,6 +67,16 @@ public:
     // Each call stands alone: nothing set for an earlier request (its headers,
     // body or method) reaches the next, one that threw included, while
     // connections stay open between calls (#51).
+    //
+    // A POST or a DELETE is sent at most once (#58): it never rides a
+    // connection that an earlier request used, so each makes a connection of
+    // its own (a TCP connect, and a TLS handshake for https). libcurl writes a
+    // request again on a new connection when a reused one is closed without a
+    // reply, and for a POST that would reach the server twice. If the
+    // connection of a POST or a DELETE closes without a reply, perform throws,
+    // and the request may have been received and acted on: an order has to be
+    // looked for at the exchange before it is sent again. A GET keeps reusing
+    // connections.
     HttpResponse perform(const HttpRequest& http);
 
     // Move-only (owns a curl handle); copy is implicitly deleted by the

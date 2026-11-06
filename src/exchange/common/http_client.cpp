@@ -118,6 +118,15 @@ HttpResponse CurlHttpClient::perform(const HttpRequest& http) {
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(http.body.size()));
     }
 
+    // A POST or a DELETE is never sent on a connection that an earlier request used (#58). When a reused connection is closed by the server
+    // without a reply, libcurl cannot tell a request that the server never read from one that it read and acted on, so it writes the
+    // request again on a new connection: an order would reach the exchange twice, and the caller would see only the second attempt's
+    // outcome. libcurl has no option that turns this retry off, and it happens only on a reused connection, so such a request gets a
+    // connection of its own. A GET is safe to repeat and keeps reusing connections (#51). The reset above clears this option, so it is set
+    // on every call.
+    if (http.method != M::GET)
+        curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 1L);
+
     // Response buffer.
     std::string response;
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &CurlHttpClient::write_cb);
