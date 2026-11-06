@@ -1,7 +1,7 @@
 # Plan 038 — `CurlHttpClient` stops when `curl_slist_append` fails
 
-**Status:** In progress. Rob approved the plan as written on 2026-11-06, so D1 to D5 stand at the defaults below. Step 0 is done when this
-commit is pushed.
+**Status:** In progress (2026-11-06). Rob approved the plan as written, so D1 to D5 stood at the defaults below. Steps 0 to 2 are pushed and
+green on CI; Step 3 is the documentation, in the commit that adds the *Outcome*; Step 4, the measurements after the push, is open.
 
 Closes [#48](https://github.com/tomlin256/cryptocogs/issues/48).
 
@@ -219,7 +219,8 @@ Not blocking the push (push, then measure).
 - **The production default, the real `curl_slist_append`, is exercised only by Step 2.** If D3 is declined, only the examples and the
   live adapters run it.
 - **`static_cast<void>(list.release())`** discards a result that `bugprone-unused-return-value` watches; a cast to `void` is its accepted
-  spelling. If clang-tidy 23 disagrees I restructure; a `NOLINT` needs your OK (the closed list in `CLAUDE.md`).
+  spelling. If clang-tidy 23 disagrees I restructure; a `NOLINT` needs your OK (the closed list in `CLAUDE.md`). *As built: it disagreed.*
+  `AllowCastToVoid` is off, so the gate failed the cast; the line is `std::ignore = list.release();` and there is no `NOLINT` (see the Outcome).
 - **Step 2 uses real sockets:** loopback only, scanned ports, no sleeps; a hung wait ends at the 120 s ctest timeout, and a sandbox with
   no loopback would fail it. TSan may report inside ixwebsocket: a finding, not a flake.
 - **Step 2 avoids #51 on purpose.** It could read as hiding the bug; the file says why, and #51 is linked and marked high.
@@ -231,3 +232,68 @@ Not blocking the push (push, then measure).
   head. The man page of the libcurl on this Mac (8.7.1) says exactly that.
 - **I read the unit-test rule as covering glue.** `perform` has no seam for its failure path: that path is the function's throw (tested)
   propagating through three lines of `perform` (read, not run).
+
+## Outcome
+
+*Steps 0 to 3 as built, 2026-11-06. Step 4 is open: its results go in the next commit, which also sets the Status to Done.*
+
+| Step | Commit | `debug-macos-arm64`, clang-tidy gate on | CI, `release-linux-x86_64` (GCC 15.2) |
+|---|---|---|---|
+| 0 Approval | `f63f47b` | none (documentation); comments on [#48](https://github.com/tomlin256/cryptocogs/issues/48#issuecomment-6688015104) and [#51](https://github.com/tomlin256/cryptocogs/issues/51#issuecomment-6688015561) | none: documentation only |
+| 1 The function, the fix, its tests | `3db5a69` | baseline **641 of 641** (556 + 85 gate); red first; then **648 of 648** (556 + 5 + 87 gate) | [run 42240818850](https://github.com/tomlin256/cryptocogs/actions/runs/42240818850) green |
+| 2 `perform` under test | `c09f39e` | **652 of 652** (564 + 88 gate) | [run 42241309526](https://github.com/tomlin256/cryptocogs/actions/runs/42241309526) green |
+| 3 Docs | the commit that adds this section | **652 of 652** with the gate on (nothing rebuilt), then the gate off again: **564 of 564** | none: documentation only (`paths-ignore`); the last commit with code is `c09f39e` |
+
+No warning in any build. The counts the plan expected (561 and 87 after Step 1, 564 and 88 after Step 2) were right.
+
+**Red, then green (Step 1).** On the old loop body (`list.reset(append(list.release(), …))`) `AFailureAtAnyPositionThrowsAndStops` was red
+and the other four green, as predicted: no `std::runtime_error` at position 1, 2 or 3, and the double had been called 3 times for
+positions 1 and 2, so the old shape went on appending after the failure. With the fix, 5 of 5.
+
+**Hand-made changes to the function (Step 1).** Each compiled straight against the real test file, one fresh object, the control (the
+file as committed) first and 5 of 5:
+
+| Change | Red | As planned |
+|---|---|---|
+| (a) the old inline logic | `AFailureAtAnyPositionThrowsAndStops` | yes |
+| (b) `if (!grown) continue;` (the failure swallowed) | `AFailureAtAnyPositionThrowsAndStops` | yes |
+| (c) adopt the returned head for the first line only | `AdoptsTheHeadTheAppendFunctionReturns` | yes |
+| (d) `":"` without the space | `LinesAreKeyColonSpaceValueInKeyOrder` and `AdoptsTheHeadTheAppendFunctionReturns` | no: one was predicted, and the second test compares the same lines |
+| (e) iterate the map in reverse (not in the plan) | the same two | extra |
+
+**Characterization (Step 2).** The three `CurlHttpClientPerform` tests are green on `perform` as it was at `f63f47b` and on the new one.
+Two hand-made changes, made in the tree with the two objects deleted first (2 compiled each time) and the sources compared with `HEAD`
+afterwards: `perform` never sets `CURLOPT_HTTPHEADER`, and the list function drops every value. Each turned `SendsEveryHeaderOfAGet`
+and `SendsTheBodyAndTheHeadersOfAPost` red and left `PerformsARequestWithNoHeaders` green.
+
+**Counts, measured (Step 3).**
+
+| | Before | After |
+|---|---|---|
+| `debug-macos-arm64`, ctest | 556 | **564** (548 gtests + 16 `cmake -P` checks) |
+| clang-tidy gate, default tree | 85 | **88** (the new source and the two new tests) |
+| both, gate on | 641 | **652** |
+| Crypto.com-only tree (the other three exchanges off): configure, build, ctest with the gate on | 149 in ctest, 133 gtests, gate 32 | **157** in ctest, **141** gtests, gate **35**; 192 of 192 passed |
+| tree with `CRYPTOCOGS_BUILD_BENCHMARKS=ON`, gate registrations (configure only) | 92 | **95** |
+
+Both new test executables built in the Crypto.com-only tree: they are exchange-agnostic.
+
+**Differences from the plan as written.**
+
+1. **`std::ignore = list.release();`, not `static_cast<void>(list.release())`.** `bugprone-unused-return-value` has `AllowCastToVoid`
+   off, so the gate failed the cast (`clang_tidy_src_exchange_common_curl_header_list`, `curl_header_list.cpp:36`) and passes
+   `std::ignore`. No `NOLINT` was added, so the closed list in `CLAUDE.md` is unchanged. The self-review had assumed the cast would pass.
+2. **How the hand-made changes were made.** Step 1's were compiled one object at a time against the real test file, not in a `git archive`
+   copy of the tree: the function is one self-contained `.cpp`. Step 2's were made in the tree itself (the objects deleted first, because
+   Apple's Make 3.81 compares one-second timestamps, and the number compiled printed), and the sources were restored and compared.
+3. **`test_http_client.cpp` hands the request over through a mutex**, not a `std::promise`: `last()` copies the server's record under
+   the lock that the server's callback holds when it stores it, which orders the store before the read, as TSan needs.
+   `PerformsARequestWithNoHeaders` asserts the status, the body, the method and the path; the planned check that none of the other tests'
+   header names is present is trivially true on a fresh server and client, so it was not written.
+4. **Mutations:** (d) turned two tests red where the plan said one, and (e) was added.
+
+**Found along the way, and not fixed here.** [#51](https://github.com/tomlin256/cryptocogs/issues/51) (high), in *Raised along the way*
+above. The same `chunk = curl_slist_append(chunk, …)` pattern is in `tests/examples/kapi.cpp:335-336`; no issue was opened (*Not here*).
+
+**To do after this commit is pushed.** Close #48 by hand with a comment (the commits, the red-then-green record, the counts), then
+Step 4.

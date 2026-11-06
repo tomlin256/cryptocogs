@@ -53,6 +53,7 @@ cryptocogs/
 │   │   │   ├── rest.hpp                 #   TypedPublicRequest<R>, TypedPrivateRequest<R>, RestResponse<T>,
 │   │   │   │                            #     HttpRequest, IRestAuth
 │   │   │   ├── http_client.hpp          #   CurlHttpClient + HttpResponse — shared libcurl transport (→ libexchange_http.a)
+│   │   │   ├── curl_header_list.hpp     #   detail::make_curl_header_list — a request's curl_slist, built with an append a test can make fail (plan 038; → libexchange_http.a)
 │   │   │   ├── credentials_file.hpp     #   read_toml_credentials — shared TOML from_file loader (→ libexchange_common.a)
 │   │   │   ├── ws.hpp                   #   IWsConnection, IWsErrorHandler, RateLimitedWsErrorHandler,
 │   │   │   │                            #     WsResponse<T>, SubscriptionHandle, WsRequestBase,
@@ -106,7 +107,8 @@ cryptocogs/
 │   │   ├── types.cpp                    # Canonical enum converters → libexchange_common.a
 │   │   ├── tick_price.cpp               # TickPrice from()/str()/to_json()/from_json → libexchange_common.a
 │   │   ├── credentials_file.cpp        # read_toml_credentials — shared TOML from_file loader → libexchange_common.a
-│   │   └── http_client.cpp             # CurlHttpClient — shared libcurl transport → libexchange_http.a
+│   │   ├── http_client.cpp             # CurlHttpClient — shared libcurl transport → libexchange_http.a
+│   │   └── curl_header_list.cpp        # make_curl_header_list — the request's curl_slist; stops on a failed append → libexchange_http.a
 │   ├── kraken/                          # → libkraken.a
 │   │   ├── types.cpp  auth.cpp          #   enum converters, crypto/sign/nonce
 │   │   ├── rest_api.cpp  rest_client.cpp #   request build() + response from_json; client ctors + factory
@@ -167,6 +169,8 @@ cryptocogs/
         ├── test_mock_ws_connection.cpp   # MockWsConnection's locked outbound log: sent(), wait_for_sent(), release_waiters() (exchange-agnostic)
         ├── callback_probe.hpp            # CallbackProbe — finds a callback called after it was destroyed (test_ix_ws_connection, test_cryptocom_ws_client)
         ├── test_ix_ws_connection.cpp     # IxWsConnection vs a loopback ix::WebSocketServer: its destructor stops the socket before the callbacks die (exchange-agnostic)
+        ├── test_curl_header_list.cpp     # make_curl_header_list: the "Key: value" list, and a failed curl_slist_append throws and sends nothing (plan 038; exchange-agnostic)
+        ├── test_http_client.cpp          # CurlHttpClient::perform vs a loopback ix::HttpServer: a request's headers and body reach the server (plan 038; exchange-agnostic)
         ├── test_binance_auth.cpp         # BinanceAuth HMAC-SHA256 signing
         ├── test_binance_types.cpp        # Binance enum converters
         ├── test_binance_rest_requests.cpp / test_binance_rest_responses.cpp
@@ -336,8 +340,9 @@ cmake --preset debug-macos-arm64 -DCRYPTOCOGS_CLANG_TIDY=               # off ag
 ```
 
 - **Green** ([plan 037](docs/plans/037-clear-clang-tidy-findings.md), closes [#46](https://github.com/tomlin256/cryptocogs/issues/46)):
-  85 of 85 in a default tree and 92 of 92 with `CRYPTOCOGS_BUILD_BENCHMARKS=ON`, on the Mac (clang-tidy 23.1.4) and in the
-  container (23.1.6). The baseline was 329 findings in 47 files (365 with the benchmarks), 237 of them
+  88 of 88 in a default tree and 95 of 95 with `CRYPTOCOGS_BUILD_BENCHMARKS=ON`, on the Mac (clang-tidy 23.1.4); plan 037 cleared
+  85 and 92, on the Mac and in the container (23.1.6), and [plan 038](docs/plans/038-curl-header-list-append-failure.md) added three
+  units (`curl_header_list.cpp` and its two tests). The baseline was 329 findings in 47 files (365 with the benchmarks), 237 of them
   `bugprone-unchecked-optional-access` in tests and examples; each is fixed, and the only `NOLINT`s are the closed list under
   *Fix a finding* below. From here a new finding turns its unit red: fix it, and do not add to the list without Rob's OK.
 - **The tests.** `clang_tidy_<path>`, one per unit; `clang_tidy_version` (the tool is LLVM 23); `clang_tidy_checks` (the config
@@ -349,8 +354,8 @@ cmake --preset debug-macos-arm64 -DCRYPTOCOGS_CLANG_TIDY=               # off ag
   passes*, which is why the gate itself is tested; `test_clang_tidy_wiring` also configures the real root with the gate on
   (the tool `sh`, never run), so the registration is exercised in every tree.
 - **The units come from the targets.** A unit is a `.cpp` that a target of this project compiles, read at configure time, so a
-  new adapter needs nothing, an adapter that is switched off has no units (a Crypto.com-only tree registers 32 tests, one with
-  `CRYPTOCOGS_BUILD_BENCHMARKS=ON` 92), and a file no target compiles is not one. The registration is the last thing the
+  new adapter needs nothing, an adapter that is switched off has no units (a Crypto.com-only tree registers 35 tests, one with
+  `CRYPTOCOGS_BUILD_BENCHMARKS=ON` 95), and a file no target compiles is not one. The registration is the last thing the
   root `CMakeLists.txt` does: `test_clang_tidy_config` holds that it follows the last `add_subdirectory`, and `clang_tidy_units`
   fails if a target was made after it. A dependency's sources (anything under a `_deps` directory) and anything generated into
   the build tree are never units.
@@ -555,8 +560,8 @@ green, and it has no caches.
 ctest --preset release-macos-arm64        # the test preset of the tree you built; adds --output-on-failure and a 120 s timeout per test
 ```
 
-There are twenty-nine test executables (540 tests, plus sixteen `cmake -P` checks that are listed after the table — 556 in
-ctest) — eleven Kraken/common, six Binance, six Coinbase, six Crypto.com:
+There are thirty-one test executables (548 tests, plus sixteen `cmake -P` checks that are listed after the table — 564 in
+ctest) — thirteen Kraken/common, six Binance, six Coinbase, six Crypto.com:
 
 | Binary | Source | What it tests |
 |---|---|---|
@@ -571,6 +576,8 @@ ctest) — eleven Kraken/common, six Binance, six Coinbase, six Crypto.com:
 | `<tree>/bin/test_ws_reconnect_session` | `test_ws_reconnect_session.cpp` | `WsReconnectSession` start/stop/backoff/reconnect — deterministic, no real sleeps; a throwing `DisconnectFn` is contained in `stop()`, in the destructor and in the worker |
 | `<tree>/bin/test_mock_ws_connection` | `test_mock_ws_connection.cpp` | `MockWsConnection`'s locked outbound log — `sent()` is an ordered copy, `wait_for_sent` and `release_waiters` wake in either thread order, concurrent sends are all kept (exchange-agnostic; [plan 033](docs/plans/033-tsan-races-in-the-tests.md)) |
 | `<tree>/bin/test_ix_ws_connection` | `test_ix_ws_connection.cpp` | `IxWsConnection` against a loopback `ix::WebSocketServer` (real sockets on 127.0.0.1, no sleeps): dropping an open connection stops the socket before any callback is destroyed, `disconnect()` then drop delivers no second `Close`, a never-connected one is dropped harmlessly (exchange-agnostic; [plan 034](docs/plans/034-transport-callback-lifetimes.md)) |
+| `<tree>/bin/test_curl_header_list` | `test_curl_header_list.cpp` | `make_curl_header_list`: no headers give no list and no call; the lines are `Key: value` in key order, a 200-character value included; every append is handed the list built so far; a failed append, at the first position or a later one, throws a `std::runtime_error` naming `curl_slist_append` and the loop stops there; the head the append function returns is adopted (exchange-agnostic; [plan 038](docs/plans/038-curl-header-list-append-failure.md)) |
+| `<tree>/bin/test_http_client` | `test_http_client.cpp` | `CurlHttpClient::perform` against a loopback `ix::HttpServer` (real sockets on 127.0.0.1, a port it finds free, no sleeps): every header of a GET arrives with its value, a POST's body and headers arrive, and a request with no headers is performed. One request per client, because a second one on the same client is [#51](https://github.com/tomlin256/cryptocogs/issues/51) (exchange-agnostic; [plan 038](docs/plans/038-curl-header-list-append-failure.md)) |
 | `<tree>/bin/test_binance_auth` | `test_binance_auth.cpp` | `BinanceAuth` HMAC-SHA256 signing + header injection |
 | `<tree>/bin/test_binance_types` | `test_binance_types.cpp` | Binance enum converters (incl. canonical FOK time-in-force); the `std::uint8_t` underlying type of `BinanceOrderRespType` and `BinanceSignAlgorithm` (`static_assert`) |
 | `<tree>/bin/test_binance_rest_requests` | `test_binance_rest_requests.cpp` | Each Binance REST request builds the correct path/query/body |
@@ -613,15 +620,16 @@ The sixteen `cmake -P` checks need no build and finish in seconds (`test_warning
 
 A tree configured with `CRYPTOCOGS_SANITIZE` adds the tests that prove its options are live (`sanitizer_canary_*` and
 `test_sanitizer_coverage`; see [Sanitizers](#sanitizers)), and one configured with `CRYPTOCOGS_CLANG_TIDY` adds the `clang_tidy_*`
-tests (85 in the default tree; see [clang-tidy (opt-in)](#clang-tidy-opt-in)).
+tests (88 in the default tree; see [clang-tidy (opt-in)](#clang-tidy-opt-in)).
 
-Tests do **not** require network access or credentials — all I/O is mocked, except `test_ix_ws_connection`, which talks to a
-server of its own on 127.0.0.1 (a port it finds free; nothing leaves the machine).
+Tests do **not** require network access or credentials — all I/O is mocked, except `test_ix_ws_connection` and
+`test_http_client`, which each talk to a server of their own on 127.0.0.1 (a port each finds free; nothing leaves the machine).
 The flag matrix splits cleanly: each exchange flag drops its own suite. A
 Crypto.com-only tree (`-DCRYPTOCOGS_BUILD_KRAKEN=OFF -DCRYPTOCOGS_BUILD_BINANCE=OFF
--DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 133 gtests — the 94-test Crypto.com suite plus the
-exchange-agnostic 11 `TickPrice`, 9 `read_toml_credentials`, 5 `MockWsConnection`, 4 `IxWsConnection` and 10 `ASSERT_HAS_VALUE`
-tests, which build in any tree — and the sixteen `cmake -P` checks: 149 in ctest.
+-DCRYPTOCOGS_BUILD_COINBASE=OFF`) runs 141 gtests — the 94-test Crypto.com suite plus the
+exchange-agnostic 11 `TickPrice`, 9 `read_toml_credentials`, 5 `MockWsConnection`, 4 `IxWsConnection`, 10 `ASSERT_HAS_VALUE`,
+5 `make_curl_header_list` and 3 `CurlHttpClient::perform` tests, which build in any tree — and the sixteen `cmake -P` checks:
+157 in ctest.
 
 ### Test suite breakdown
 
@@ -638,6 +646,8 @@ tests, which build in any tree — and the sixteen `cmake -P` checks: 149 in cte
 | `test_ws_reconnect_session.cpp` | `WsReconnectSession` start/stop/backoff/reconnect callbacks, driven by synchronous step injection (no `sleep_for`) |
 | `test_mock_ws_connection.cpp` | `MockWsConnection`'s outbound log is safe from a second thread: `sent()` copies in order, `wait_for_sent` returns when satisfied whichever thread gets there first, `release_waiters` frees a waiter, 400 concurrent sends are all kept in per-thread order — no sleeps |
 | `test_ix_ws_connection.cpp` | The `IxWsConnection` destructor stops the socket (and so joins the I/O thread) before it destroys the callbacks; a `CallbackProbe` counts any call that follows a destruction. ixwebsocket skips the final `Close` when `stop()` lands between two iterations of its loop (about 4 in 100 runs here), so no assertion depends on a `Close` and the one test that needs one repeats the attempt until it had one |
+| `test_curl_header_list.cpp` | The header list a request sends, built with an append function a test can replace so that `curl_slist_append` fails on demand: the double forwards to the real function until call *n*, so the list under test is a real `curl_slist`; a failure at call 1, 2 or 3 throws and the function makes no further call (the old loop dropped the headers already built, leaked their nodes and went on, so a private request could go out unsigned); a double that returns a new head shows the list adopts whatever the function returns |
+| `test_http_client.cpp` | The first tests of the libcurl transport itself (the adapter tests inject a performer): a loopback `ix::HttpServer` records the request and the test reads it after `perform()` returns, under a lock, so there is no sleep; the fixture calls `curl_global_init` once per suite, as a caller must. A client performs one request per test, because a second reuses the handle's stale `CURLOPT_HTTPHEADER` and `CURLOPT_POSTFIELDS` ([#51](https://github.com/tomlin256/cryptocogs/issues/51)) |
 | `test_ws_client.cpp` (`WsErrorIsolation`) | A throw from a handler, a push callback or the `MessageIdentifier` is contained on the receive thread: the frame is reported through the error handler and dropped, and the client goes on |
 | `test_assert_has_value.cpp` | `ASSERT_HAS_VALUE` itself: it passes on a value; on an empty optional it fails once, fatally, naming the expression as written, and the test function returns; text streamed after it follows on its own line; it composes with `if`/`else` and works on struct members, a `std::optional<std::string>`, a pointer to an optional and a local that a callback sets |
 | `test_kraken_ws_api_defaults.cpp` | A `const` default-initialised request compiles only if every member has an initialiser, which is the compile-time half; the values (`Limit`, `Buy`, `Ticker`) and the exact frames of `to_json()` are the other half |
@@ -651,7 +661,7 @@ tests, which build in any tree — and the sixteen `cmake -P` checks: 149 in cte
 | Namespace | Location | Contains |
 |---|---|---|
 | `exchange::` | `exchange/common/{types,tick_price}.hpp` | Canonical enums shared by every adapter: `Side`, `OrderType`, `TimeInForce`, `OrderStatus` (+ `to_string`/`from_string`); and `TickPrice` (exact-decimal price representation) |
-| `exchange::rest::` | `exchange/common/{rest,http_client,credentials_file}.hpp` | `TypedPublicRequest<R>`, `TypedPrivateRequest<R>`, `RestResponse<T>`, `HttpRequest`, `IRestAuth`; `CurlHttpClient` + `HttpResponse` (shared libcurl transport, `libexchange_http.a`); and `read_toml_credentials` (shared TOML `from_file` loader, `libexchange_common.a`) |
+| `exchange::rest::` | `exchange/common/{rest,http_client,curl_header_list,credentials_file}.hpp` | `TypedPublicRequest<R>`, `TypedPrivateRequest<R>`, `RestResponse<T>`, `HttpRequest`, `IRestAuth`; `CurlHttpClient` + `HttpResponse` (shared libcurl transport, `libexchange_http.a`) and `detail::make_curl_header_list` (the `curl_slist` of a request's headers; it throws instead of dropping a header, plan 038); and `read_toml_credentials` (shared TOML `from_file` loader, `libexchange_common.a`) |
 | `exchange::ws::` | `exchange/common/{ws,ws_client,ix_ws_connection,reconnect_session}.hpp` | `IWsConnection`, `IWsErrorHandler`, `RateLimitedWsErrorHandler`, `IxWsConnection`, `WsReconnectSession`, `ExchangeWsClient`, `SubscriptionHandle`, `WsResponse<T>`, `WsRequestBase`, `TypedWsRequest<R>`, `FrameDescriptor`, `FrameKind`, `MessageIdentifier`, `make_exchange_ws_client()` |
 | `exchange::kraken::` | `exchange/kraken/types.hpp` | Kraken-only types — `PriceType`, `TriggerReference`, `StpType`, `FeePreference`, `OrderParams`, `OrderInfo`, `TradeInfo`, `LedgerEntry` — plus `RestResponse<T>` / `parse_rest_response<T>()` (Kraken's REST envelope; re-exports the canonical enums **and** `exchange::TickPrice`) |
 | `exchange::kraken::rest::` | `exchange/kraken/{auth,rest_api,rest_client}.hpp` | `KrakenCredentials`, all REST request/response types, `KrakenRestClient` |
@@ -1624,7 +1634,7 @@ Place the banner before `#pragma once` (for headers) or before the first `#inclu
 - **No allocating object at namespace scope** (`bugprone-throwing-static-initialization`): a namespace-scope `std::string`, or a credentials struct, allocates in its initialiser, which can throw before `main`. Use a `constexpr const char*` or `std::string_view`, or a function-local static (`const Creds& creds() { static const Creds c{…}; return c; }`).
 - **An example's `main()` catches and reports** (plan 037 D4, `bugprone-exception-escape`): `try { … } catch (const std::exception& e) { std::cerr << "fatal: " << e.what() << '\n'; <cleanup>; return EXIT_FAILURE; } catch (...) { … }`, in each of the fifteen. The handlers write to `std::cerr`, not to spdlog: spdlog's error path allocates, which the check reports again. The cost is that an exception on the main thread no longer reaches `backward_init.cpp`'s terminate handler, so its throw-site backtrace is lost for those; exceptions on other threads (the WebSocket I/O threads) and crashes (signals) still go through backward. In the two REST examples `report(resp)` returns `const Resp*` (`nullptr` after logging a failed response, or an ok one with no result) and each subcommand reads the result only through that pointer.
 - Monetary / volume fields returned by the REST API arrive as JSON **strings** (e.g., `"1.5"`) — deserialise with `std::stod(j.value("field", "0"))` rather than `.get<double>()`. For prices that must round-trip to an *exact* decimal string (e.g. for order placement), use `TickPrice` instead of raw `double` formatting — see [Shared types reference](#tickprice--exact-decimal-price-representation).
-- The build produces **six** static libraries — two always-built common libs plus the four adapters. `exchange_common` compiles the exchange-agnostic non-template code — `src/exchange/common/{ws_client,ws,types,tick_price,credentials_file}.cpp` (generic WS dispatch, `SubscriptionHandle`/`RateLimitedWsErrorHandler`, canonical enum converters, `TickPrice`, and the shared `read_toml_credentials` TOML loader) — and links `nlohmann_json` (`PUBLIC`) plus toml++ (`PRIVATE`, build-only — header-only, used only by `credentials_file.cpp`), **not** OpenSSL/libcurl (the WS engine needs no HTTP/crypto). `exchange_http` compiles `src/exchange/common/http_client.cpp` (the shared `CurlHttpClient` REST transport) and links `CURL::libcurl` + `nlohmann_json` (`PUBLIC`) — kept separate so `exchange_common` stays curl-free (plan 010). `kraken` (six `.cpp` under `src/kraken/`: types, auth, rest_api, rest_client, ws_api, ws_client), `binance` (six under `src/binance/`: types, auth, rest_api, rest_client, ws_streams, ws_api), `coinbase` (five under `src/coinbase/`: types, auth, rest_api, rest_client, ws_streams), and `cryptocom` (six under `src/cryptocom/`: types, auth, rest_api, rest_client, heartbeat_connection, ws) are **peers**: each links `exchange_common`, `exchange_http`, and OpenSSL (`PUBLIC`), and **none links another**. OpenSSL is `PUBLIC` because `auth.hpp` declares HMAC/SHA helpers in a public header (defined in `auth.cpp`); libcurl reaches consumers transitively through `exchange_http`. After plan 010 the curl handling lives once in `CurlHttpClient`; after plan 016 every adapter header is purely declarative — request/response bodies live in these `.cpp` files and template bodies in sibling `.inl` files. None of the libraries link ixwebsocket; callers that use `IxWsConnection` must link `ixwebsocket` separately.
+- The build produces **six** static libraries — two always-built common libs plus the four adapters. `exchange_common` compiles the exchange-agnostic non-template code — `src/exchange/common/{ws_client,ws,types,tick_price,credentials_file}.cpp` (generic WS dispatch, `SubscriptionHandle`/`RateLimitedWsErrorHandler`, canonical enum converters, `TickPrice`, and the shared `read_toml_credentials` TOML loader) — and links `nlohmann_json` (`PUBLIC`) plus toml++ (`PRIVATE`, build-only — header-only, used only by `credentials_file.cpp`), **not** OpenSSL/libcurl (the WS engine needs no HTTP/crypto). `exchange_http` compiles `src/exchange/common/{http_client,curl_header_list}.cpp` (the shared `CurlHttpClient` REST transport, and the `curl_slist` of a request's headers that it builds, plan 038) and links `CURL::libcurl` + `nlohmann_json` (`PUBLIC`) — kept separate so `exchange_common` stays curl-free (plan 010). `kraken` (six `.cpp` under `src/kraken/`: types, auth, rest_api, rest_client, ws_api, ws_client), `binance` (six under `src/binance/`: types, auth, rest_api, rest_client, ws_streams, ws_api), `coinbase` (five under `src/coinbase/`: types, auth, rest_api, rest_client, ws_streams), and `cryptocom` (six under `src/cryptocom/`: types, auth, rest_api, rest_client, heartbeat_connection, ws) are **peers**: each links `exchange_common`, `exchange_http`, and OpenSSL (`PUBLIC`), and **none links another**. OpenSSL is `PUBLIC` because `auth.hpp` declares HMAC/SHA helpers in a public header (defined in `auth.cpp`); libcurl reaches consumers transitively through `exchange_http`. After plan 010 the curl handling lives once in `CurlHttpClient`; after plan 016 every adapter header is purely declarative — request/response bodies live in these `.cpp` files and template bodies in sibling `.inl` files. None of the libraries link ixwebsocket; callers that use `IxWsConnection` must link `ixwebsocket` separately.
 - IXWebSocket and spdlog are **not** linked into any of the three libraries; they are used only by examples and tests.
 - Template methods for `ExchangeWsClient` live in `exchange/common/ws_client.inl` (included at the bottom of the `.hpp`). Non-template methods live in `src/exchange/common/ws_client.cpp`. The generic client itself is exchange-agnostic; each adapter supplies its `*_frame_descriptor()` plus its WS request/response types — whose bodies, post-plan-016, live in the adapter's `ws_api.cpp` (Kraken also has `ws_client.cpp` for `make_kraken_ws_client`; its `TypedSubscribeRequest` template bodies are in `ws_api.inl`). Keep the hpp/inl/cpp split consistent when adding new methods.
 - Push callbacks stored in `subscriptions_` are type-erased to `std::function<void(const json&)>` internally; the typed lambda wrapper is created once in the template method and stored at subscription time.
