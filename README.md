@@ -351,7 +351,7 @@ with; `cmake --preset <tree> -UCRYPTOCOGS_WARNINGS_AS_ERRORS` sets it back to th
 include(FetchContent)
 FetchContent_Declare(cryptocogs
     GIT_REPOSITORY https://github.com/tomlin256/cryptocogs.git
-    GIT_TAG        v2.0.0
+    GIT_TAG        v2.1.0
 )
 FetchContent_MakeAvailable(cryptocogs)
 
