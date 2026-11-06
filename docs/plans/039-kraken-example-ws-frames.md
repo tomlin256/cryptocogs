@@ -1,8 +1,7 @@
 # Plan 039 — `kraken_example`'s WebSocket frames carry the order and the token
 
-**Status:** Steps 0 to 2 done (2026-11-06); Step 3's sanitizer run is in flight. Approved as written, so D1 stood at the default below.
-You asked for it to be done quickly, since it is only an example: the *Outcome* says what was kept and what was cut. #50 and #52 are
-closed.
+**Status:** Done (2026-11-06). Approved as written, so D1 stood at the default below. You asked for it to be done quickly, since it is
+only an example: the *Outcome* says what was kept and what was cut. #50 and #52 are closed.
 
 Closes [#50](https://github.com/tomlin256/cryptocogs/issues/50) and [#52](https://github.com/tomlin256/cryptocogs/issues/52) (#52 was
 raised while planning #50, and you asked for it to be included).
@@ -270,4 +269,4 @@ header comment names `kraken_types.hpp`, which went in v0.1.1; the other mention
 | both, gate on | 652 | **653** |
 | Crypto.com-only tree, ctest | 157 | 157 (Differences, 2) |
 
-**Step 3, after the push.** The `Sanitizers` workflow was dispatched for both modes at `047d02c` ([run 42249623424](https://github.com/tomlin256/cryptocogs/actions/runs/42249623424)); its result is recorded in the next commit.
+**Step 3, after the push.** The `Sanitizers` workflow, dispatched for both modes at `047d02c` ([run 42249623424](https://github.com/tomlin256/cryptocogs/actions/runs/42249623424)): **green**. `asan` **568 of 568** (the 565, the two canaries and the coverage test) in 6 min 39 s, `tsan` **567 of 567** (the 565, the canary and the coverage test) in 6 min 46 s; `test_kraken_example` passed in both; GCC 15.2 with `-Werror` reported nothing on `ws_req`, which was Step 3's risk; no warning and no sanitizer report in either log.
