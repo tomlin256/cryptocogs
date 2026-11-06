@@ -1,6 +1,6 @@
 # Plan 037 — Clear the clang-tidy findings so the opt-in gate passes
 
-**Status: Done (2026-11-05).** Rob's request: *"fix #46 using agents so you can do it in parallel"*. The [Outcome](#outcome) is at the end.
+**Status: Done (2026-11-05), released as [v2.0.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.0.0) (2026-11-06).** Rob's request: *"fix #46 using agents so you can do it in parallel"*. The [Outcome](#outcome) is at the end.
 
 Closes [#46](https://github.com/tomlin256/cryptocogs/issues/46). Answers the `performance-enum-size` half of
 [#38](https://github.com/tomlin256/cryptocogs/issues/38) (D1); #38's two unused includes in `common/ws.hpp` are not in this plan.
@@ -423,6 +423,7 @@ shared, and a `-j12` build of the GCC 15 trees next to another container's build
 | 4 The second check: the Linux container | Done (2026-11-05) | GCC 13.3 `-Werror`: 556 of 556; clang-tidy 23.1.6 gate: **92 of 92**, no Linux-only site |
 | 5 GCC 15.2 as CI builds it, then CI | Done (2026-11-05) | Container at `-j4`: Release 556 of 556, asan 559 of 559, tsan compiles, no warning. Pushed; CI run 42106399099 green; `sanitizers.yml` run 42106464163 (`both`) green: asan 559, tsan 558 |
 | 6 Docs, follow-ups, close | Done (2026-11-05) | `CLAUDE.md`, `README.md`, this plan; #46 closed, #38 commented; #49 (CI job), #48 and #50 raised |
+| 7 Release | Done (2026-11-06) | Rob: *"push a new tag + release -- lets make it 2.0.0"*. `chore: bump version to 2.0.0`; Mac `debug-` and `release-macos-arm64` 556 of 556 with no warning; an install to a scratch prefix is found by `find_package(cryptocogs 2)` and refused by `find_package(cryptocogs 1)`; CI run 42206605256 green on the bump commit; then the annotated tag `v2.0.0` on it and a GitHub release (Latest) |
 
 ## Outcome
 
@@ -431,7 +432,7 @@ shared, and a `-j12` build of the GCC 15 trees next to another container's build
 tests (the macro's 10 and W1's 18) and passes on the Mac, in the container (GCC 13.3) and under GCC 15.2; CI and both sanitizer jobs are green.
 Nine commits on `main`: the macro and its test (step 1), the library, six for the tests, the benchmarks and the examples (step 3), and the docs.
 
-What a user of the library can see, **none of it released, the version yours to choose**:
+What a user of the library can see, **released as [v2.0.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.0.0) on 2026-11-06 (you chose the number; the layout change is why it is a major)**:
 
 - **The 14 public enums are `: std::uint8_t`** (D1). The layout of 13 order-entry structs changes (they shrink, three by 24 bytes on the Mac); no wire or
   stored value does.
@@ -446,3 +447,10 @@ What was not done, and why: `http_client.cpp`'s header line has no unit test (a 
 said so); the three editor hints in `ix_ws_connection.hpp` are not findings and were left; #38's two unused includes are not in this plan. The `NOLINT`s are
 the closed list: two `bugprone-empty-catch` in `reconnect_session.inl`, seven `NOLINTBEGIN`/`NOLINTEND` pairs and four lines in the benchmarks (and one older
 `NOLINTNEXTLINE` in `ws_streams.cpp`). Raised outside the plan: **#48**, **#49**, **#50**.
+
+**Released as 2.0.0 (Step 7).** The bump commit sets `project(... VERSION 2.0.0 ...)`, points the README's `GIT_TAG` at `v2.0.0` and its `find_package` at `2` (with the
+paragraph on `SameMajorVersion`, which now refuses 1), and takes the open version out of `CLAUDE.md`; `test_package_version` needed no edit, its table being derived from the
+project version. It was checked before the push on the Mac (`debug-` and `release-macos-arm64`: 556 of 556, no warning) and by installing the release tree to a scratch prefix:
+a consumer that asks for `2` finds 2.0.0, compiles as C++23, links and sees `sizeof(exchange::Side) == 1`, and one that asks for `1` is refused (*"The version found is not
+compatible with the version requested"*). CI run 42206605256 on the bump commit was green before the tag was made. The tag is annotated, in the style of v1.0.1's, and the
+GitHub release is created with it, because a tag alone is not a release here.
