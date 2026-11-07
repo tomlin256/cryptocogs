@@ -77,15 +77,22 @@ expect_tag(Linux   x86_64  linux-x86_64)
 expect_tag(Linux   AMD64   linux-x86_64)
 expect_tag(Darwin  x86_64  macos-x86_64)
 expect_tag(Windows AMD64   windows-x86_64)
+# Only CMake's own spelling of the system name, Darwin, is macOS; any other spelling is lower-cased as it stands.
+expect_tag(darwin  arm64   darwin-arm64)
+expect_tag(DARWIN  arm64   darwin-arm64)
 
 # ── accepted ──────────────────────────────────────────────────────────────────
 expect_accepted(release-linux-arm64        linux-arm64 "" "")
 expect_accepted(debug-linux-arm64-gcc13    linux-arm64 "" "")
 expect_accepted(linux-arm64                linux-arm64 "" "")
 expect_accepted(bench-macos-arm64          macos-arm64 "" "")
-# Names that are not platform trees are not examined, on any host.
+# After its first letter a kind may hold digits.
+expect_accepted(gcc13-linux-arm64          linux-arm64 "" "")
+# Names that are not platform trees are not examined, on any host. A kind starts with a letter, so a name that
+# starts with a digit is one of them, whatever platform it names.
 foreach(host IN ITEMS linux-arm64 macos-arm64)
-    foreach(name IN ITEMS build scratch vscode cmake-build-debug release-linuxbrew build-asan)
+    foreach(name IN ITEMS build scratch vscode cmake-build-debug release-linuxbrew build-asan
+                          2025-macos-arm64 2025-linux-x86_64 9lives-linux-arm64 9lives-macos-x86_64 2025-linux)
         expect_accepted(${name} ${host} "" "")
     endforeach()
 endforeach()
@@ -111,8 +118,14 @@ expect_refused_naming(debug-macos-arm64     linux-arm64 "" "" macos-arm64 linux-
 expect_refused_naming(release-linux-aarch64 linux-arm64 "" "" linux-aarch64 linux-arm64)
 expect_refused_naming(release-linux-arm64x  linux-arm64 "" "" linux-arm64x linux-arm64)
 expect_refused_naming(Release-Linux-X86_64  linux-arm64 "" "" linux-x86_64 linux-arm64)
+# A kind of letters and digits, and a kind of one letter, are kinds, so their claim is read. The needle is the whole
+# phrase, because the name in the text already contains the platform it claims.
+expect_refused_naming(gcc13-linux-x86_64    linux-arm64 "" "" "is for linux-x86_64, but this host is linux-arm64")
+expect_refused_naming(x-macos-arm64         linux-arm64 "" "" "is for macos-arm64, but this host is linux-arm64")
 # A tree that remembers another platform, whatever it is called.
 expect_refused_naming(scratch               linux-arm64 macos-arm64 "" macos-arm64 linux-arm64)
+# A name that is not a platform tree is not examined, and its tree still remembers its platform.
+expect_refused_naming(2025-macos-arm64      linux-arm64 macos-arm64 "" "first configured on macos-arm64")
 # The platform is the first thing checked: a sanitizer tree for another platform is refused for that, with or
 # without its mode.
 expect_refused_naming(asan-linux-x86_64     linux-arm64 "" asan linux-x86_64 linux-arm64)
