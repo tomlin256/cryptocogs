@@ -38,9 +38,10 @@
 #   3. A tree remembers the platform of its first configure, whatever it is called, and refuses a
 #      configure from another.
 #
-# The platform table (cryptocogs_platform, and rules 1 and 3) is the same in flywheel-dag's
-# cmake/flywheel_dag_platform.cmake: change both together. Rule 2 is in this copy and not in
-# flywheel-dag's.
+# The platform table (cryptocogs_platform) and the three rules are the same in flywheel-dag's
+# cmake/flywheel_dag_platform.cmake: change both together. The error texts are each copy's own. The
+# copies judge one kind of name differently (#64): one whose kind starts with a digit
+# (2025-macos-arm64) has the shape of a platform tree here and is a free-form name there.
 
 function(cryptocogs_platform out system_name machine)
     string(TOLOWER "${system_name}" os)
