@@ -1,6 +1,6 @@
 # Plan 045 — No names or text of non-public projects in this repository, and an audit of every push
 
-**Status:** Proposed (2026-11-07). Waiting for approval.
+**Status:** Approved, in progress (2026-11-07). Rob approved the plan as written, so D1 stands as recommended.
 
 Closes [#61](https://github.com/tomlin256/cryptocogs/issues/61).
 
@@ -84,7 +84,7 @@ one of the six files and includes another).
 
 | Step | State | Commit |
 |---|---|---|
-| 0 | | |
+| 0 | Done | 291899c; comments on #61 |
 | 1 | | |
 | 2 | | |
 | 3 | | |

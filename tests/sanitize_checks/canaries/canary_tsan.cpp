@@ -20,7 +20,7 @@
 //
 // volatile keeps the optimiser from deleting the writes. Nothing here reads the variable and it has internal
 // linkage, so without it both stores are dead and are removed: no race is compiled, none is reported, and the
-// canary exits 0 under a live ThreadSanitizer. (Apple Clang did exactly that to flywheel's sibling canary.)
+// canary exits 0 under a live ThreadSanitizer.
 // ThreadSanitizer treats a volatile access as an ordinary one, so the race is still a race.
 
 #include <thread>

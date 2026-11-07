@@ -39,8 +39,8 @@
 #      configure from another.
 #
 # The platform table (cryptocogs_platform, and rules 1 and 3) is the same in flywheel-dag's
-# cmake/flywheel_dag_platform.cmake and in flywheel's cmake/FlywheelPlatform.cmake: change all three
-# together. Rule 2 is in this copy and in flywheel's, and not in flywheel-dag's.
+# cmake/flywheel_dag_platform.cmake: change both together. Rule 2 is in this copy and not in
+# flywheel-dag's.
 
 function(cryptocogs_platform out system_name machine)
     string(TOLOWER "${system_name}" os)

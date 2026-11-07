@@ -21,10 +21,9 @@
 // constant that nothing checks at run time.
 //
 // The sum is also stored to a volatile. GCC builds the overflow check into the value (an internal add-with-check
-// function the optimiser treats as pure), so a sum nothing uses takes its check with it. This is flywheel's
-// finding, from the sibling canary there: a version that discarded its sum was still caught by Clang, and GCC 15.2
-// compiled the whole thing away and exited 0 under a live UBSan. A volatile store is an observable effect, so the
-// addition and its check have to run.
+// function the optimiser treats as pure), so a sum nothing uses takes its check with it: a canary that discards its
+// sum is still caught by Clang, but GCC 15.2 compiles the whole thing away and it exits 0 under a live UBSan. A
+// volatile store is an observable effect, so the addition and its check have to run.
 
 #include <climits>
 

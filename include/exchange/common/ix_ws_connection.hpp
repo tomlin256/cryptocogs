@@ -152,8 +152,7 @@ private:
 //      it returns — and only then release the client and conn, in either order.
 //
 // After disconnect() returns, the socket is guaranteed to be destroyed on the
-// caller's thread. (Downstream: flywheel issue #83, where this killed long-running
-// monitors.)
+// caller's thread.
 //
 // Dropping conn without disconnect() is safe as well, as long as the drop happens
 // on a thread of your own: ~IxWsConnection() stops the socket before it destroys

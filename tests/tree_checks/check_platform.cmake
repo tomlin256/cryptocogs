@@ -3,8 +3,8 @@
 #
 # Run by ctest as `cmake -DSOURCE_DIR=<repo> -P check_platform.cmake`. It needs no configure and no
 # build tree, so it finishes in milliseconds, and it holds a fixed table, so it does not depend on the
-# host it runs on. The same table is in flywheel's copy of the module, and in flywheel-dag's less the
-# sanitizer rows: change all three together.
+# host it runs on. The same table is in flywheel-dag's copy of the module, less the sanitizer rows:
+# change both together.
 #
 # SOURCE_DIR is a parameter so that a hand-made change can be made to a scratch copy of the repo and
 # must fail here.

@@ -58,7 +58,7 @@ jobs:
     # outputs. A hit removes the seven git clones, which are most of Configure (nlohmann_json's full history alone takes
     # 15 of its 25 s), and the dependencies' compiles.
     #
-    # It differs from flywheel's version of this step in two ways (plan 030):
+    # Two things set it apart from a plain cache of `_deps` (plan 030):
     #  - Under CMake 4 (CMP0168 is NEW) FetchContent keeps its "already cloned" stamps in <tree>/CMakeFiles/fc-stamp and
     #    fc-tmp, not in _deps, so restoring _deps alone still clones all seven. A hit therefore configures with
     #    FETCHCONTENT_FULLY_DISCONNECTED=ON (below): nothing is downloaded or updated, and the restored sources are trusted.
