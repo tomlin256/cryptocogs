@@ -1,20 +1,20 @@
 # Plan 045 — No names or text of non-public projects in this repository, and an audit of every push
 
-**Status:** Approved, in progress (2026-11-07). Rob approved the plan as written, so D1 stands as recommended.
+**Status:** Done (2026-11-07). Rob approved the plan as written, so D1 stood as recommended.
 
 Closes [#61](https://github.com/tomlin256/cryptocogs/issues/61).
 
 ## Problem
 
 This repository is public and stands alone: its code, comments, docs, issues and commit messages describe the library only (`CLAUDE.md`).
-At `1476faf`, 93 lines in 18 tracked files name a project that is not public, quote its issue numbers, point at its files or describe its code:
+At `1476faf`, 101 lines in 18 tracked files name a project that is not public, quote its issue numbers, point at its files or describe its code:
 
 - six files that are not docs (workflow, CMake and C++ comments, two sanitizer canaries, one check script's header);
 - twelve plan docs.
 
 The list of files is kept privately, with the audit that finds them. Nothing audits a push, so nothing stopped any of it.
 
-The same names are also in git history, in the text of a few public issues and issue comments, and nowhere else that was checked (release
+The same names are also in git history, in the text of a few public issues, pull requests and issue comments, and nowhere else that was checked (release
 notes, tag messages and branch names: none). Those are not fixed here (*Not here*).
 
 ## The audit
@@ -71,12 +71,12 @@ one of the six files and includes another).
 - **The audit finds listed names only.** A description of another project's behaviour with no name in it passes, which is why Steps 2 and 3
   are read, not just audited.
 - **The hook is per checkout.** A clone without it is not audited, and `git push --no-verify` skips it. Neither is blocked.
-- **History is not recalled.** The old text stays in 26 lines of commit messages (the history is 460 commits), because the fix would need a
-  force-push.
+- **History is not recalled.** The old text stays in 27 lines of commit messages (22 of the 461 commits) and in the older trees, because the
+  fix would need a force-push.
 
 ## Not here
 
-- The text of the public issues and issue comments that carry the same names. GitHub keeps the edit history of an issue visible to every
+- The text of the public issues, pull requests and issue comments that carry the same names. GitHub keeps the edit history of an issue visible to every
   reader, so an edit does not recall the text; whether to edit, or to delete the comments, is a separate decision, tracked privately.
 - Rewriting history.
 
@@ -88,9 +88,25 @@ one of the six files and includes another).
 | 1 | Done | 2396f0b |
 | 2 | Done | d4bc627 |
 | 3 | Done | 42a3a40 |
-| 4 | Done | the hook is installed in this checkout; its first push is this step's commit |
-| 5 | | |
+| 4 | Done | e2cd326 |
+| 5 | Done | the commit that closes #61 |
 
 ## Outcome
 
-(written at Step 5)
+**Done 2026-11-07.** The audit of the tree reports nothing, with no exemption list: Step 1 rewrote the comments of six files, Step 2 five
+plan docs and Step 3 seven. No source, test or build file changed, and `ctest` passed 588 of 588 on `debug-macos-arm64` at each checkpoint.
+
+The audit is the `pre-push` hook of the author's checkout. It was shown in a scratch clone with a local bare remote: a private name in a
+file, in a commit message and in an annotated tag message was refused each time, and a clean commit, a clean annotated tag and a
+lightweight tag were accepted. In this checkout a dry-run push of a seeded file and of a seeded message is refused and a clean one is
+accepted, and nothing reached the remote; the push of Step 4's commit passed it. The scan of a push takes about 7 s.
+
+Differs from the plan:
+
+- The audit also reads the message of an annotated tag (the plan named files and commit messages).
+- `git push --dry-run` runs the hook, so the check needed no real push.
+- The count at `1476faf` is 101 lines in 18 files, not 93: the other eight name other parts of the same project. The history has 27 lines
+  in 22 commits, not 26 in 460.
+
+Not here, as planned: the text of the public issues, pull requests and issue comments, and the history. Both are tracked privately. A
+fresh clone has no hook and `git push --no-verify` skips it; neither is blocked.
