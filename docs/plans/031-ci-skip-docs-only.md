@@ -2,8 +2,7 @@
 
 **Status:** Done (2026-11-04). Rob approved the plan as written, so D1 to D4 stood at the defaults below, and approved pushing
 its commits to `main` and linking it from #40.
-**Design source:** flywheel's `.github/workflows/cmake-single-platform.yml` (its `paths:` filter) and
-`docs/plans/ci_path_filter_debounce_plan.md` (a private repository). This plan differs from it in one choice, D1.
+**Design source:** the usual `paths:` filter of a GitHub Actions workflow. This plan differs from it in one choice, D1.
 **Closes:** [GitHub issue #40](https://github.com/tomlin256/cryptocogs/issues/40) — "Build will trigger on doc updates
 pointlessly". The issue reads: *"You can see that in the recent CI runs for example
 https://github.com/tomlin256/cryptocogs/actions/runs/41875368976"*.
@@ -58,11 +57,11 @@ on:
 
 Defaults stand if you approve the plan as written.
 
-- **D1 A deny-list (`paths-ignore`), not flywheel's allow-list** (`paths:` with `'!**/*.md'` last). With a deny-list, anything
+- **D1 A deny-list (`paths-ignore`), not an allow-list** (`paths:` with `'!**/*.md'` last). With a deny-list, anything
   not named runs CI, a new top-level directory included, so forgetting an entry costs one wasted run. With an allow-list,
-  anything not named is skipped, so forgetting an entry costs a change nobody built. Flywheel took the allow-list because its
-  deny-list forgot a directory and its private minutes ran out; here minutes are free. Its `'!**/*.md'` would also skip a
-  README edit, which `test_cmake_floor` reads.
+  anything not named is skipped, so forgetting an entry costs a change nobody built. An allow-list suits a repository that
+  pays for its minutes; here minutes are free. A trailing `'!**/*.md'` would also skip a README edit, which
+  `test_cmake_floor` reads.
 - **D2 The list is `docs/**` and `CLAUDE.md`.** README.md keeps running CI (above). Not listed, since the issue is about
   documentation: `LICENSE`, `.gitignore`, `.clangd`, `.vscode/**`. Nothing reads them either; say if you want them.
 - **D3 One new test**, `test_ci_paths` (Step 1), as plan 030 has `test_ci_cache_key`. It fails when the list drifts onto
@@ -110,7 +109,7 @@ Step 1. Comment the results on #40. The last commit says `Closes #40`.
 
 ## Designs I rejected
 
-- **Flywheel's allow-list** — D1.
+- **An allow-list** — D1.
 - **`paths-ignore: ['**/*.md']`** — it includes README.md.
 - **`[skip ci]` in commit messages** — every documentation commit would have to remember it, and this plan's own would not.
 - **Dropping the README clause from `test_cmake_floor`**, so that README.md can be ignored — then the README can claim a floor
@@ -119,8 +118,7 @@ Step 1. Comment the results on #40. The last commit says `Closes #40`.
 
 ## Not in this plan
 
-`concurrency` with `cancel-in-progress` (a newer push cancels the run in flight; flywheel `ci_path_filter_debounce_plan.md`)
-and `timeout-minutes`, as in plan 030. The files of D2 that are not documentation.
+`concurrency` with `cancel-in-progress` (a newer push cancels the run in flight) and `timeout-minutes`, as in plan 030. The files of D2 that are not documentation.
 
 ## Self-review — risks and assumptions
 

@@ -258,7 +258,7 @@ executables, 510 tests, 521 in ctest, the new row in both tables, the new `Crypt
 - **A live-network regression test**: needs the network, is rate-limited (429), and fails on heap luck.
 - **A public RAII session type** that owns client and connection and enforces the teardown: a worthwhile API, a bigger change than a fix;
   the example's local `Session` is its prototype.
-- **Fixing only the example**: leaves the hazard for every downstream consumer (the header cites flywheel #83).
+- **Fixing only the example**: leaves the hazard for every downstream consumer.
 
 ## Not in this plan
 

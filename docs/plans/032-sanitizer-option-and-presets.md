@@ -1,19 +1,15 @@
 # Plan 032 — A sanitizer option and presets: `asan` and `tsan` trees, and a nightly that runs them
 
-**Status:** Done (2026-11-05), except for one done-when that was not met. Rob approved the plan as written, so D1 to D8 stood at the defaults below, and asked for one
-addition: an issue in flywheel proposing the compile-side coverage check (D4) for its own sanitizer tests, which is
-[flywheel#209](https://github.com/tomlin256/flywheel/issues/209). Steps 0 to 9 are done and pushed: #27 and #28 were fixed by
+**Status:** Done (2026-11-05), except for one done-when that was not met. Rob approved the plan as written, so D1 to D8 stood at the defaults below. Steps 0 to 9 are done and pushed: #27 and #28 were fixed by
 [plan 033](033-tsan-races-in-the-tests.md), and `tsan` is in the nightly. Step 9 asked for a green `schedule` run before #30 closed. The tick of 03:41 UTC on 2026-11-05 made no
 run (see the Outcome), and Rob asked for #30 to be closed that day without one, so no scheduled run has been read.
 
 Closes [#30](https://github.com/tomlin256/cryptocogs/issues/30) — "A sanitizer option and presets: asan and tsan trees are
 hand-made today".
 
-**Design source:** flywheel's sanitizer work, which is built, running nightly, and the record of what went wrong when it was
-first built: `cmake/FlywheelSanitize.cmake`, `tests/check_sanitize_flags.cmake`, `tests/run_canary.cmake`,
-`tests/check_sanitizer_link_lines.cmake`, `tests/sanitizer_canaries/`, `.github/workflows/sanitizers.yml` and
-`docs/plans/sanitizer_ci_plan.md` (a private repository). This plan differs from it in D4 (the coverage check also reads
-`compile_commands.json`, so the fetched dependencies' own sources are checked), D7 (no caches in the nightly) and in what it
+**Design source:** the usual shape of a sanitizer setup: an option that instruments the whole tree, canaries that prove the
+flags took effect, a check of the link lines and a nightly workflow. This plan differs from it in D4 (the coverage check also
+reads `compile_commands.json`, so the fetched dependencies' own sources are checked), D7 (no caches in the nightly) and in what it
 measures.
 **Follows:** [plan 028](028-platform-build-dirs.md), which made the `asan` and `tsan` trees by hand, found the two TSan races,
 and left this issue for later.
@@ -119,13 +115,12 @@ Defaults stand if you approve the plan as written.
   sees only synchronisation it can intercept or instrument, so a hand-rolled handshake inside uninstrumented code reads as a
   race on our side. The presets, not the option, choose `RelWithDebInfo` (line numbers for reports, `-O2` speed; what plan 028's
   trees used).
-- **D4 Prove it with canaries and a coverage check** (about 300 lines of CMake and C++ in all), ported from flywheel, plus the
-  compile-side half that flywheel's link-line check lacks. A sanitizer tree whose flags never reached the compiler is green on
+- **D4 Prove it with canaries and a coverage check** (about 300 lines of CMake and C++ in all): canaries, a check of the
+  link lines, and a compile-side half that checks the compile lines too. A sanitizer tree whose flags never reached the compiler is green on
   every real test; that is the failure this issue is about (the name and the flags drifting apart), in another form.
 - **D5 The guard checks the sanitizer in a tree's name.** `asan-…` and `tsan-…` trees must be configured for that mode;
   `release-…` with `asan` stays legal. This changes plan 028's "the guard examines the OS and the architecture in the name,
-  not the kind" for these two kinds only. flywheel's guard has the same rule. The platform table itself is untouched, so the
-  three copies of it stay the same.
+  not the kind" for these two kinds only. The platform table itself is untouched, so its copies stay the same.
 - **D6 Findings policy.** A sanitizer finding is a bug outside this plan: one `bug`-labelled issue, and I tell you; if the fix
   is small and gets a regression test that is red under the sanitizer first, it may be fixed here, otherwise I stop and ask. No
   test is skipped, excluded or weakened to get a green job, and no suppression file lands without your OK and a comment naming
@@ -230,7 +225,7 @@ says; pushed. GCC's behaviour on the canaries is first seen in Step 6.
 Red then green. `check_platform.cmake` and `check_tree_name.cmake` first.
 
 - `cmake/cryptocogs_platform.cmake`: `cryptocogs_tree_problem(<out> <name> <platform> <recorded> <sanitize>)` and rule 2. The
-  header comment says which copies have the rule (today this one and flywheel's; flywheel-dag's has none).
+  header comment says which copies have the rule (today this one; flywheel-dag's has none).
 - Root `CMakeLists.txt`: the guard call passes `"${CRYPTOCOGS_SANITIZE}"`, which it reads from the cache before the option is
   declared, as the platform is.
 
@@ -293,9 +288,9 @@ cmake --preset tsan-macos-arm64 && cmake --build --preset tsan-macos-arm64 -j
 TSAN_OPTIONS=second_deadlock_stack=1 ctest --preset tsan-macos-arm64
 ```
 
-and the notes that earned a line in flywheel's (LeakSanitizer is Linux-only; a canary gone red means the flags no longer reach the
+and the notes that earn a line (LeakSanitizer is Linux-only; a canary gone red means the flags no longer reach the
 compiler or the optimiser deleted the violation; a clean TSan run proves less than a clean ASan run; on the Mac the runtimes
-symbolize through `atos`, which can stall behind a Developer Tools prompt — `symbolize=0` — flywheel's note, kept only if it
+symbolize through `atos`, which can stall behind a Developer Tools prompt — `symbolize=0` — kept only if it
 shows up here); a CI paragraph for the second workflow; the test counts and the table of `cmake -P` checks (eleven, 507 in
 ctest) with the two new rows. `test_ci_paths` already allows `CLAUDE.md` to change without a run.
 *Done when:* every number in `CLAUDE.md` matches `ctest -N`, pushed. The workflow does not run for this commit.
@@ -349,8 +344,8 @@ A check of the workflow file beyond what `test_presets` already pins.
   suppression needs your OK and a comment naming the cause (D6).
 - **TSan on the runner image:** the `vm.mmap_rnd_bits` handling is a conditional step that logs before and after; I will read
   the first run's log rather than assume the image needs it, or doesn't.
-- **Canary fragility.** An optimiser can delete a deliberate violation (flywheel's first TSan canary was removed by Apple clang,
-  and GCC 15.2 dropped its first UBSan canary with the unused sum). The ports carry the fixes; a compiler upgrade that defeats
+- **Canary fragility.** An optimiser can delete a deliberate violation (Apple clang can remove the stores of a TSan canary that
+  nothing reads, and GCC 15.2 drops a UBSan canary together with its unused sum). The canaries carry the fixes; a compiler upgrade that defeats
   one turns the job red, which is the right failure. GCC is first seen in Step 6.
 - **`compile_commands.json` and `link.txt` are CMake's layout, not a contract.** The coverage check refuses to pass having
   scanned fewer than a floor, so a layout change fails loudly instead of passing on nothing. The floors are about a sixth and an
@@ -409,7 +404,7 @@ tree, in 0.07 s. The canaries stop with `AddressSanitizer: heap-use-after-free`,
 | C | the block moved below `add_subdirectory(src)` (asan) | pass | **fails** | **both pass** | **fails**: 29 findings, every one a compile unit under `src/`; the link half is green |
 | D | the link options alone dropped (asan) | pass | pass | not built: the build fails at link, `Undefined symbols for architecture arm64` | **fails**: 42 executables named |
 
-C is the case [flywheel#209](https://github.com/tomlin256/flywheel/issues/209) is about: the canaries and the link half stay green
+C is the case the compile-side half exists for: the canaries and the link half stay green
 while 29 library units are uninstrumented, and only the compile-side half sees it. The plan wrote C as "`add_subdirectory(src)` moved
 above the block"; `src` needs the dependency targets that the block precedes, so it is the block that moves. ctest 507 of 507, and
 `ctest -N` lists no canary; CI run 41893861242 green.
@@ -460,9 +455,7 @@ TSan on the Mac reports #28 at `test_ws_reconnect_session.cpp:244` (CI at 233: t
 `detect_leaks=1` and was clean. Nothing turned up that the plan did not expect, so D6 had nothing to do beyond #27 and #28, and
 [plan 033](033-tsan-races-in-the-tests.md) proposes their fix.
 
-**Opened along the way.** [flywheel#209](https://github.com/tomlin256/flywheel/issues/209) (the compile-side check, with a comment
-that holds the demonstration of C), [flywheel#210](https://github.com/tomlin256/flywheel/issues/210) (two comments there that call
-cryptocogs' platform module sanitizer-free), and [#42](https://github.com/tomlin256/cryptocogs/issues/42) (`test_ws_reconnect_session.cpp`
+**Opened along the way.** [#42](https://github.com/tomlin256/cryptocogs/issues/42) (`test_ws_reconnect_session.cpp`
 sleeps and polls although `CLAUDE.md` says it is deterministic).
 
 **Step 9** (`a940546`). Plan 033 fixed #27 and #28 (`6e711c0`, `b3ef1e2`; the Mac's tsan tree passes 514 of 514), and five consecutive

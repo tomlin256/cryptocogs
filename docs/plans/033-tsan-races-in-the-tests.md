@@ -89,7 +89,7 @@ Defaults stand if you approve the plan as written.
   same thing and share one proof, the `tsan` tree.
 - **D3 #28's fix is the atomic only.** The polling and the two `sleep_for(20ms)` are #42, because a deterministic version needs a seam
   in `WsReconnectSession::workerLoop`.
-- **D4 The test presets time out after 120 s** (`execution.timeout`, as flywheel's do). This plan adds the first blocking waits to the
+- **D4 The test presets time out after 120 s** (`execution.timeout`). This plan adds the first blocking waits to the
   tests; a test that blocks forever when broken then fails after two minutes and not at the job's ceiling. `test_presets` (R6) gains
   the rule. *Alternative:* a deadline inside `wait_for_sent`, which puts a wall-clock number into the test code.
 - **D5 The evidence that a TSan fix holds** is each fixed test run 200 times in the `tsan` tree (`ctest --repeat until-fail:200`),

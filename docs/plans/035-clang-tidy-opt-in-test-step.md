@@ -11,11 +11,9 @@ Closes [#34](https://github.com/tomlin256/cryptocogs/issues/34).
 
 The issue is its title, *"Setup clangtidy as opt in test step"*, and its body, *"As flywheel-dag"*. That is
 [flywheel-dag#60](https://github.com/tomlin256/flywheel-dag/issues/60)
-([plan](https://github.com/tomlin256/flywheel-dag/blob/main/docs/plans/clang_tidy_ci_plan.md)), which
-[flywheel#205](https://github.com/tomlin256/flywheel/issues/205)
-([plan](https://github.com/tomlin256/flywheel/blob/main/docs/plans/clang_tidy_opt_in_plan.md)) carried to a second repo under the
-same title: as an opt-in step, without flywheel-dag's CI job and without its fixes, and with the glue in a module that has tests of
-its own. This plan carries it here on flywheel's scope, adapted to a repo with four exchange adapters (D9).
+([plan](https://github.com/tomlin256/flywheel-dag/blob/main/docs/plans/clang_tidy_ci_plan.md)). This plan takes it as an opt-in
+step, without flywheel-dag's CI job and without its fixes, and with the glue in a module that has tests of its own, adapted to a
+repo with four exchange adapters (D9).
 [#38](https://github.com/tomlin256/cryptocogs/issues/38) is the editor's view of the same class of findings.
 
 ## Problem
@@ -87,7 +85,7 @@ first is 237 of the 329 sites. A tidy-clean tree and a hint-clean tree are diffe
   Homebrew's clang has `MacOSX15.2.sdk` compiled in as its default, while the build uses `MacOSX.sdk`, which is 27.2 here. The results
   are identical today (329 either way), so this is for correctness: a gate without it would pass quietly on an SDK the build never
   uses.
-- **`-Wno-error=deprecated-declarations`.** flywheel-dag and flywheel pass it because their compile commands carry
+- **`-Wno-error=deprecated-declarations`.** flywheel-dag passes it because its compile commands carry
   `-Werror=deprecated-declarations`, with which a clang-tidy newer than the SDK's libc++ stops on nlohmann/json's `char_traits`
   deprecation. This project's compile commands carry no `-Werror` today (`-g` or `-O3`, `-std=gnu++23`, `-I`, `-isystem`, `-arch`), and
   the runs above had no compile error without it. D10 passes it anyway, because Rob wants warnings as errors: with
@@ -103,7 +101,7 @@ My defaults, each one a place to edit before approving.
   the 77 per-file tests are red on the Mac**. That is the measurement, not a defect; the default build and `ctest` stay green, and the
   six tests that prove the gate pass. The findings are recorded in a new issue, [#46](https://github.com/tomlin256/cryptocogs/issues/46)
   (opened at approval, from the scratch baseline; Step 5 re-measures with the gate), and cleared in a fresh session with this gate
-  as its oracle. This is the scope you settled for flywheel#205: *"1. The basic scaffold to collect the status, but dont enable the
+  as its oracle. This is the scope you have settled for this step before: *"1. The basic scaffold to collect the status, but dont enable the
   gate pushed with a record of its findings in a new issue to fix the findings, 2. Do the fixes in a fresh session."* *Alternatives,
   not taken:* fix them here (four times flywheel-dag#60's 77 sites, 237 of them `unchecked-optional-access` behind gtest assertions the
   analysis cannot see through, and 14 `performance-enum-size` sites whose fix is #38's ABI question); a baseline file of known
@@ -127,8 +125,7 @@ My defaults, each one a place to edit before approving.
   sites.
 - **D6. The glue is a module with its own tests.** The tool resolution, the test names, the unit selection and the registration go in
   `cmake/cryptocogs_clang_tidy.cmake`, the shape `cryptocogs_platform.cmake` and `cryptocogs_sanitize.cmake` have, so they are tested
-  apart from the real root with `cmake -P`. flywheel-dag wrote them inline and proved them with hand-made changes alone; flywheel's
-  module and its tests are the later design. The cost is a few hundred lines of CMake and tests more than inline; the gain is that the
+  apart from the real root with `cmake -P`. flywheel-dag wrote them inline and proved them with hand-made changes alone. The cost is a few hundred lines of CMake and tests more than inline; the gain is that the
   opt-in rule and the refusals are tests.
 - **D7. Test names come from the path.** `clang_tidy_src_kraken_auth`, `clang_tidy_tests_unit_test_signature`, so
   `ctest -R '^clang_tidy_src_binance_'` runs one adapter's units. A name collision is a configure error, not a silently dropped test.
@@ -136,7 +133,7 @@ My defaults, each one a place to edit before approving.
   file the units run are then one file by construction, and a `.clang-tidy` added later in a subdirectory cannot quietly change what
   one part of the tree is held to. (The editor still honours a nested file, so such a file would be a deliberate split; this makes it
   visible.)
-- **D9. The unit list comes from the targets, and a test holds it to the compile database.** Both siblings glob the sources. This repo
+- **D9. The unit list comes from the targets, and a test holds it to the compile database.** flywheel-dag globs the sources. This repo
   has four adapter flags, an opt-in benchmark option and sanitizer canaries, and a unit that is not in the tree's compile database is
   analysed with flags clang-tidy infers from its neighbours. That works (a Kraken unit run against a Crypto.com-only tree's database
   parsed and reported its real findings), but then the gate checks code the tree does not build, with guessed flags, and nothing can
@@ -149,7 +146,7 @@ My defaults, each one a place to edit before approving.
   mine is the walk, about thirty lines, and a test for it.
 - **D10 (changed at approval). The deprecation override and the SDK flag both stay; the build's own warnings as errors are plan 036.**
   The first draft passed no override, because the compile commands carry no `-Werror`. Rob: *"i want warnings as errors"*. Every run
-  therefore passes `--extra-arg=-Wno-error=deprecated-declarations`, as flywheel-dag and flywheel do, so that the day the build carries
+  therefore passes `--extra-arg=-Wno-error=deprecated-declarations`, as flywheel-dag does, so that the day the build carries
   `-Werror=deprecated-declarations` the gate does not stop on the SDK's libc++ (measured above: 65 of 77 units without it). It is
   inert until then, and Step 3 shows it is not dead: M11 and M12 below. `--warnings-as-errors=*` is unchanged, so a deprecation in
   this project's own files is still an error in the gate, and the header filter drops one in the SDK or a dependency. What Rob asked
@@ -274,8 +271,7 @@ three scripts.
   units give the measured picture, 5 green and 72 red, twice, identically, the gate's own log digesting to 329 sites, no compile
   error, and no red unit without a finding. A missing tool stops the configure with the message. A Crypto.com-only tree registers
   31 and a benchmarks tree 90, and `clang_tidy_units` passes in both.
-- **The editor still sees the hints.** An LSP probe of `/opt/homebrew/bin/clangd` (flywheel's `tools/scripts/clangd_hints.py`, run
-  against this checkout, or a scratch script as flywheel-dag#60 used), with `.clangd`'s list gone, still publishes
+- **The editor still sees the hints.** An LSP probe of `/opt/homebrew/bin/clangd` (a scratch script, as flywheel-dag#60 used), with `.clangd`'s list gone, still publishes
   `performance-unnecessary-value-param` on a file with a known site, and stops publishing it when `.clang-tidy` is removed. If not,
   `.clangd` keeps its block and I stop and tell you.
 - **Hand-made changes**, each on a scratch copy, fail exactly the case stated:
@@ -295,7 +291,7 @@ three scripts.
   | M10a the walk keeps a source generated into the build tree | `test_clang_tidy_wiring` |
   | M10b `select` without its `_deps` rule | `test_clang_tidy_wiring` (both the stub and the real root, where a dependency's sources are under this build's `_deps`) and `test_clang_tidy_module` |
   | M10c `select` without its under-the-root rule | `test_clang_tidy_wiring` and `test_clang_tidy_module` |
-  | M11 `add_compile_options(-Werror=deprecated-declarations)` after the dependencies in the root (what plan 036 will do, and what flywheel does) | nothing: the gate's picture is unchanged, 5 green, 72 red, 329 sites, no compile error, which is what D10's override is for |
+  | M11 `add_compile_options(-Werror=deprecated-declarations)` after the dependencies in the root (what plan 036 will do) | nothing: the gate's picture is unchanged, 5 green, 72 red, 329 sites, no compile error, which is what D10's override is for |
   | M12 M11, and the override dropped from `cryptocogs_clang_tidy_args` | `test_clang_tidy_module`, and on the Mac 65 of the 77 units, each with a `clang-diagnostic-deprecated-declarations` error in the SDK's libc++ |
 
 Commit: `build: add .clang-tidy and the opt-in clang_tidy_ tests (step 3/6)`.
@@ -328,9 +324,9 @@ first comment equal what the gate printed on both platforms (any that differ are
   `tests/clang_tidy_checks/`; the test tables and counts (three more `cmake -P` checks: 524 in ctest, and 134 in a Crypto.com-only
   tree).
 - **`README.md`**: the two commands under *Running the tests*.
-- **Sibling repos.** Compare, read only, the two ideas that go beyond what flywheel and flywheel-dag have: the target-derived unit list
-  with its compile-database proof (D9), and `clang_tidy_units` itself. Raise an issue in each sibling where it applies, with the
-  measurement, and tell you the numbers; edit neither repo.
+- **Sibling repo.** Compare, read only, the two ideas that go beyond what flywheel-dag has: the target-derived unit list
+  with its compile-database proof (D9), and `clang_tidy_units` itself. Raise an issue in flywheel-dag where it applies, with the
+  measurement, and tell you the numbers; edit nothing there.
 - **This plan**: Status, Progress and an Outcome. The memory note on running the gate by hand is added if something in it is not in
   `CLAUDE.md`.
 - Read CI on the last commit (`gh run list`): the main run runs the three always-on tests on Linux x86_64 with GCC 15.2. Then
@@ -363,7 +359,7 @@ first comment equal what the gate printed on both platforms (any that differ are
   where this plan shows the gate surviving the one that matters.
 - **The override is inert until plan 036 (D10).** A flag that nothing exercises rots, so M11 simulates the build carrying
   `-Werror=deprecated-declarations` and M12 removes the override, and `test_clang_tidy_module` asserts it is in the arguments.
-- **A file no target compiles is outside the gate** (D9), where the siblings analyse it with inferred flags. It is also outside the
+- **A file no target compiles is outside the gate** (D9), where flywheel-dag's glob analyses it with inferred flags. It is also outside the
   build.
 - **Only instantiated templates are analysed**, so a header template that no unit instantiates is not checked. The suites instantiate
   what they test.
@@ -392,7 +388,7 @@ first comment equal what the gate printed on both platforms (any that differ are
   is done (D10). Nothing here changes a compile flag.
 - **A CI job** (D4), **wider checks** (D3), and **Include Cleaner**.
 - **Presets for the gate** (D5), and a gate in the sanitizer trees: it works there but proves nothing the debug tree does not.
-- **Anything in flywheel and flywheel-dag** beyond the issues Step 6 may raise.
+- **Anything in flywheel-dag** beyond the issue Step 6 may raise.
 
 ## Designs I rejected
 
@@ -415,10 +411,10 @@ first comment equal what the gate printed on both platforms (any that differ are
 | 0 Approval | Done | Proposed in `1217ac6`, linked from #34. Rob approved on 2026-11-05 with D10 changed (override stays; the build's warnings as errors are #47, plan 036 after this). #46 opened for the 329 findings and linked from #34 and #38; #47 opened for warnings as errors. |
 | 1 Start from green | Done | No commit. Mac, `debug-macos-arm64`: configure prints only the two CMake deprecation notices that #26 tracks (backward-cpp, CLI11) and exits 0, the build was up to date, ctest 521 of 521 in 36 s. Container, `debug-linux-arm64`: the same two notices, the build recompiled the two newest tests with no compiler warning in 1 min 50 s, ctest 521 of 521 in 12 s, and its compile database now has all 77 units. |
 | 2 The module, test first | Done | `build: add cmake/cryptocogs_clang_tidy.cmake and the test that holds it (step 2/6)`. `test_clang_tidy_module` was red first (the module did not exist), then green in 0.2 s. 42 hand-made mutants of the module, each run through the test on a scratch copy, are all killed by the assertion meant to catch them. The first pass left two alive, the root's `NORMAL_PATH` dropped in `test_name` and in `select`, because no case spelled the root with dot segments; two (`/x/../r/.`) were added and both are killed. Mac: configure output identical to Step 1's, build up to date with no warning, ctest 522 of 522 in 21 s. Container: the same, 522 of 522 in 24 s. |
-| 3 The configuration and the gate | Done | `build: add .clang-tidy and the opt-in clang_tidy_ tests (step 3/6)`. **Gate off:** configure output identical to Step 1's, build with no warning, ctest 524 of 524, `ctest -N` lists no `clang_tidy_` test, and the compile database is byte-identical to the one before. **Gate on, Mac** (`debug-macos-arm64`): 83 registered, 607 in all; the six proofs pass; 5 units green and 72 red, twice, identically, in 20 s at `-j8`; the gate's own log digests to 329 sites, no `clang-diagnostic`, and no red unit without a finding. A Crypto.com-only tree registers 31 and a benchmarks tree 90, and `clang_tidy_units` passes in both. A tool no host has stops the configure with `CRYPTOCOGS_CLANG_TIDY=<value> is not a command or a path this host can run`, and so do the tests off. **The editor:** flywheel's `clangd_hints.py` with Homebrew clangd 23.1.4 over 145 files of a scratch copy publishes the same 101 hints with `.clangd`'s list gone and `.clang-tidy` in place as with the list and no `.clang-tidy`, and 32 with neither (clangd's own 26 `unused-includes` and the six `-Wunused-result`): clangd reads `.clang-tidy`. **Hand-made changes**, each on a scratch copy: M1 to M12 fail what the table says (M1: 77 units red; M2 and M4: 38 red; M3: the units unchanged; M5: 0 red, the vacuity; M6: the two green includers turn red and exactly the 11 includers report the seed; M11: unchanged, all 127 database entries carrying the flag; M12: 65 units with `clang-diagnostic-deprecated-declarations`); and C1 to C12 (`.clang-tidy`, `.clangd`, the root) and W1 to W17 (the module's registration and the root) fail `test_clang_tidy_config` and `test_clang_tidy_wiring`. **Differs from the plan:** M10 found the walk's directory rules redundant and not enough: a dependency named into another tree's `_deps` inside the checkout (what the wiring test's real-root case does) is under the root and not under its own build tree. The walk now recurses everywhere and `select` drops anything under a `_deps`, so M10 is three changes (10a to 10c); the wiring test gained that real-root case (gate on, over the real targets, so the root's own call is exercised in every tree), and W17 survived until it also read `CTestTestfile.cmake` (ctest finds a bare command name on its PATH, so the listing cannot tell a resolved tool); and `test_clang_tidy_config` holds that the call follows the root's last `add_subdirectory`. |
+| 3 The configuration and the gate | Done | `build: add .clang-tidy and the opt-in clang_tidy_ tests (step 3/6)`. **Gate off:** configure output identical to Step 1's, build with no warning, ctest 524 of 524, `ctest -N` lists no `clang_tidy_` test, and the compile database is byte-identical to the one before. **Gate on, Mac** (`debug-macos-arm64`): 83 registered, 607 in all; the six proofs pass; 5 units green and 72 red, twice, identically, in 20 s at `-j8`; the gate's own log digests to 329 sites, no `clang-diagnostic`, and no red unit without a finding. A Crypto.com-only tree registers 31 and a benchmarks tree 90, and `clang_tidy_units` passes in both. A tool no host has stops the configure with `CRYPTOCOGS_CLANG_TIDY=<value> is not a command or a path this host can run`, and so do the tests off. **The editor:** an LSP probe of Homebrew clangd 23.1.4 over 145 files of a scratch copy publishes the same 101 hints with `.clangd`'s list gone and `.clang-tidy` in place as with the list and no `.clang-tidy`, and 32 with neither (clangd's own 26 `unused-includes` and the six `-Wunused-result`): clangd reads `.clang-tidy`. **Hand-made changes**, each on a scratch copy: M1 to M12 fail what the table says (M1: 77 units red; M2 and M4: 38 red; M3: the units unchanged; M5: 0 red, the vacuity; M6: the two green includers turn red and exactly the 11 includers report the seed; M11: unchanged, all 127 database entries carrying the flag; M12: 65 units with `clang-diagnostic-deprecated-declarations`); and C1 to C12 (`.clang-tidy`, `.clangd`, the root) and W1 to W17 (the module's registration and the root) fail `test_clang_tidy_config` and `test_clang_tidy_wiring`. **Differs from the plan:** M10 found the walk's directory rules redundant and not enough: a dependency named into another tree's `_deps` inside the checkout (what the wiring test's real-root case does) is under the root and not under its own build tree. The walk now recurses everywhere and `select` drops anything under a `_deps`, so M10 is three changes (10a to 10c); the wiring test gained that real-root case (gate on, over the real targets, so the root's own call is exercised in every tree), and W17 survived until it also read `CTestTestfile.cmake` (ctest finds a bare command name on its PATH, so the listing cannot tell a resolved tool); and `test_clang_tidy_config` holds that the call follows the root's last `add_subdirectory`. |
 | 4 The Linux half | Done | No commit. Container (`ubuntu-dev`, `debug-linux-arm64`, Ubuntu LLVM 23.1.6, GCC 13.3), `-j6`: gate off, 524 of 524 (the configure printed nothing new and the build no warning); gate on, 83 registered, 607 in all, the six proofs pass, and 5 units are green and 72 red, the same tests as on the Mac, twice identically, in 55 s and 37 s; 328 sites, every one also a Mac site, and the Mac's one extra is `include/exchange/common/ws_client.inl:119:25` (`bugprone-exception-escape`); no compile error, and no red unit without a finding. A clang-tidy process held about 0.5 GB while six ran. Gate off again: 524. CI for step 3 (run 42029447037, Linux x86_64, GCC 15.2): 524 of 524, the three new tests included, the dependency cache missed as expected, 1 min 8 s. |
 | 5 Record the findings in a new issue | Done | No code. #46 was opened at approval from the scratch baseline, and the gate's own output made two changes to it: on the Mac the sites are the same 329 (file, line, column and check), and in the container the refreshed tree gives 72 of 77 units and 328 sites, where the stale tree had given 70 of 75 and 327 (the Mac-only sites are one, not two). Its "Blocked by #34" line now names the commit that landed the gate (`a94b0e1`) and its first comment is regenerated from the gate's own list. #34 and #38 have comments that link it. |
-| 6 Docs, the sibling check, and close | Done | `docs: say how to run clang-tidy (step 6/6)`: `CLAUDE.md` (the `clang-tidy (opt-in)` subsection, the layout and option rows, the test tables and counts: 524 in ctest, 134 in a Crypto.com-only tree) and `README.md` (the two commands; its stale test count is #31's). **Sibling check, read only, neither repo edited:** [flywheel-dag#65](https://github.com/tomlin256/flywheel-dag/issues/65) (with `FLYWHEEL_DAG_BUILD_EXAMPLES=OFF` its glob registers 35 units against 33 in the database, `examples/aad.cpp` and `examples/quickstart.cpp`; equal at the defaults) and [flywheel#220](https://github.com/tomlin256/flywheel/issues/220) (three hand-made changes to the root pass a wiring test that configures the real root only for refusals; its 221 units equal the database today). |
+| 6 Docs, the sibling check, and close | Done | `docs: say how to run clang-tidy (step 6/6)`: `CLAUDE.md` (the `clang-tidy (opt-in)` subsection, the layout and option rows, the test tables and counts: 524 in ctest, 134 in a Crypto.com-only tree) and `README.md` (the two commands; its stale test count is #31's). **Sibling check, read only, nothing edited there:** [flywheel-dag#65](https://github.com/tomlin256/flywheel-dag/issues/65) (with `FLYWHEEL_DAG_BUILD_EXAMPLES=OFF` its glob registers 35 units against 33 in the database, `examples/aad.cpp` and `examples/quickstart.cpp`; equal at the defaults). |
 
 ## Outcome
 
@@ -445,7 +441,7 @@ Where the steps differ from the text above, which was left as written where it i
   2 s), so that the root's own call is exercised in every tree. W15 (the call removed), W16 (the extras not passed) and W17 (the
   unresolved name passed) all pass a wiring test without it, which was measured, and W17 passed the listing from `ctest
   --show-only=json-v1` too: ctest finds a bare command name on its own `PATH`, so the test reads the `CTestTestfile.cmake` the configure
-  wrote. flywheel#220 carries this to flywheel.
+  wrote.
 - **`test_clang_tidy_config` gained a rule**: the root's call follows its last `add_subdirectory`, so a directory added after it is not
   left out in a tree that has the gate off.
 - **The container's tree was stale** when the baseline was measured (75 units: it lacked the two newest tests), so #46 opened with 70 of
@@ -469,5 +465,4 @@ What this does not settle:
   files today (six are #24), the placement of the flags across a root and a `tests/` that both fetch dependencies, a test that holds
   both halves, and CI turning the option on. It needs your approval as a plan before any of it starts.
 - **A CI job** (D4) and **wider checks** (D3), once the gate is green.
-- **Two sibling issues**, [flywheel-dag#65](https://github.com/tomlin256/flywheel-dag/issues/65) and
-  [flywheel#220](https://github.com/tomlin256/flywheel/issues/220), for you to take or leave.
+- **One sibling issue**, [flywheel-dag#65](https://github.com/tomlin256/flywheel-dag/issues/65), for you to take or leave.

@@ -3,11 +3,10 @@
 **Status:** Done (2026-11-04). Rob approved the plan as written, so D1 to D5 stood at the defaults below, and approved pushing
 its commits to `main` and linking it from #37. The Outcome has the numbers, and the plan marks where a step changed it
 (*Amended*).
-**Design source:** flywheel's `docs/plans/ci_build_cost_reduction_plan.md` and its
-`.github/workflows/cmake-single-platform.yml` (a private repository). This plan applies that design and restates only
-what differs. The main difference: flywheel's `_deps` cache does not work here as written (measured below).
-**Closes:** [GitHub issue #37](https://github.com/tomlin256/cryptocogs/issues/37) — "Improve CI bill by using cache". The
-issue reads: *"Look at flywheel to see how its done"*.
+**Design source:** the common recipe for CI builds that use FetchContent: ccache, a parallel build and a cache of the `_deps`
+tree. This plan applies it and restates only what differs. The main difference: caching `_deps` alone does not work here as
+written (measured below).
+**Closes:** [GitHub issue #37](https://github.com/tomlin256/cryptocogs/issues/37) — "Improve CI bill by using cache".
 
 ## Problem
 
@@ -27,8 +26,8 @@ Run `41852041317` (`e9ad24f`, green): image `ubuntu-26.04`, GCC 15.2.0, CMake 4.
 | Test | 9 s |
 | Job | 457 s |
 
-Build, attributed the way flywheel's corrected analysis does it: `make` prints a progress line *before* its work, so the
-interval after a line belongs to that line.
+Build, attributed this way: `make` prints a progress line *before* its work, so the interval after a line belongs to that
+line.
 
 | | Lines | Time | Share |
 |---|---:|---:|---:|
@@ -42,37 +41,37 @@ interval after a line belongs to that line.
 - **The numbers are noisy.** Six recent runs of near-identical work had Build between 314 s and 586 s. A step is judged
   by its own counters (ccache hits, "Cloning into" lines, step durations), not by one job total.
 - **The repository is public**, so standard-runner minutes are free. Today the saving is wall-clock; the money saving
-  arrives if the repository goes private (flywheel is private, and its minutes have run out before).
+  arrives if the repository goes private (a private repository's minutes are an allowance, and it can run out).
 
-### Flywheel's `_deps` recipe does not work here as written
+### Caching `_deps` alone does not work here as written
 
-Flywheel caches `build/<preset>/_deps`, keyed on the root `CMakeLists.txt`. I tried that on this project (CMake 4.4.5 on
+The usual recipe caches `build/<preset>/_deps`, keyed on the root `CMakeLists.txt`. I tried that on this project (CMake 4.4.5 on
 the Mac, a scratch tree outside the checkout: configure, delete everything except what a cache would restore, configure
 again):
 
 | Restored before the second configure | Clones | Configure |
 |---|---:|---:|
 | nothing | 7 | 26.2 s |
-| `_deps` only — flywheel's recipe | **7** | **26.8 s** |
+| `_deps` only — the usual recipe | **7** | **26.8 s** |
 | `_deps` and `CMakeFiles/fc-stamp`, `fc-tmp` | 0 | 1.2 s |
 | `_deps` only, with `-DFETCHCONTENT_FULLY_DISCONNECTED=ON` | 0 | 1.2 s |
 | the same, every `_deps/*-src/.git` deleted | 0 | 1.2 s; spdlog and `exchange_common` then build |
 
 - **Why.** The floor is CMake 4.0, so CMP0168 is NEW and FetchContent populates inside the main configure. It keeps its
   "already done" stamps in `<tree>/CMakeFiles/fc-stamp` and `fc-tmp`, "so that they are removed by `cmake --fresh`"
-  (`FetchContent.cmake:1670`, CMake 4.4.5), not in `_deps`. Flywheel's `*-subbuild` comment describes the older layout.
+  (`FetchContent.cmake:1670`, CMake 4.4.5), not in `_deps`.
 - **Size.** `_deps` is 473 MB, 436 MB of it full-history `.git` (nlohmann_json's source directory alone is 343 MB).
   Compressed with `zstd -3`: 405 MB with the `.git` directories, **13 MB** without. Nothing reads `.git` on a hit.
 - **Two files pin dependencies**, not one: `CMakeLists.txt` (nlohmann_json, toml++, ixwebsocket, googletest,
   googlebenchmark) and `tests/CMakeLists.txt` (backward-cpp, spdlog, CLI11). A key that hashes only the root restores a
   stale spdlog after a bump in the second.
-- **Toolchains alternate.** Runs of cryptocogs and flywheel the same afternoon got CMake 4.4.4 and 4.4.5 from
+- **Toolchains alternate.** Runs the same afternoon got CMake 4.4.4 and 4.4.5 from
   `ubuntu-latest`, so a key that carries the CMake version misses whenever a run lands on the other one.
 
 ## The change
 
 Everything is in `.github/workflows/cmake-single-platform.yml`, apart from Step 3's check. The finished shape of the
-cache-related parts (the real file carries comments saying why, as flywheel's does):
+cache-related parts (the real file carries comments saying why):
 
 ```yaml
 on:
@@ -151,17 +150,16 @@ env:
 Defaults stand if you approve the plan as written.
 
 - **D1 Scope.** Parallel build, ccache, the `_deps` cache, `workflow_dispatch`. Not `paths:` filters, `concurrency` or
-  `timeout-minutes`: flywheel kept those in their own plans (`ci_path_filter_debounce_plan.md` for the first two,
-  `mgmt_server_stop_hang_ci_guard_plan.md` for the third), and they cut runs, not compiles. Say if you want any folded in.
-  `-j` is not a cache either, but it is Step 1 of flywheel's cost plan, and 88% of this job is compiling.
+  `timeout-minutes`: they cut runs, not compiles. Say if you want any folded in. `-j` is not a cache either, but 88% of this
+  job is compiling.
 - **D2 The `_deps` design.** `FETCHCONTENT_FULLY_DISCONNECTED=ON` on a hit, `.git` left out, key over both pin files — not
-  flywheel's recipe as written, and not stamp-caching (see "Designs I rejected").
+  a bare `_deps` cache, and not stamp-caching (see "Designs I rejected").
 - **D3 One new test**, `test_ci_cache_key` (Step 3). It fails when a file that pins a dependency is missing from the key,
   which is the one way this plan can go silently wrong.
 - **D4 Pushes.** Each of Steps 1 to 3 is one commit on `main`, pushed so its run can be measured; Steps 2 and 3 also
   dispatch one run (free on a public repository). Approving the plan approves those pushes, the push of this plan, and a
   comment on #37 that links it (public, since the repository is).
-- **D5 `CCACHE_MAXSIZE: 500M`.** Each run saves its own snapshot (flywheel's design), so the size of one is the
+- **D5 `CCACHE_MAXSIZE: 500M`.** Each run saves its own snapshot, so the size of one is the
   repository's 10 GB divided by it. Step 2 prints the real size; the cap is kept or tuned from that.
 
 ## Steps
@@ -228,27 +226,25 @@ says `Closes #37`.
 
 ## Designs I rejected
 
-- **Flywheel's `_deps` recipe as written** — measured above: seven clones with or without the cache, and a key that misses
+- **The bare `_deps` recipe as written** — measured above: seven clones with or without the cache, and a key that misses
   three of the seven pins.
 - **Caching the FetchContent stamps** (`CMakeFiles/fc-stamp`, `fc-tmp`) — works (0 clones, 1.2 s), but ties the workflow to
-  FetchContent's internal layout, which is the thing that made flywheel's recipe stop working.
+  FetchContent's internal layout, which is the thing that makes the bare `_deps` recipe fail here.
 - **`GIT_SHALLOW TRUE` on the seven declarations** — cuts clones and cache size at the source with no CI logic, but it
   edits what every consumer of cryptocogs through FetchContent sees, and it is not caching. Still the fallback, if deleting
   the `.git` directories at the end ever stops being enough.
 - **A `!` pattern in the cache `path`**, to leave the `.git` directories out — this plan's first design, and it does not
   work: tar archives whatever is under a listed directory (see "The change", and the Outcome).
-- **`hendrikmuhs/ccache-action`** — flywheel's plan names it, but its workflows install ccache from apt and use
-  `actions/cache` directly. Same here: one third-party action fewer.
-- **Split restore and save** (`actions/cache/restore` and `/save`, as flywheel's `sanitizers.yml`), to save caches after a
+- **`hendrikmuhs/ccache-action`** — installing ccache from apt and using `actions/cache` directly is one third-party action
+  fewer.
+- **Split restore and save** (`actions/cache/restore` and `/save`), to save caches after a
   red run — not needed. The next run restores the last green snapshot and recompiles only what the red commit changed.
 
 ## Not in this plan
 
 `paths:` filters, which became [plan 031](031-ci-skip-docs-only.md) (#40) after Rob asked for them while this plan ran;
-`concurrency` with `cancel-in-progress` (flywheel `ci_path_filter_debounce_plan.md`); `timeout-minutes` (flywheel
-`mgmt_server_stop_hang_ci_guard_plan.md`); a sanitizer workflow; a macOS leg; the slow and variable apt step (#41). One lead for flywheel, not verified:
-none of its last six runs hit its `deps-` cache (keys churn), and its floor is also CMake 4.0, so by the table above a hit
-may not skip its clones either. No issue is opened for it.
+`concurrency` with `cancel-in-progress`; `timeout-minutes`; a sanitizer workflow; a macOS leg; the slow and variable apt
+step (#41).
 
 ## Self-review — risks and assumptions
 
@@ -262,8 +258,8 @@ may not skip its clones either. No issue is opened for it.
   job. Its own risk: it deletes from the tree the post action is about to archive, so the saved size (run C2's) is the proof.
 - **A restore is all or nothing**, so no half-populated `_deps`. A restored `_deps` with a missing `*-src` would fail the
   configure loudly under `FULLY_DISCONNECTED`, not silently.
-- **Restored `*-build` directories plus a fresh configure** are assumed to be reused by make (flywheel saw that with
-  FetchContent's older layout; I have not measured it under this one). Step 3's Done-when reads it from run D's log.
+- **Restored `*-build` directories plus a fresh configure** are assumed to be reused by make (I have not
+  measured it under this layout). Step 3's Done-when reads it from run D's log.
 - **The `deps-` key hashes whole files**, and `tests/CMakeLists.txt` also registers every test, so each new test misses the
   dependency cache once (run E: 32.5 s of Configure). Hashing only the `GIT_REPOSITORY` and `GIT_TAG` lines would avoid it,
   at the price of moving the key out of `hashFiles` and into a step; not done, because a miss costs seconds and a wrong key
@@ -337,7 +333,7 @@ caches ended with `Cache hit occurred on the primary key, not saving cache`. The
 baseline's 457 s: apt 10.9 s, Configure 1.7 s, Build 3.9 s, Test 12.1 s. Step 3's Done-when is met, and so is the question
 the self-review left open: make reuses the restored `*-build` directories, since no `_deps/` object was built.
 
-D3's 35 s is the floor for an unchanged tree, as flywheel's 59 s was for its own. A commit that edits a widely included
+D3's 35 s is the floor for an unchanged tree. A commit that edits a widely included
 header recompiles its dependents, and one that edits `CMakeLists.txt` or `tests/CMakeLists.txt` misses the `deps-` key once
 (about 25 s of clones), because the key hashes whole files and `tests/CMakeLists.txt` also registers every test.
 
