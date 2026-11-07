@@ -7,9 +7,9 @@ Implemented: 2026-03-24 (Gaps 1 and 2)
 
 ## Background
 
-Discovered during a live Flywheel engine session (2026-03-23) in which the engine stopped
-ticking at ~14:25 with no log output. Investigation traced the silence to three places where
-WebSocket errors and disconnects can occur without any notification reaching the caller.
+Discovered during a live session (2026-03-23) in which the tick stream stopped at ~14:25
+with no log output. Investigation traced the silence to three places where WebSocket errors
+and disconnects can occur without any notification reaching the caller.
 
 ---
 
@@ -86,14 +86,9 @@ conn_->set_on_close([weak_self]() {
 });
 ```
 
-There is no way for a caller (e.g. `LiveKrakenFeed`) to be notified when the socket closes.
-When the Kraken server drops the connection, `connected_` becomes `false` and ticks silently
-stop — the feed thread exits cleanly with no warning and no engine wake.
-
-The `LiveKrakenFeed` header comment even acknowledges the missing method:
-> "If the WebSocket disconnects, `onDisconnected()` is called and the feed stops posting."
-
-But `onDisconnected()` does not exist in the class.
+There is no way for a caller to be notified when the socket closes. When the Kraken server
+drops the connection, `connected_` becomes `false` and ticks silently stop — the caller's
+feed exits cleanly with no warning.
 
 ### Fix
 
@@ -107,10 +102,10 @@ But `onDisconnected()` does not exist in the class.
        }
    });
    ```
-3. In `LiveKrakenFeed::start()`, register a disconnect callback:
+3. A caller registers a disconnect callback:
    ```cpp
-   client_->set_on_disconnect([]() {
-       spdlog::error("[live] WebSocket disconnected — feed has stopped");
+   client->set_on_disconnect([]() {
+       // log the loss, or schedule a reconnect
    });
    ```
 
@@ -123,53 +118,47 @@ But `onDisconnected()` does not exist in the class.
 
 ---
 
-## Gap 3 — Malformed frame errors log to `stderr`, not `spdlog`
+## Gap 3 — Malformed frame errors log to `stderr`, not to the caller's logger
 
-**File:** `include/flywheel/kraken_live_feed.inl` (Flywheel consumer)
+**File:** `RateLimitedWsErrorHandler`, the default `IWsErrorHandler` of `KrakenWsClient`
 
 **Severity:** Medium
 
 ### Problem
 
-`LiveKrakenFeed::start()` calls `make_ws_client` with no error handler:
-
-```cpp
-client_ = kraken::ws::make_ws_client(std::string(kraken::ws::PUBLIC_WS_URL));
-```
-
-`KrakenWsClient::init()` installs a `RateLimitedWsErrorHandler` when `nullptr` is passed, but
-that handler uses `std::fprintf(stderr, ...)`. In deployments where stderr is not captured,
-malformed-frame warnings are silently lost.
+`KrakenWsClient::init()` installs a `RateLimitedWsErrorHandler` when `nullptr` is passed as
+the error handler, but that handler uses `std::fprintf(stderr, ...)`. In deployments where
+stderr is not captured, malformed-frame warnings are silently lost.
 
 ### Fix
 
-Callers that use `spdlog` should pass a custom `IWsErrorHandler` that routes through spdlog:
+A caller that has a logging library passes a custom `IWsErrorHandler` that routes through it:
 
 ```cpp
-class SpdlogWsErrorHandler : public kraken::ws::IWsErrorHandler {
+class LoggingWsErrorHandler : public kraken::ws::IWsErrorHandler {
 public:
     void on_malformed_frame(const std::string& raw,
                             const std::exception& e) override {
-        spdlog::warn("[ws] malformed frame ({}): {:.120}", e.what(), raw);
+        log_warn("[ws] malformed frame ({}): {:.120}", e.what(), raw);
     }
 
     void on_connection_error(const std::string& reason) override {
-        spdlog::error("[ws] connection error: {}", reason);
+        log_error("[ws] connection error: {}", reason);
     }
 };
 ```
 
-Then in `LiveKrakenFeed::start()`:
+and hands it to the factory:
 
 ```cpp
-client_ = kraken::ws::make_ws_client(
+auto client = kraken::ws::make_ws_client(
     std::string(kraken::ws::PUBLIC_WS_URL),
-    std::make_shared<SpdlogWsErrorHandler>());
+    std::make_shared<LoggingWsErrorHandler>());
 ```
 
-Note: this fix lives in the Flywheel repo, not cryptocogs. It is listed here because the
-root cause is `RateLimitedWsErrorHandler` writing to `stderr` rather than accepting an
-injectable sink.
+Note: the library is not changed for this gap. The root cause is `RateLimitedWsErrorHandler`
+writing to `stderr` rather than accepting an injectable sink, so the remedy is on the caller's
+side.
 
 ---
 
@@ -179,4 +168,4 @@ injectable sink.
 |-----|------|----------|--------|
 | `Error` frame dropped | `kraken_ix_ws_connection.hpp` | High | ✓ Fixed 2026-03-24 |
 | No disconnect callback | `kraken_ws_client.cpp` / `.hpp` | High | ✓ Fixed 2026-03-24 |
-| Malformed frames → stderr | Consumer (Flywheel) | Medium | Open — fix in Flywheel repo |
+| Malformed frames → stderr | `RateLimitedWsErrorHandler` | Medium | Open — a caller passes its own `IWsErrorHandler` |

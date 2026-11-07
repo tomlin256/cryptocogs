@@ -27,11 +27,9 @@ the venue accepts an `exec_inst` array parameter:
 
 `include/exchange/cryptocom/rest_api.hpp`'s file-header comment records this as a
 deliberate v1 omission: *"exec_inst (an array) is deliberately omitted from v1 to
-avoid the list-serialisation ambiguity in params_to_str."* This surfaced as a real
-gap while flywheel scoped its Crypto.com order-entry adapter
-(`flywheel/docs/plans/cryptocom_exchange_plan.md`, Step 3): a caller requesting a
-post-only order today gets a plain GTC limit order that **can cross and pay taker
-fees** despite the request — flywheel's adapter currently only logs a warning.
+avoid the list-serialisation ambiguity in params_to_str."* It is a real gap: a
+caller that wants a post-only order today can only send a plain GTC limit order,
+which **can cross and pay taker fees** despite the intent.
 
 ## Is the "list-serialisation ambiguity" real?
 
@@ -65,9 +63,7 @@ signing any less verified than `side`/`price`/`quantity`/`time_in_force` are tod
 - **Out of scope:** any exec_inst value beyond `POST_ONLY` — Crypto.com's docs
   reference others (e.g. for margin/liquidation paths) but this plan only pins
   what's needed and verified for spot order entry, modelled as a raw array of
-  strings so future values are additive, not a closed enum. Also out of scope:
-  wiring flywheel's `CryptoComAdapter::submitOrder` to actually set the field —
-  that's downstream, separate-repo work once this ships (see Self-review).
+  strings so future values are additive, not a closed enum.
 
 ## Design decisions (confirm at approval)
 
@@ -128,7 +124,7 @@ Each step ends with a checkpoint: full `cmake --build build` **and**
   exec_inst is omitted.
 - **Done:** full build + test green.
 
-## Self-review — risks, assumptions, downstream
+## Self-review — risks and assumptions
 
 - **No official Crypto.com signature vector exists for any private request**,
   `exec_inst` included — this plan doesn't change that risk class, it just adds
@@ -136,12 +132,6 @@ Each step ends with a checkpoint: full `cmake --build build` **and**
   approach every other `create-order` param already uses. If Rob later gets live
   credentials, a real signed `create-order` call with `exec_inst` set is the
   actual verification this plan can't do from here.
-- **Downstream (separate repo, separate approval):** shipping this in cryptocogs
-  doesn't itself fix flywheel's adapter — `bot::CryptoComAdapter::submitOrder`
-  (`flywheel/adapters/cryptocom/src/cryptocom_adapter_core.cpp`) still needs its
-  own small change (set `req.exec_inst = {EXEC_INST_POST_ONLY}` when
-  `order.postOnly`, drop the warn-and-submit-as-GTC fallback) plus a bump of
-  flywheel's pinned `cryptocogs` tag. Tracked there, not here.
 - **Only `POST_ONLY` is modelled**, deliberately — see Scope. A generic
   `vector<string>` means adding a second verified value later is additive (no
   struct redesign), but this plan doesn't claim to know or test the full set.

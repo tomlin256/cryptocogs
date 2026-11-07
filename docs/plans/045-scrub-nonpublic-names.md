@@ -85,7 +85,7 @@ one of the six files and includes another).
 | Step | State | Commit |
 |---|---|---|
 | 0 | Done | 291899c; comments on #61 |
-| 1 | | |
+| 1 | Done | 2396f0b |
 | 2 | | |
 | 3 | | |
 | 4 | | |

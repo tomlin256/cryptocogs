@@ -14,11 +14,9 @@ clean release:
   PR #19): the `src/kraken_{ws,rest}_client.cpp` unity TUs for consumers that
   compiled those legacy source paths directly.
 
-Both existed solely for the **flywheel** project, which has since migrated fully
-onto the `exchange::kraken::*` surface (flywheel `main`: "link cryptocogs's real
-targets, drop hardcoded source-compat paths" / "flywheel fully off the shim" /
-"treat cryptocogs deprecations as errors"). With no consumer left, the entire shim
-is dead weight.
+Both existed only for consumers that had not yet moved to the `exchange::kraken::*`
+surface; the ones known have since migrated fully onto it. With no consumer left,
+the entire shim is dead weight.
 
 ## What changed
 
@@ -72,14 +70,14 @@ Clean build; **312 / 312** ctest pass (the 4 `test_compat_shim` and 2
 
 - **Risk: an external consumer still on the `kraken::` surface (or the legacy
   source paths) breaks.** Accepted and intended — the shim was always advertised as
-  deprecated and slated for removal at the next version; the only known consumer
-  (flywheel) is already off it. The [migration guide](001-appendix-migration-guide.md)
-  remains for anyone else.
+  deprecated and slated for removal at the next version; the known consumers are
+  already off it. The [migration guide](001-appendix-migration-guide.md) remains for
+  anyone else.
 - **Risk: stale docs.** Mitigated — README + CLAUDE.md were swept for `kraken::`,
   old-path includes, `COMPAT_SHIM`, and stale counts (all verified absent except
   the deliberate "removed in v0.1.1" notes).
 - **Semver:** removing a (deprecated) public surface is normally a minor/major
-  bump, but pre-1.0 and with the sole consumer already migrated it ships as the
+  bump, but pre-1.0 and with every known consumer already migrated it ships as the
   patch **v0.1.1** as directed.
 - **History preserved:** plans 002 / 013 and the shipped-shim appendix stay in the
   tree as historical records; both are flagged "removed in 014" in the index.

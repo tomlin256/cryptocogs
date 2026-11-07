@@ -26,16 +26,11 @@ Consumers currently get fills two ways instead: polling REST `get-trades`
 
 ## Why deferred, not blocking
 
-Flywheel's Crypto.com exchange-adapter plan
-(`flywheel/docs/plans/cryptocom_exchange_plan.md`, Decision 1) surfaced this
-gap while scoping order-entry fill handling, and deliberately designed around
-it rather than waiting on it: fills + fees are sourced from REST `get-trades`
-(exact price, real fee, maker/taker — no inference), with WS `user.order` used
-only as the low-latency trigger to fetch. That plan's own framing, carried
-forward here:
-
-> The unmodelled WS `user.trade` channel would only be a future *push-latency*
-> optimization — never a correctness prerequisite.
+A caller can design around the gap rather than wait on it: fills + fees are
+sourced from REST `get-trades` (exact price, real fee, maker/taker — no
+inference), with WS `user.order` used only as the low-latency trigger to fetch.
+The unmodelled WS `user.trade` channel would only be a future *push-latency*
+optimization — never a correctness prerequisite.
 
 So `user.trade` buys **lower-latency fill delivery** (a push row the instant a
 trade executes, vs. a REST round-trip after the `user.order` trigger) — not

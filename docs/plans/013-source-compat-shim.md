@@ -1,6 +1,6 @@
 # 013 — Source-compatibility shim for legacy `src/kraken_{ws,rest}_client.cpp` paths
 
-**Status:** Done — `0f047b5` (branch `feature/flywheel-compat-shim`)
+**Status:** Done — `0f047b5`
 
 ## Goal
 
@@ -13,17 +13,15 @@ keep compiling against the `kraken::` namespace. But it deleted/relocated the ol
 help: those that do **not** link cryptocogs's CMake targets, and instead build
 their own static libraries by compiling specific cryptocogs source paths directly.
 
-The motivating consumer is **flywheel** (see
-[`flywheel/docs/plans/krakenapi_upgrade_plan.md`](../../../flywheel/docs/plans/krakenapi_upgrade_plan.md)),
-whose top-level `CMakeLists.txt` does:
+A build of that kind looks like this:
 
 ```cmake
-add_library(krakenapi_ws   STATIC ${krakenapi_SOURCE_DIR}/src/kraken_ws_client.cpp)
-add_library(krakenapi_rest STATIC ${krakenapi_SOURCE_DIR}/src/kraken_rest_client.cpp)
+add_library(ws_lib   STATIC ${CRYPTOCOGS_DIR}/src/kraken_ws_client.cpp)
+add_library(rest_lib STATIC ${CRYPTOCOGS_DIR}/src/kraken_rest_client.cpp)
 ```
 
-After the refactor these paths don't exist, so the consumer's CMake fails at
-generate time.
+After the refactor these paths don't exist, so such a CMake fails at generate
+time.
 
 ## What changed
 
@@ -46,10 +44,9 @@ new TUs:
   `exchange::TickPrice::from_json`, which the WS path never references (WS uses
   `TickPrice` solely as outbound `limit_price`/`post_only_price`, serialized
   inline). Putting it in both shims would give a consumer that links both libs a
-  duplicate-symbol error (e.g. flywheel's `bot_main_app`).
-- **`src/kraken_types.cpp` not re-added** — no known consumer compiles that path
-  (flywheel never did; its types are header-only via the shim). Trivial to add
-  later by the same pattern if one appears.
+  duplicate-symbol error.
+- **`src/kraken_types.cpp` not re-added** — no known consumer compiles that path.
+  Trivial to add later by the same pattern if one appears.
 
 ## Test
 
@@ -67,8 +64,9 @@ smoke tests exercise the WS (`make_ws_client(conn)` → ping) and REST
 ## Result
 
 Clean cryptocogs build; **318/318** ctest pass (incl. the 2 new tests). Verified
-downstream: flywheel builds all targets and passes **61/61** ctest against this
-branch via its local-clone option, with **zero** flywheel source/CMake changes.
+against an existing external build that compiles the legacy paths: it builds all
+of its targets and passes its own tests against this branch, with no change to its
+sources or CMake.
 
 ## Self-review
 
