@@ -21,8 +21,8 @@ notes, tag messages and branch names: none). Those are not fixed here (*Not here
 
 A list of forbidden names is itself a leak, so neither the list nor a check that reads it can live in this repository. The audit is a
 `pre-push` hook of the author's checkout (`.git/hooks/pre-push`, never committed) that reads its list from outside the repository. For each
-pushed ref it scans every text file of the commit and the message of each new commit, and it refuses the push on a finding. It is built and
-tested where its list lives, so this repository gets no code and no test for it.
+pushed ref it scans every text file of the commit, the message of each new commit and, for an annotated tag, the tag's message, and it refuses
+the push on a finding. It is built and tested where its list lives, so this repository gets no code and no test for it.
 
 Rejected: a CI step. It would need the list as a repository secret, and it would run after the text is already public.
 
@@ -87,8 +87,8 @@ one of the six files and includes another).
 | 0 | Done | 291899c; comments on #61 |
 | 1 | Done | 2396f0b |
 | 2 | Done | d4bc627 |
-| 3 | | |
-| 4 | | |
+| 3 | Done | 42a3a40 |
+| 4 | Done | the hook is installed in this checkout; its first push is this step's commit |
 | 5 | | |
 
 ## Outcome
