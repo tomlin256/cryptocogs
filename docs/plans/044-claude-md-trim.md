@@ -132,8 +132,9 @@ Each step ends with a build and the whole suite.
   (about half a minute more).
 - **Links.** `docs/plans/001-multi-exchange-abstraction.md` links two anchors that no longer exist (`#websocket-message-dispatch-low-level`,
   `#namespace-layout`). It is history and is left as it is.
-- **Not touched, and still stale.** The line numbers cited in `docs/agent-add-exchange.md` §2 (for example `auth.hpp:91`, `rest.hpp:43`)
-  drifted; its §4 still mentions a compat shim that plan 014 removed. Neither is wrong about structure; both want an issue.
+- **Not touched, and still stale.** Most line numbers cited in `docs/agent-add-exchange.md` §2 drifted (the citations of `auth.hpp:91`,
+  `rest.hpp:43` and `auth.hpp:66` were removed with the edit; `rest.hpp:32` and `:57`, `rest_api.hpp:55` and `:119` remain and point at the
+  wrong lines); its §4 still mentions a compat shim that plan 014 removed. Neither is wrong about structure; both are in one issue.
 - **Assumption.** The 40000-character cut-off for an on-demand `CLAUDE.md` is as Claude Code's memory documentation states it; the root
   file is loaded whole, and its 21000-byte budget is a choice, not a cap.
 

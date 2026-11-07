@@ -315,6 +315,9 @@ These apply to every adapter and are easy to miss:
   must round-trip to an exact decimal, use `TickPrice` (`exchange/kraken/types.hpp`).
 - **Optional fields are `std::optional<T>`** and must **not** be serialised in
   `to_json()` when unset.
+- **JSON goes through `to_json()` / `from_json()` static methods on each struct.**
+  Prefer `j.value("key", default)` over `j.at("key")` for fields that may be
+  absent in a response.
 - **All WS tests use `MockWsConnection`** — no sockets, no sleeps. Drive timing
   with synchronous step injection (a real wall-clock wait is acceptable *only*
   in a live CLI example, never a test).

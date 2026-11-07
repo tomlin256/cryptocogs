@@ -59,7 +59,8 @@ struct KrakenCredentials {
     static KrakenCredentials from_file(const std::string& name,
                                  const std::string& location = "");
 
-    // Compute the API-Sign header value.
+    // Compute the API-Sign header value:
+    //   base64( HMAC-SHA512( base64_decode(api_secret), uri_path + SHA256(nonce + post_body) ) )
     //   uri_path : e.g. "/0/private/AddOrder"
     //   nonce    : the nonce string included in post_body
     //   post_body: raw url-encoded POST body (must already include nonce=...)

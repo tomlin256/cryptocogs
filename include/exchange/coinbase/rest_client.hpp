@@ -12,7 +12,9 @@
 // exchange/coinbase/rest_client.hpp
 // Type-safe HTTP executor for the Coinbase Exchange REST API. The libcurl
 // transport is the shared exchange::rest::CurlHttpClient (plan 010); this class
-// only binds the Coinbase envelope/parse and auth.
+// only binds the Coinbase envelope/parse and auth. Coinbase rejects a request
+// with no User-Agent ("User-Agent header is required"), so execute() sets one
+// unless the request already carries it (rest_client.inl).
 //
 // Namespace: exchange::coinbase::rest
 
