@@ -1,6 +1,7 @@
 # Plan 046 — A kind starts with a letter: the platform guard agrees with flywheel-dag's copy
 
-**Status:** In progress. Rob approved the plan as written (2026-11-07), so D1 stands at its default (the flywheel-dag issue is opened).
+**Status:** Done (2026-11-07). Rob approved the plan as written, so D1 stood at its default (the flywheel-dag issue is opened). Steps 0
+to 2 are recorded in the *Outcome*.
 
 Closes [#64](https://github.com/tomlin256/cryptocogs/issues/64).
 
@@ -155,4 +156,73 @@ The issue of D1, if confirmed; I tell you its number. *Left for later:* a run of
 
 ## Outcome
 
-Not started.
+Steps 0 to 2 are done (2026-11-07). Counts below are measured.
+
+### Commits
+
+| Step | Commit | What |
+|---|---|---|
+| 0 | `5adedea` | this plan, approved as written |
+| 1 | `eef75ef` | the kind pattern, the `Darwin` spelling, the comments, 16 rows; `See #64` and no closing keyword |
+| 2 | the commit that adds this section | the status line and this *Outcome*; #64 closed by hand after the push |
+
+### Red, then green
+
+**Start from green** (`debug-macos-arm64`, Apple clang, before any edit): 588 of 588, 7.33 s of tests, nothing rebuilt.
+
+**Red first.** The 16 rows against `HEAD`'s module: **11 rows failed**, as planned: the two `darwin` tag rows; eight of the ten digit-led
+accepted rows (`9lives-linux-arm64` on `linux-arm64` and `2025-macos-arm64` on `macos-arm64` pass at `HEAD`); and the rule-3 row, whose
+text said "is for macos-arm64". The other five rows passed. With the change: `test_platform_name: ok`.
+
+### Hand-made changes
+
+A scratch copy of the changed tree (`rsync` without `build*` and `.git`; the old text asserted to occur the stated number of times
+before each edit; the module restored from a saved copy between rows; the copy deleted afterwards), each run as
+`cmake -DSOURCE_DIR=<copy> -P tests/tree_checks/check_platform.cmake`. Every row is what the plan predicted.
+
+| Change to the changed module | `test_platform_name` |
+|---|---|
+| control, before the rows and after the last restore | green (0 failing rows) |
+| (a) the shape test (line 69) back to `[a-z0-9]+` | red, 11 rows: the ten digit-led accepted rows and the rule-3 row |
+| (b) lines 71 and 73 back to `[a-z0-9]+`, line 69 as changed | green: equivalent, as argued |
+| (c) all three `[a-z]+-` | red, 1 row: `gcc13-linux-x86_64` accepted |
+| (d) only line 71 `[a-z]+-` | red, 1 row: `gcc13-linux-arm64` refused |
+| (e) only line 73 `[a-z]+-` | red, 1 row: the phrase `is for linux-x86_64, but this host is linux-arm64` of `gcc13-linux-x86_64` |
+| (f) all three `[a-z][a-z0-9]+-` | red, 1 row: `x-macos-arm64` accepted |
+| (g) the system name lower-cased before it is compared with `darwin` | red, 2 rows: the two `darwin` tag rows |
+| (h) no `Darwin` branch | red, 2 rows: `Darwin` with `arm64` and with `x86_64` |
+
+### The two modules, measured again
+
+The harness of the *Problem*, over this checkout at `eef75ef` and flywheel-dag at `6bf1442` (unchanged since the first run):
+
+| Group | Rows | Differ before | Differ after |
+|---|---|---|---|
+| 40 names | 1800 | 150 (85 accepted by one copy, refused by the other) | **0** |
+| 15 boundary names | 675 | 135 | **0** |
+| the tag | 56 | 16 | **0** |
+
+### Counts
+
+| Tree | Result |
+|---|---|
+| `debug-macos-arm64`, after Step 1 | 588 of 588, 7.14 s of tests; nothing rebuilt (a CMake-script change); no warning from our code (two CMake deprecation notices from fetched dependencies, as before) |
+| CI `CMake on a single platform` (`release-linux-x86_64`, GCC 15.2), `eef75ef`, run 42409586779 | 588 of 588, 20.22 s of tests, the job took 50 s; `test_platform_name`, `test_tree_name` and `test_presets` pass on Linux |
+| CI `clang-tidy`, `eef75ef`, run 42409586785 | 95 of 95, 140.4 s of tests, the job took 3 min 26 s |
+
+### Opened outside this plan
+
+- [tomlin256/flywheel-dag#73](https://github.com/tomlin256/flywheel-dag/issues/73) (enhancement, priority low in the body): D1. Its table
+  has no row for a digit-led kind or for `darwin`. Measured read-only at `6bf1442` on scratch copies: its own 56 cases stay green when
+  the kind pattern is `[a-z0-9]+` at its three sites, and when `darwin` is matched after the lower-casing; the 16 rows of this plan,
+  written in its macros and added to a copy of its table, hold against its module as it is (72 cases) and fail 9 and 2 rows against the
+  two changes. Nothing in its checkout was edited.
+
+### What differed from the plan
+
+- **The ten digit-led accepted rows extend the existing loop** over the names that are not platform trees (its comment and its list of
+  names) instead of a loop of their own. Two existing lines are edited; no row is removed.
+- **D1 was measured more strictly than planned.** The plan relied on the verdict comparison to say flywheel-dag's module passes the
+  rows; the rows were also run in flywheel-dag's own macros against its module, and its table was shown not to notice the two changes.
+
+*Left for later:* a run of the Linux tree in `ubuntu-dev`; CI's Linux run above covers the three tests that read the module.
