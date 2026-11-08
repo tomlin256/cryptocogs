@@ -1,7 +1,7 @@
 # Plan docs carry no sequence number: file names, titles and citations name the plan
 
-**Status:** In progress. Rob approved the plan as written on 2026-11-08, so D1 to D5 stand at their defaults below. Step 0 is done; the
-others are recorded in the *Outcome* as they finish.
+**Status:** Done on 2026-11-08, except that Step 3 held back 8 items of GitHub text (see the *Outcome*), so #65 stays open. Rob approved
+the plan as written, so D1 to D5 stood at their defaults below. Steps 0 to 4 are recorded in the *Outcome*.
 
 Closes [#65](https://github.com/tomlin256/cryptocogs/issues/65).
 
@@ -240,3 +240,203 @@ figures.
   is posted.
 - **This plan quotes old forms** (`plan 035`, `NNN-`), so the Step 1 census skips this file, and its paths are written so that
   `test_plan_docs` accepts them.
+
+## Outcome
+
+Steps 0 to 2 and 4 are done, and Step 3 is done for 50 of its 58 items (2026-11-08). Counts below are measured.
+
+### Commits
+
+| Step | Commit | What |
+|---|---|---|
+| 0 | `390bd6a` | this plan, approved as written |
+| 1 | `efb574d` | every citation by name, in 162 files; no file moved; `See #65` |
+| 2 | `5275739` | the 50 renames, the paths that named them, the rule in `CLAUDE.md`, `test_plan_docs` and its fixtures; `See #65` |
+| 3 | none | 50 items of GitHub text edited (below) |
+| 4 | the commit that adds this section | the status line and this *Outcome*; `See #65`, and #65 stays open (below) |
+
+### The census
+
+`git grep` over the tracked files, this file skipped. Before is `cd6b118`; the other columns are the tree after each step.
+
+| What | Before | After step 1 | After step 2 |
+|---|---|---|---|
+| `plan NNN` | 629 in 155 files | 28 in 26 files | 29 in 27 files |
+| list continuations ("plans 028 and 032", "025 to 027") | 25 | 1 | 1 |
+| bare citations ("026's Results", "Before (025)") | 82 | 8 | 8 |
+| `plan-NNN` | 7 | 0 | 0 |
+| numbered H1 titles | 50 | 0 | 0 |
+| `NNN-name.md` lines in plan docs | 90 | 90 | 0 |
+| partial paths (`plans/027 Design decisions`) | 6 | 0 | 4 |
+| files outside `docs/plans` with a numbered path | 10 | 16 | 1 |
+
+What remains, each read: 24 quotes of commit subjects in inline code (`docs: mark plan 004 done`,
+`docs(plan): plan 030 approved as written`, `(plan 046, step 1)`, …), the titles of #22, #47 and #49 (4 tokens: D5), 8 bare numbers in
+quoted subjects, and the sentence in `CLAUDE.md` that tells a reader the old subjects say `plan 046`. The 4 partial paths and the 1 file
+with a numbered path are the check's own header and fixtures, which hold bad paths on purpose and which the check skips.
+
+### Step 1: the checks of the rewrite
+
+- **Inverse.** The new text of each changed file, turned back into numbers, against the old text, as a word stream with the comment markers
+  dropped: the 50 titles, and **104 spots in 31 files** that were edited by hand. By file: `remaining-adapters-reserve-vector-growth` 31,
+  `rename-kraken-credentials` 10, `claude-md-trim` 7, `kraken-reserve-vector-growth` 5, `step-8-binance-ws-api` 5, `bench_binance_ws.cpp`,
+  `bench_coinbase_ws.cpp` and `bench_cryptocom_ws.cpp` 4 each, `rename-to-cryptocogs` 3, `remove-compat-shim` 3, `curl-post-sent-once`,
+  `cmake4-cxx23`, `coinbase-fix-order-entry`, `step-6-binance-rest-private`, `CMakeLists.txt`, `sanitizers.yml` and
+  `cmake-single-platform.yml` 2 each, and 1 each in `test_http_client.cpp`, `test_cryptocom_auth.cpp`, `test_coinbase_auth.cpp`,
+  `test_binance_auth.cpp`, `check_tree_name.cmake`, `check_clang_tidy_module.cmake`, `bench_tick_price.cpp`, `bench_kraken_ws.cpp`,
+  `bench_kraken_rest.cpp`, `code-review-multi-exchange-abstraction.md` and the plans `tsan-races-in-the-tests`,
+  `cryptocom-user-trade-channel`, `cmake-install-nits` and `step-7-binance-ws-streams`. They are the ranges, the bare citations,
+  possessives ("Plan 027's Binance analog"), the link texts and sentences of the longest plan, the sentences in two workflows and in
+  `CMakeLists.txt` that did not read with a name in place of a number, the full path in place of each partial one, five divider lines and
+  one `-Werror=deprecated-declarations` that the re-wrap broke. A wrong name in the mechanical pass showed up as none of them.
+- **Comments only.** 106 of the 107 changed files that are not Markdown (C++, CMake, YAML and the two dot-files) are equal before and after
+  once comments are removed, string literals kept. The one that differs is `CMakeLists.txt`, in two string literals: the help text of
+  `CRYPTOCOGS_BUILD_BENCHMARKS` and the doc string of the platform cache variable, both of which cite a plan. No backslash was added at the
+  end of a comment line.
+- **Width.** 50 comment lines in code and configuration passed 130 columns and were re-wrapped (0 remain); 39 lines of Markdown passed 140
+  and were re-wrapped (a table row and the lines that were already wider are left). The re-wrap moves words and nothing else: the
+  Markdown files compare equal as word streams before and after it. The step adds 799 lines and removes 758.
+- **Budget.** `CLAUDE.md` 20273 bytes at the start, 20370 after Step 1, 20589 after Step 2 (limit 21000).
+
+### Red, then green
+
+**Start from green** (`debug-macos-arm64`, Apple clang): 588 of 588, 24.24 s of tests. After Step 1 the same, 588 of 588, 24.97 s, with
+every edited unit rebuilt and no warning from our code (two CMake deprecation notices, from the fetched `backward` and `CLI11`).
+
+**Red first** (Step 2): `check_plan_docs.cmake` over Step 1's tree reports **51 findings**: the 50 numbered names, and the old rule in
+`CLAUDE.md` (a numbered pattern for plan files), which the plan had not predicted. No link is dead, as planned. After the change it passes
+over 54 plan docs and 254 text files, and the full run is **590 of 590**, 25.12 s, no warning.
+
+`git diff -M --stat` of the commit shows 50 renames, each 81% to 100% similar; `git log --follow` reaches 4 commits of
+`clang-tidy-ci-job`, 9 of `warnings-as-errors` and 23 of `multi-exchange-abstraction`.
+
+### Hand-made changes
+
+A scratch copy of the changed tree (`rsync` without `build*` and `.git`; the old text asserted to occur once before each edit; the check
+restored from a saved copy between rows; the copy deleted afterwards), each run as
+`cmake -DSCRATCH_ROOT=<dir> -P tests/doc_checks/check_plan_docs_fixtures.cmake`. The failing cases are the fixtures' names.
+
+| Change to the check | `test_plan_docs_fixtures` |
+|---|---|
+| control: unmutated | green |
+| (a) a name may start with a digit | red: `numbered_name` |
+| (b) a mention may leave out its `.md` | red: `partial_path` |
+| (c) a link's `#fragment` stays on, and the link is skipped | red: `missing_with_fragment` |
+| (c2) a link's `#fragment` stays on, and the file is looked up with it | red: `accepted` (the link with a fragment to a plan that exists) |
+| (d) the links of plan docs are not read | red: `missing_sibling`, `missing_with_fragment`, `missing_parent` |
+| (e) `build*/` is scanned | red: `accepted` |
+| (f) an empty `docs/plans/` passes | red: `empty_directory`, `only_hidden` |
+| not in the plan: a hidden file is a candidate | red: `accepted` |
+| not in the plan: `tests/doc_checks/` is scanned | red: `accepted` |
+| not in the plan: a URL is read like a path | red: `accepted` |
+| not in the plan: the full stop that ends a sentence stays in the name | red: `accepted` |
+| not in the plan: links are resolved from the working directory | red: `accepted` |
+| not in the plan: a directory in `docs/plans/` is not listed | red: `subdirectory` |
+| not in the plan: `cmake-build-*/`, `.git/`, `.cache/` or `.claude/` is scanned (4 rows) | red: `accepted` each |
+| not in the plan: no mention is read | red: `missing_plan`, `partial_path` |
+| not in the plan: the bare directory `docs/plans/` is refused | red: `accepted` |
+
+The first run of the row "a URL is read like a path" stayed **green**. The fixtures' `write_file` took a function's three named
+arguments and ignored the rest, so the README of the accepted case was cut at its first piece and held no URL. The pieces are now joined
+with `string(CONCAT)` first, and the row went red.
+
+### The links in GitHub text (Step 3)
+
+Fetched read-only before the Step 2 push and again after it (unchanged): 65 issues, 57 comments, 6 releases. **89 links to numbered plan
+files in 58 items**: 13 in 12 issue bodies, 68 in 43 comments, 8 in 3 releases. The plan had counted 95. The new text of each item differs
+from the old only in the number that leaves the file name of each link (checked by removing that number from both), every new path
+exists on `main`, and the link texts ("plan 043") are as they were.
+
+**Edited: 50 items, 77 links**: 10 issue bodies, 37 comments and the notes of `v1.0.1`, `v2.0.0` and `v2.1.0`. The audit
+(`check_public_leaks.py --tree`) exited 0 over exactly those 50 files; each was read back and equals what was sent.
+
+**Held back: 8 items, 12 links** (2 issue bodies and 6 comments). The audit exits 1 on them with 28 findings, because the text they
+already publish names a non-public project. They were not edited: D3 allows the links and nothing else, and the audit is the gate. The
+ids are not written here, because they would point at the text; Rob has them. Their 12 numbered links are the only ones left in the
+95 `docs/plans/` mentions of the GitHub text. The 3 other mentions that name no file here are URLs into flywheel-dag's plan docs.
+
+### Counts
+
+| Tree | Result |
+|---|---|
+| CI `CMake on a single platform` (`release-linux-x86_64`, GCC 15.2), `efb574d`, run 42501887357 | 588 of 588, 17.80 s of tests, the job took 2 min 2 s |
+| CI `clang-tidy`, `efb574d`, run 42501887341 | 95 of 95, 211.42 s of tests, the job took 4 min 35 s |
+| CI `CMake on a single platform`, `5275739`, run 42502725328 | 590 of 590, 13.64 s of tests, the job took 1 min 3 s |
+| CI `clang-tidy`, `5275739`, run 42502725352 | 95 of 95, 111.35 s of tests, the job took 2 min 37 s |
+
+All four runs finished green when I looked.
+
+### Found outside this plan
+
+Published issue and comment text (8 items, above) names a non-public project, and no check in the repository reads issue text. I opened
+no issue for it: a public issue would point at the text. Rob decides whether to scrub it.
+
+### What differed from the plan
+
+- **The counts.** Bare citations were 82 and not 91; list continuations 25 and not 21; and 7 hyphenated forms (`plan-001`) were not
+  counted at all. GitHub held 89 numbered links and not 95.
+- **The guard** also skips URLs, because 5 of them name `docs/plans/<x>` files of another repository, and its red-first run found the old
+  rule in `CLAUDE.md` as well.
+- **`CMakeLists.txt`** changed in two string literals, not only comments.
+- **The partial paths** were written out in full in Step 1, so that Step 2 renames them like any other.
+- **`CLAUDE.md`** grew by 316 bytes and not 150: it also tells a reader that old subjects say `plan 046` and where the table is.
+- **Step 3** is not complete (above), so #65 is not closed.
+- **Left for later**, as planned: a build in `ubuntu-dev` and the sanitizer trees. CI built both pushed commits with GCC 15.2.
+
+### The 50 old numbers and the names they became
+
+In the order the plans were made. The date is that of the file's first commit. The four appendices were made with plan 001 and name it as
+their parent. A commit subject such as `plan 046, step 1` reads through this table.
+
+| Was | Is (`docs/plans/<name>.md`) | Made |
+|---|---|---|
+| 001 | multi-exchange-abstraction | 2026-06-06 |
+| 001 | appendix-binance-message-formats | 2026-06-06 |
+| 001 | appendix-compat-shim | 2026-06-06 |
+| 001 | appendix-migration-guide | 2026-06-06 |
+| 001 | appendix-testing-strategy | 2026-06-06 |
+| 002 | step-2b-compat-shim | 2026-06-07 |
+| 003 | step-5-binance-rest-public | 2026-06-10 |
+| 004 | step-6-binance-rest-private | 2026-06-11 |
+| 005 | step-7-binance-ws-streams | 2026-06-12 |
+| 006 | step-8-binance-ws-api | 2026-06-12 |
+| 007 | step-9-cmake-build-validation | 2026-06-13 |
+| 008 | step-10-agent-onboarding-guide | 2026-06-13 |
+| 009 | relocate-tickprice-to-common | 2026-06-13 |
+| 010 | shared-curl-http-transport | 2026-06-13 |
+| 011 | generic-rest-client | 2026-06-13 |
+| 012 | install-and-package-config | 2026-06-13 |
+| 013 | source-compat-shim | 2026-06-14 |
+| 014 | remove-compat-shim | 2026-06-14 |
+| 015 | rename-to-cryptocogs | 2026-06-15 |
+| 016 | declarative-headers | 2026-06-17 |
+| 017 | cmake-install-nits | 2026-06-17 |
+| 018 | coinbase-exchange-adapter | 2026-06-19 |
+| 019 | coinbase-fix-order-entry | 2026-06-19 |
+| 020 | cryptocom-exchange-adapter | 2026-06-20 |
+| 021 | credentials-from-file | 2026-06-22 |
+| 022 | rename-kraken-credentials | 2026-06-22 |
+| 023 | cryptocom-user-trade-channel | 2026-07-13 |
+| 024 | cryptocom-create-order-exec-inst | 2026-07-13 |
+| 025 | kraken-performance-profiling | 2026-08-31 |
+| 026 | kraken-reserve-vector-growth | 2026-09-01 |
+| 027 | remaining-adapters-reserve-vector-growth | 2026-09-01 |
+| 028 | platform-build-dirs | 2026-11-02 |
+| 029 | cmake4-cxx23 | 2026-11-04 |
+| 030 | ci-cache | 2026-11-04 |
+| 031 | ci-skip-docs-only | 2026-11-04 |
+| 032 | sanitizer-option-and-presets | 2026-11-04 |
+| 033 | tsan-races-in-the-tests | 2026-11-04 |
+| 034 | transport-callback-lifetimes | 2026-11-05 |
+| 035 | clang-tidy-opt-in-test-step | 2026-11-05 |
+| 036 | warnings-as-errors | 2026-11-05 |
+| 037 | clear-clang-tidy-findings | 2026-11-05 |
+| 038 | curl-header-list-append-failure | 2026-11-06 |
+| 039 | kraken-example-ws-frames | 2026-11-06 |
+| 040 | clang-tidy-ci-job | 2026-11-06 |
+| 041 | curl-handle-reset | 2026-11-06 |
+| 042 | curl-timeouts | 2026-11-06 |
+| 043 | curl-post-sent-once | 2026-11-06 |
+| 044 | claude-md-trim | 2026-11-06 |
+| 045 | scrub-nonpublic-names | 2026-11-07 |
+| 046 | platform-kind-pattern | 2026-11-07 |
