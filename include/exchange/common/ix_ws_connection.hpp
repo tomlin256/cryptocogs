@@ -17,10 +17,10 @@
 // ixwebsocket transport.  Unit tests that use a mock connection should include
 // only ws_client.hpp to avoid pulling in ixwebsocket.
 //
-// DECLARATIVE-HEADER CARVE-OUT (plan 016, decision D1): unlike every other
+// DECLARATIVE-HEADER CARVE-OUT (plan declarative-headers, decision D1): unlike every other
 // header, this one keeps its implementation inline. It is the only header that
 // #includes <ixwebsocket/...>, and ixwebsocket is (a) fetched only under
-// CRYPTOCOGS_BUILD_TESTS and (b) deliberately not installed (plan 012). Moving
+// CRYPTOCOGS_BUILD_TESTS and (b) deliberately not installed (plan install-and-package-config). Moving
 // these bodies to a .cpp would force a library that links ixwebsocket and would
 // break downstream consumers that use IxWsConnection header-only (linking their
 // own ixwebsocket). Keeping it header-only preserves the "core static libs are
@@ -54,11 +54,11 @@ public:
     // message to the callback below, so all four std::functions must still be alive for it, and for any frame still in
     // flight. Members are destroyed in reverse order and ws_ is declared before them: without this destructor ~ix::WebSocket
     // would stop the thread only after the callbacks were gone, and the thread would call destroyed std::functions
-    // (plan 034, #39). A final on_close may therefore run on the I/O thread while this destructor runs, exactly as it does in
-    // disconnect() (ixwebsocket skips it when stop() lands between two iterations of the thread's loop), and whatever the
-    // callbacks capture must outlive the connection. stop() is idempotent, so disconnect() followed by destruction is
-    // unchanged. If the I/O thread itself drops the last reference to this object it joins itself: see the ownership warning
-    // on the URL factory below.
+    // (plan transport-callback-lifetimes, #39). A final on_close may therefore run on the I/O thread while this destructor runs,
+    // exactly as it does in disconnect() (ixwebsocket skips it when stop() lands between two iterations of the thread's loop),
+    // and whatever the callbacks capture must outlive the connection. stop() is idempotent, so disconnect() followed by
+    // destruction is unchanged. If the I/O thread itself drops the last reference to this object it joins itself: see the
+    // ownership warning on the URL factory below.
     ~IxWsConnection() override { ws_.stop(); }
 
     void connect() override {
@@ -156,7 +156,7 @@ private:
 //
 // Dropping conn without disconnect() is safe as well, as long as the drop happens
 // on a thread of your own: ~IxWsConnection() stops the socket before it destroys
-// the callbacks (plan 034, #39). What it cannot do is stop the socket from the I/O
+// the callbacks (plan transport-callback-lifetimes, #39). What it cannot do is stop the socket from the I/O
 // thread itself, which is the self-join described above.
 //
 // This overload remains fine for short-lived, single-shot request/response use

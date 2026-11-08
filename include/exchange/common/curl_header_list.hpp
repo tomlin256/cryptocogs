@@ -12,7 +12,7 @@
 // exchange/common/curl_header_list.hpp
 // The libcurl header list (curl_slist) of one request, built from HttpRequest::headers. An implementation detail of
 // CurlHttpClient::perform, kept in `detail` and out of the supported surface. It has a header of its own so that a test can replace
-// the call that grows the list and make it fail (plan 038, #48).
+// the call that grows the list and make it fail (plan curl-header-list-append-failure, #48).
 //
 // Namespace: exchange::rest::detail
 

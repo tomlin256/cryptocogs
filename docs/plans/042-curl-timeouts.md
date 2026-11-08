@@ -1,13 +1,14 @@
-# Plan 042 — `CurlHttpClient::perform` gives up on a server that stops answering
+# `CurlHttpClient::perform` gives up on a server that stops answering
 
 **Status:** Done (2026-11-06), released as [v2.1.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.1.0) (2026-11-06) with plans
-038, 041 and 043; the record is in plan 043, Step 4. Rob approved the plan as written, so D1 to D6 stood at the defaults below (no
-release), and then asked for the release. Steps 0 to 4 are recorded in the *Outcome*.
+curl-header-list-append-failure, curl-handle-reset and curl-post-sent-once; the record is in plan curl-post-sent-once, Step 4. Rob approved
+the plan as written, so D1 to D6 stood at the defaults below (no release), and then asked for the release. Steps 0 to 4 are recorded in the
+*Outcome*.
 
 Closes [#56](https://github.com/tomlin256/cryptocogs/issues/56).
 
-**Follows:** [plan 041](041-curl-handle-reset.md). `perform` now resets its handle first, so every option below is set on each call, after
-the reset (the issue and plan 041's *Coding conventions* bullet both say so).
+**Follows:** [plan curl-handle-reset](041-curl-handle-reset.md). `perform` now resets its handle first, so every option below is set on each
+call, after the reset (the issue and plan curl-handle-reset's *Coding conventions* bullet both say so).
 **Not here:** a release (D6); a timeout per request; a structured error type; the same words for the other failures after a request went
 out (`Server returned nothing`, `Failure when receiving data from the peer`): a follow-up issue, opened in Step 0.
 
@@ -181,7 +182,7 @@ removed: **all green**, and it stays so: a numeric address does no lookup and ev
 no test can see the option; the comment and libcurl's advice are the only evidence.
 
 *Checkpoint.* Full build and ctest of `debug-macos-arm64` with the gate on: **665 of 665** (658 and 7); no warning. The whole tree built in
-`ubuntu-dev` (`debug-linux-arm64`, GCC 13.3, `-Werror`) and `test_http_client` run there, because plan 041's first push was red on a GCC
+`ubuntu-dev` (`debug-linux-arm64`, GCC 13.3, `-Werror`) and `test_http_client` run there, because plan curl-handle-reset's first push was red on a GCC
 warning that Apple clang does not report and this one adds code; this is also the Linux evidence for test 2 (OpenSSL).
 *Done when:* red as stated, then green; (a) to (h) as stated; both checkpoints green; pushed; and the `release-linux-x86_64` and `clang-tidy`
 runs of the commit green (GCC 15.2, clang-tidy 23).
@@ -200,8 +201,8 @@ and pushed, and the two runs of the commit green.
 and that a timed-out order must be checked before it is sent again. `CLAUDE.md`: the structure tree (`silent_listener.hpp`, the
 `http_client.cpp` and `test_http_client.cpp` lines), the `KrakenRestClient` constructor shown at line ~877, *Running tests* (the
 executable's count, the totals 552 → 563 gtests and 570 → 581, the Crypto.com-only line 145 → 153 gtests and 162 → 170, 7 → 14
-`CurlHttpClient::perform` tests), the *Test suite breakdown* rows, and the *Coding conventions* bullet from plan 041, whose "such as a
-timeout (#56)" becomes what was done. Counts are **measured**, as in plan 041 (`ctest -N` in the default tree and a Crypto.com-only tree
+`CurlHttpClient::perform` tests), the *Test suite breakdown* rows, and the *Coding conventions* bullet from plan curl-handle-reset, whose "such as a
+timeout (#56)" becomes what was done. Counts are **measured**, as in plan curl-handle-reset (`ctest -N` in the default tree and a Crypto.com-only tree
 with the gate on); the gate's 95 units should not change (no new `.cpp`). This plan's *Outcome*. The gate turned off in the tree again.
 *Done when:* pushed (documentation only), and #56 closed by hand (`completed`) with a comment that lists the commits, the red-then-green
 record and the counts.
@@ -220,7 +221,7 @@ Bump the version in `CMakeLists.txt:35` and the `GIT_TAG` example in `README.md:
 ## Designs I rejected
 
 - **Setting the options once, in the constructor.** `perform` resets at the top of its first call, so they would be gone before the first
-  request (plan 041).
+  request (plan curl-handle-reset).
 - **`CURLINFO_REQUEST_SIZE` as the marker:** measured 0 for a request that was sent.
 - **Reading libcurl's error buffer** to tell the phases: the wording differs by phase and by version.
 - **A structured `HttpTimeout` exception with `request_sent()`.** The adapters fold `what()` into a string, so nothing would read it. It is
@@ -257,7 +258,7 @@ Bump the version in `CMakeLists.txt:35` and the `GIT_TAG` example in `README.md:
 
 Steps 0 to 4 are done (2026-11-06); Step 4 is at the end of this section. D6 stood at no release; Rob then asked
 for it, and `v2.1.0` was released on 2026-11-06 for [#48](https://github.com/tomlin256/cryptocogs/issues/48),
-[#51](https://github.com/tomlin256/cryptocogs/issues/51), #56 and [#58](https://github.com/tomlin256/cryptocogs/issues/58) together (plan 043, Step 4).
+[#51](https://github.com/tomlin256/cryptocogs/issues/51), #56 and [#58](https://github.com/tomlin256/cryptocogs/issues/58) together (plan curl-post-sent-once, Step 4).
 
 ### Commits
 
@@ -350,7 +351,7 @@ Each test sees its own client alone, which is what a test of the wiring should d
 The gate's 95 units did not change, as planned: no `.cpp` was added. `CLAUDE.md` carries the new numbers: 552 → 563 gtests and 570 → 581
 in ctest; the Crypto.com-only line 145 → 153 gtests (the Crypto.com suite 94 → 95) and 162 → 170; 7 `CurlHttpClient::perform` tests → 14
 `CurlHttpClient` tests; and, for the structure tree, the rows of the four clients and `test_http_client`, the `KrakenRestClient`
-constructor, the namespace row, and the two *Coding conventions* bullets (the one from plan 041 now points at the new one).
+constructor, the namespace row, and the two *Coding conventions* bullets (the one from plan curl-handle-reset now points at the new one).
 
 ### Opened outside this plan
 
@@ -359,7 +360,7 @@ constructor, the namespace row, and the two *Coding conventions* bullets (the on
   exchange acted on the request.
 - [#58](https://github.com/tomlin256/cryptocogs/issues/58) (bug): when the server closes a reused connection after the request was sent
   and before any byte of a reply, libcurl sends the request again on a new connection and `perform` returns the second reply, so a POST can
-  reach the server twice. Plan 041 keeps connections across the reset, which is how a client comes to have one to reuse.
+  reach the server twice. Plan curl-handle-reset keeps connections across the reset, which is how a client comes to have one to reuse.
 
 ### What differed from the plan
 

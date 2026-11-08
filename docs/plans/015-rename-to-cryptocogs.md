@@ -1,4 +1,4 @@
-# 015 — Rename the project `krakenapi` → `cryptocogs`
+# Rename the project `krakenapi` → `cryptocogs`
 
 **Status:** Done — released as **v0.2.0** (branch `feature/rename-to-cryptocogs` → `main`).
 Verified: clean build, 312/312 ctest, and a `find_package(cryptocogs)` consumer
@@ -34,9 +34,9 @@ names change), so it ships as **v0.2.0**.
    Kraken and Binance Spot REST and WebSocket APIs`.
 6. **Repo URLs** in README/FetchContent examples updated to `tomlin256/cryptocogs`
    (valid once Rob renames the GitHub repo; GitHub auto-redirects the old URL).
-7. **Historical plan docs (001–014)**: mechanical project-token sweep so the name
+7. **Historical plan docs (the fourteen made before this one)**: mechanical project-token sweep so the name
    is consistent repo-wide (`git grep -i krakenapi` → 0). Their bodies otherwise
-   stay as the historical record; plan 015 (this file) is the authoritative
+   stay as the historical record; plan rename-to-cryptocogs (this file) is the authoritative
    record of the rename.
 
 ## Out of scope / follow-ups for Rob (post-merge)
@@ -94,8 +94,8 @@ OpenSSL root (`-DOPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl@3`).
 **Step 3 — Docs sweep.**
 - Living docs: `README.md` (incl. repo URLs → cryptocogs, target names
   `cryptocogs::kraken`/`binance`, option names, the three-lib→ description),
-  `CLAUDE.md`, `docs/plans.md` (+ add the 015 row), `docs/agent-add-exchange.md`.
-- Historical plan docs `001`–`014`: mechanical `krakenapi`→`cryptocogs` /
+  `CLAUDE.md`, `docs/plans.md` (+ add this plan's row), `docs/agent-add-exchange.md`.
+- Historical plan docs (the fourteen made before this one): mechanical `krakenapi`→`cryptocogs` /
   `KRAKENAPI`→`CRYPTOCOGS` token sweep.
 - **Done:** `git grep -i krakenapi` → 0 (or only an explicit "renamed from
   krakenapi" note in this plan); build + 312/312 ctest.

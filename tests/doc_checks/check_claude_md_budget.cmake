@@ -1,4 +1,4 @@
-# check_claude_md_budget.cmake — test_claude_md_budget: CLAUDE.md stays small (plan 044, cryptocogs#60).
+# check_claude_md_budget.cmake — test_claude_md_budget: CLAUDE.md stays small (plan claude-md-trim, cryptocogs#60).
 #
 # Run by ctest as `cmake -DSOURCE_DIR=<repo> -P check_claude_md_budget.cmake`. It fails when
 #   - the root CLAUDE.md is over 21000 bytes, or

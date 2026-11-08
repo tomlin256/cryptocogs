@@ -1,4 +1,4 @@
-# 014 — Remove the deprecated `kraken_*.hpp` / `kraken::` compatibility shim
+# Remove the deprecated `kraken_*.hpp` / `kraken::` compatibility shim
 
 **Status:** Done — branch `chore/remove-shim-rebased`, released as **v0.1.1**.
 
@@ -7,10 +7,10 @@
 Delete the pre-refactor Kraken compatibility shim — **both layers** — and cut a
 clean release:
 
-- the **header shim** ([plan 002](002-step-2b-compat-shim.md)): `kraken_compat.hpp`,
+- the **header shim** ([plan step-2b-compat-shim](002-step-2b-compat-shim.md)): `kraken_compat.hpp`,
   the seven old-path `kraken_*.hpp` forwarders, and `ws_reconnect_session.{hpp,inl}`,
   which reopened the legacy `kraken::` namespace; and
-- the **source shim** ([plan 013](013-source-compat-shim.md), merged to `main` via
+- the **source shim** ([plan source-compat-shim](013-source-compat-shim.md), merged to `main` via
   PR #19): the `src/kraken_{ws,rest}_client.cpp` unity TUs for consumers that
   compiled those legacy source paths directly.
 
@@ -50,7 +50,7 @@ the entire shim is dead weight.
 **Docs:** `README.md` and `CLAUDE.md` swept — every example migrated off `kraken::`,
 the `CRYPTOCOGS_BUILD_COMPAT_SHIM` rows and shim file/test entries removed, the
 "upgrade" note reworded to "removed in v0.1.1", and the test counts corrected
-(below). `docs/plans.md` flags plans 002 and 013 as "removed in 014". Project
+(below). `docs/plans.md` flags plans step-2b-compat-shim and source-compat-shim as "removed in remove-compat-shim". Project
 version bumped `0.1.0` → `0.1.1`.
 
 ## Test
@@ -79,5 +79,5 @@ Clean build; **312 / 312** ctest pass (the 4 `test_compat_shim` and 2
 - **Semver:** removing a (deprecated) public surface is normally a minor/major
   bump, but pre-1.0 and with every known consumer already migrated it ships as the
   patch **v0.1.1** as directed.
-- **History preserved:** plans 002 / 013 and the shipped-shim appendix stay in the
-  tree as historical records; both are flagged "removed in 014" in the index.
+- **History preserved:** plans step-2b-compat-shim / source-compat-shim and the shipped-shim appendix stay in the
+  tree as historical records; both are flagged "removed in remove-compat-shim" in the index.

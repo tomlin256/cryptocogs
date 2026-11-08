@@ -1,5 +1,5 @@
 # check_claude_md_budget_fixtures.cmake — test_claude_md_budget_fixtures: the budget check accepts what it should and
-# refuses what it should (plan 044, cryptocogs#60).
+# refuses what it should (plan claude-md-trim, cryptocogs#60).
 #
 # Run by ctest as `cmake -DSCRATCH_ROOT=<dir> -P check_claude_md_budget_fixtures.cmake`. It needs no configure and no build
 # tree. It makes small checkouts in SCRATCH_ROOT (a CLAUDE.md of an exact size, a nested one, decoys in build trees) and runs

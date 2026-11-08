@@ -7,7 +7,7 @@
 // full license information.
 // =============================================================================
 //
-// SYNTHETIC Crypto.com Exchange v1 PRIVATE REST response fixtures (plan 020
+// SYNTHETIC Crypto.com Exchange v1 PRIVATE REST response fixtures (plan cryptocom-exchange-adapter
 // step 4). No live credentials are available, so these are hand-authored from
 // the documented field names/types (full {id,method,code,result} envelopes) and
 // are NOT captured from the wire. Field names match the v1 docs; values are

@@ -1,5 +1,5 @@
 # check_sanitizer_coverage.cmake — test_sanitizer_coverage: every compile unit and every executable in a
-# CRYPTOCOGS_SANITIZE tree carries the mode's options (plan 032).
+# CRYPTOCOGS_SANITIZE tree carries the mode's options (plan sanitizer-option-and-presets).
 #
 # Run by ctest as
 #   cmake -DSOURCE_DIR=<repo> -DBUILD_DIR=<build dir> -DMODE=<asan|tsan> -P check_sanitizer_coverage.cmake

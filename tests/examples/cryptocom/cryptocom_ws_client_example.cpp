@@ -10,7 +10,7 @@
 // Demonstrates the Crypto.com Exchange v1 market WebSocket via
 // CryptoComMarketClient (ExchangeWsClient + cryptocom_frame_descriptor) over the
 // real IxWsConnection, wrapped in a HeartbeatResponder so the mandatory keepalive
-// is answered automatically (plan 020 §2 Option A). All channels are public.
+// is answered automatically (plan cryptocom-exchange-adapter §2 Option A). All channels are public.
 //
 // Usage:
 //   cryptocom_ws_client_example ticker      <instrument> [--seconds N]

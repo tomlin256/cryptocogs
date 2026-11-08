@@ -30,7 +30,7 @@ KrakenCredentials make_dummy_creds() {
 }
 
 // ── BM_KrakenSign — KrakenCredentials::sign() in isolation ──────────────────
-// Candidate #1 from docs/plans/025: five intermediate std::strings plus a
+// Candidate #1 from docs/plans/025-kraken-performance-profiling.md: five intermediate std::strings plus a
 // hand-rolled base64 encode/decode per call.
 
 void BM_KrakenSign(benchmark::State& state) {

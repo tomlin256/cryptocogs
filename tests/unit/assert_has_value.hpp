@@ -13,7 +13,7 @@
 
 // ASSERT_HAS_VALUE(optional_expr): fails the test, fatally, if the std::optional (or anything else with has_value()) is empty.
 // It stands where ASSERT_TRUE(optional_expr.has_value()) stood, and the code after it dereferences the optional as before
-// (plan 037, #46).
+// (plan clear-clang-tidy-findings, #46).
 //
 // Why not ASSERT_TRUE: clang-tidy's bugprone-unchecked-optional-access does not take ASSERT_TRUE(opt.has_value()), ASSERT_TRUE(opt)
 // or ASSERT_NE(opt, std::nullopt) as a check, and reports every `*opt` and `opt->` after one, whatever the test asserted

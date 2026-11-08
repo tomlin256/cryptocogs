@@ -200,7 +200,7 @@ struct BinanceKlinesRequest : TypedPublicRequest<BinanceKlinesResult> {
 
 // First-cut scope: `filters`, `permissions`, `permissionSets`, `rateLimits`,
 // `exchangeFilters`, and self-trade-prevention fields are deliberately
-// omitted (see plan 003 design decision 6).
+// omitted (see plan step-5-binance-rest-public design decision 6).
 struct BinanceSymbolInfo {
     std::string              symbol;
     std::string              status;
@@ -327,7 +327,7 @@ struct BinanceAccountRequest : TypedPrivateRequest<BinanceAccount> {
 
 // Shared row shape of both order-query endpoints.
 //
-// Enum fields follow plan 004 decision 3 ("enum where the wire↔enum mapping
+// Enum fields follow plan step-6-binance-rest-private decision 3 ("enum where the wire↔enum mapping
 // is total, raw string otherwise"): `status` folds unmapped values to
 // OrderStatus::Unknown, `time_in_force`/`side` are total — but `type` stays
 // a raw wire string because Binance's LIMIT_MAKER (and any future order
@@ -364,7 +364,7 @@ struct BinanceOpenOrdersResult {
     static BinanceOpenOrdersResult from_json(const json& j);
 };
 
-// Same row shape and wrapper — distinct name per plan 001's endpoint table.
+// Same row shape and wrapper — distinct name per plan multi-exchange-abstraction's endpoint table.
 using BinanceAllOrdersResult = BinanceOpenOrdersResult;
 
 struct BinanceOpenOrdersRequest : TypedPrivateRequest<BinanceOpenOrdersResult> {
@@ -467,7 +467,7 @@ struct BinanceNewOrderRequest : TypedPrivateRequest<BinanceNewOrderResponse> {
     OrderType   type{OrderType::Limit};              // required
     std::optional<TimeInForce>          time_in_force;
     std::optional<std::string>          quantity;          // caller-formatted exact
-    std::optional<std::string>          quote_order_qty;   //   decimals (plan 004
+    std::optional<std::string>          quote_order_qty;   //   decimals (plan step-6-binance-rest-private
     std::optional<std::string>          price;             //   decision 6)
     std::optional<std::string>          new_client_order_id;
     std::optional<std::string>          stop_price;
@@ -512,7 +512,7 @@ struct BinanceCancelOrderResponse {
 // Note: DELETE /api/v3/openOrders can interleave OCO cancellation objects
 // (contingencyType/orderReports) among plain rows; those parse as
 // part-populated BinanceCancelOrderResponse rows (j.value defaults) — full
-// OCO support is out of scope for the first cut (plan 004 decision 9).
+// OCO support is out of scope for the first cut (plan step-6-binance-rest-private decision 9).
 struct BinanceCancelAllResponse {
     std::vector<BinanceCancelOrderResponse> orders;
 

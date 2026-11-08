@@ -96,7 +96,7 @@ TEST(CryptoComParamsToStr, ArrayOfObjects_IteratesAndRecurses) {
     EXPECT_EQ(detail::params_to_str(params), "order_lista1b2");
 }
 
-// The exec_inst wire shape (plan 024): a bare string element recurses at
+// The exec_inst wire shape (plan cryptocom-create-order-exec-inst): a bare string element recurses at
 // level+1, sees a non-object, and falls straight to scalar_to_str — so an
 // array of strings serialises with no separators, same as an array of objects.
 TEST(CryptoComParamsToStr, ArrayOfStrings_IteratesAndRecursesElementwise) {
@@ -140,7 +140,7 @@ TEST(CryptoComSign, ComposesHexHmacOfDocumentedDigest) {
 }
 
 // Same construction-pinning approach as the case above, extended to a params
-// object carrying exec_inst (plan 024) — the array-recursion path in
+// object carrying exec_inst (plan cryptocom-create-order-exec-inst) — the array-recursion path in
 // params_to_str must not change how sign() composes its digest.
 TEST(CryptoComSign, ComposesHexHmacOfDocumentedDigest_WithExecInst) {
     const CryptoComCredentials creds{TEST_KEY, TEST_SECRET};
@@ -193,7 +193,7 @@ TEST(CryptoComNonce, IsMillisecondScaleAndNonDecreasing) {
     EXPECT_GE(b, a);
 }
 
-// ── CryptoComCredentials::from_file — TOML loader (plan 021) ─────────────────
+// ── CryptoComCredentials::from_file — TOML loader (plan credentials-from-file) ───
 
 TEST(CryptoComCredentialsFromFile, LoadsBothFields) {
     namespace fs = std::filesystem;

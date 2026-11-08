@@ -1,4 +1,4 @@
-# Plan 037 — Clear the clang-tidy findings so the opt-in gate passes
+# Clear the clang-tidy findings so the opt-in gate passes
 
 **Status: Done (2026-11-05), released as [v2.0.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.0.0) (2026-11-06).** Rob's request: *"fix #46 using agents so you can do it in parallel"*. The [Outcome](#outcome) is at the end.
 
@@ -6,7 +6,7 @@ Closes [#46](https://github.com/tomlin256/cryptocogs/issues/46). Answers the `pe
 [#38](https://github.com/tomlin256/cryptocogs/issues/38) (D1); #38's two unused includes in `common/ws.hpp` are not in this plan.
 
 The issue is its title, *"Clear the clang-tidy findings so the opt-in gate passes (329 sites, 72 of 77 units)"*.
-[Plan 035](035-clang-tidy-opt-in-test-step.md) landed the gate off by default and red, and left the fixes to a plan of their own: this is that
+[Plan clang-tidy-opt-in-test-step](035-clang-tidy-opt-in-test-step.md) landed the gate off by default and red, and left the fixes to a plan of their own: this is that
 plan. The findings are almost all independent of each other, so the plan is also a division of the work into six workstreams on disjoint
 files (D6), each done by an agent, with one integration step that builds, tests and commits.
 
@@ -25,10 +25,10 @@ Homebrew clang-tidy 23.1.4 on the Mac (`ubuntu-dev` has 23.1.6 and GCC 13.3). Th
 `build/bench-macos-arm64` (`Debug`, gate on, benchmarks on), with the issue's own commands; no source was touched.
 
 **1. The baseline holds.** 329 sites, 72 of 83 red, 11 green (the six proofs of the gate and five units), the same numbers as the issue's
-baseline at `a94b0e1`. Eight C++ files changed since (the #44 fix, plan 036's fixes), and the only effect is 14 sites that moved by line:
-`test_ws_client.cpp` ×9, `test_cryptocom_ws_client.cpp` ×4, `kraken_example.cpp` ×1; none appeared and none went. The issue's first
-comment is still the right list to diff against. The default debug tree builds clean and passes 528 of 528 (9 s), and so does the container's `debug-linux-arm64`
-(GCC 13.3, 528 of 528, 12 s): the start is green on both.
+baseline at `a94b0e1`. Eight C++ files changed since (the #44 fix, plan warnings-as-errors's fixes), and the only effect is 14 sites that
+moved by line: `test_ws_client.cpp` ×9, `test_cryptocom_ws_client.cpp` ×4, `kraken_example.cpp` ×1; none appeared and none went. The issue's
+first comment is still the right list to diff against. The default debug tree builds clean and passes 528 of 528 (9 s), and so does the
+container's `debug-linux-arm64` (GCC 13.3, 528 of 528, 12 s): the start is green on both.
 
 | Sites | Check | Where |
 |---:|---|---|
@@ -46,7 +46,7 @@ comment is still the right list to diff against. The default debug tree builds c
 **2. The benchmarks add 36** (hand-made tree, `CRYPTOCOGS_BUILD_BENCHMARKS=ON`: 90 tests, 79 red, 365 sites, exactly the issue's count). **All 31
 `bugprone-throwing-static-initialization` are the `BENCHMARK(...)` lines**: google benchmark's macro declares a static whose initialiser registers
 the benchmark, which allocates. The 4 `performance-inefficient-vector-operation` are in the four `BM_VectorPushBack_NoReserve` benchmarks, which
-measure the no-`reserve` growth on purpose ([plan 026](026-kraken-reserve-vector-growth.md)). The last is `bench_coinbase_ws.cpp:95`, a by-value parameter.
+measure the no-`reserve` growth on purpose ([plan kraken-reserve-vector-growth](026-kraken-reserve-vector-growth.md)). The last is `bench_coinbase_ws.cpp:95`, a by-value parameter.
 
 **3. What clang-tidy 23's dataflow analysis accepts for `std::optional`** (scratch probes on the Mac, repeated with the container's 23.1.6 and
 GCC 13.3 `-Wall -Wextra -Wpedantic -Werror` for the macro of D2). This decides the largest bucket, 237 of 329.
@@ -141,7 +141,7 @@ D2, D3, D5, D6, D7 and D8 were not asked about one by one, and stand as written.
   **As built (Step 2):** the list was used exactly, and no agent asked for another. (a) is 7 pairs, one per benchmark file; (b) is 4 lines; (c) is
   the two catches: W1 confirmed the contract (`DisconnectFn` is documented "Must not throw", and the catches run from the destructor and the worker
   thread, which have no error channel), and three new tests in `test_ws_reconnect_session.cpp` keep them honest (mutants: a catch removed, and a
-  worker catch that returns). One older `NOLINTNEXTLINE(bugprone-return-const-ref-from-parameter)` in `src/binance/ws_streams.cpp` (plan 016) was
+  worker catch that returns). One older `NOLINTNEXTLINE(bugprone-return-const-ref-from-parameter)` in `src/binance/ws_streams.cpp` (plan declarative-headers) was
   there before this plan and is not part of the list.
 - **D6. Six workstreams, five in this checkout, one in a worktree.** W2 to W6 (tests, examples, benchmarks) edit disjoint files in this checkout
   and **do not build**: a header or test mid-edit in one workstream would break another's build, and several `make`s in one tree race on the
@@ -152,7 +152,7 @@ D2, D3, D5, D6, D7 and D8 were not asked about one by one, and stand as written.
   edit docs, and never touch a file outside their list.
 - **D7. The second check is the Linux container, then GCC 15.2.** Step 4: `ubuntu-dev` (GCC 13.3, clang-tidy 23.1.6): the default suite and the gate,
   both must be green there too. Step 5: GCC 15.2 in a throwaway `ubuntu:26.04` container for **each configuration the workflows build** (`release-`,
-  `asan-`, `tsan-linux-…`), because plan 036's Release-only check missed a GCC 15 `tsan` warning in `std::optional`-heavy test code, and this plan edits
+  `asan-`, `tsan-linux-…`), because plan warnings-as-errors's Release-only check missed a GCC 15 `tsan` warning in `std::optional`-heavy test code, and this plan edits
   that code.
 - **D8. Commits go straight to `main`, one per workstream (and one per step), with the `Claude-Session` trailer and no `Co-Authored-By`, and are
   pushed once the step's checkpoint is green.** Step 3's verification runs on the combined tree and the commits follow it; the five workstreams share
@@ -315,7 +315,7 @@ naming the bug (the rule in `CLAUDE.md`), and I tell you.
 `git archive`, each configuration the workflows build, from a clean tree at `-j4`: Release built in 1 min 26 s and passed **556 of 556**; asan built in
 2 min 58 s and passed **559 of 559** (the sanitizer canaries and the coverage test included); tsan built in 1 min 47 s (compile only). All three: build
 exit 0 and **no warning**, `test_kraken_ws_api_defaults` and the moved-optional tests of W3 and W4 included, so the `-Wmaybe-uninitialized` family of
-plan 036 did not show. A first attempt at `-j12` had three `cc1plus` killed for memory (`Killed signal terminated program cc1plus`) because Docker
+plan warnings-as-errors did not show. A first attempt at `-j12` had three `cc1plus` killed for memory (`Killed signal terminated program cc1plus`) because Docker
 Desktop's 7.75 GiB VM was shared with another session's build; that is not a finding, the tree was wiped and rebuilt at `-j4`, and `CLAUDE.md` now says
 `-j4`. Then the push of the seven code commits (`88c8e87..596eab3`): `cmake-single-platform.yml` run 42106399099 on `596eab3` **green** (556 of 556,
 no warning, 2 min 57 s), and `sanitizers.yml` dispatched once with `which=both`, run 42106464163 on `596eab3` **green** in both jobs on the runner's
@@ -326,7 +326,7 @@ GCC 15.2.0: asan 559 of 559 (10 min 8 s) and tsan 558 of 558 (6 min 50 s), no wa
 `CLAUDE.md`: the clang-tidy section loses *Red until #46 is done* and says the gate is green, with the numbers; the `ASSERT_HAS_VALUE` convention
 under Coding conventions (and the `ASSERT_TRUE(opt.has_value())` trap, with the probe table); the closed `NOLINT` list (D5); the `main()` convention (D4);
 the layout rows and the test counts (one more executable). This plan: the Progress table and an Outcome. Then: #46 closed with a comment (the
-numbers and the commits); #38 gets D1's outcome; one issue raised for **a clang-tidy CI job** (plan 035 left it out on purpose; the gate is now
+numbers and the commits); #38 gets D1's outcome; one issue raised for **a clang-tidy CI job** (plan clang-tidy-opt-in-test-step left it out on purpose; the gate is now
 green, so it is small: `clang-tidy-23` from apt.llvm.org, configure only, `ctest -R '^clang_tidy_'`), labelled `enhancement`. Commit:
 `docs: the clang-tidy gate is green (step 6/6)`. **Done when:** the docs say what the tree does, #46 is closed, and the follow-up issue exists.
 
@@ -362,13 +362,13 @@ WebSocket order copies only `order_type`). #46 is closed with a comment, and #38
 - **The enum change (D1) is layout-visible.** 13 order-entry structs shrink and seven members move; nothing in the repo depends on it (audited) and
   nothing is released here, but a consumer that mixes headers and libraries of different versions would see it, which is why D1 leaves the version to
   you. Nine `std::optional<E>` members get a 1-byte payload, which is the shape GCC 15 once gave a `-Wmaybe-uninitialized` false positive for (plan
-  036): Step 5's three configurations are where that would show, and the rule for a false positive (one site, one compiler, a comment naming the
+  warnings-as-errors): Step 5's three configurations are where that would show, and the rule for a false positive (one site, one compiler, a comment naming the
   bug) applies.
 - **The base64 shifts are in the signing path.** A wrong cast changes every signature. The tests compare output with the legacy reference and an
   RFC vector, so a change is caught, and the signed-bitwise edit is the one the brief marks as read-twice.
 - **`http_client.cpp` has no unit test.** The header-building edit is small and checked by hand on sample input; it is the one changed function
   here that no test reaches, and the plan says so rather than adding a network test.
-- **GCC 15.2 and `std::optional`.** This plan edits the test code where GCC 15 once gave `-Wmaybe-uninitialized` under `tsan` (plan 036). Step 5
+- **GCC 15.2 and `std::optional`.** This plan edits the test code where GCC 15 once gave `-Wmaybe-uninitialized` under `tsan` (plan warnings-as-errors). Step 5
   builds all three workflow configurations for that reason.
 - **Six agents use CPU and disk together** (12 cores, 64 GB free; a clang-tidy unit peaks near 0.5 GB). W1's build tree is about 1 GB in the
   scratch directory, and is removed with its worktree.
@@ -387,12 +387,13 @@ shared, and a `-j12` build of the GCC 15 trees next to another container's build
   except where another workstream's header change reaches the file; Step 3's full gate is the check.
 - The configure-only tree `build/bench-macos-arm64` has the same compile commands as the default debug tree plus the benchmarks, so a gate run
   there is the gate run of the default tree plus seven units.
-- `git worktree add --detach` and a `FETCHCONTENT_SOURCE_DIR_*` override per dependency configure offline, as plan 036's scratch trees did.
+- `git worktree add --detach` and a `FETCHCONTENT_SOURCE_DIR_*` override per dependency configure offline, as plan warnings-as-errors's
+  scratch trees did.
 - A `NOLINTBEGIN`/`NOLINTEND` pair suppresses a finding that clang-tidy reports at the expansion of a macro in the same file (probed, 3b above).
 
 ## Not in this plan
 
-- **A clang-tidy CI job.** Step 6 raises the issue; plan 035 left it out until the gate was green.
+- **A clang-tidy CI job.** Step 6 raises the issue; plan clang-tidy-opt-in-test-step left it out until the gate was green.
 - **#38's two unused includes** (`<cstdio>`, `<type_traits>` in `common/ws.hpp`): a clangd analysis, not a tidy check.
 - **Wider clang-tidy checks** (`readability-*`, `modernize-*`, `cppcoreguidelines-*` beyond `pro-type-member-init`): each is a decision with
   findings of its own, and `.clang-tidy`'s list does not change here unless D1 says so.

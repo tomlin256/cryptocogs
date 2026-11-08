@@ -1,17 +1,17 @@
-# 4.0 is the floor: this project is CMake 4 (plan 029, cryptocogs#32). It is a plain minimum, not a
+# 4.0 is the floor: this project is CMake 4 (plan cmake4-cxx23, cryptocogs#32). It is a plain minimum, not a
 # <min>...<max> range: a range lets an older CMake run the project, and sets every policy up to <max> to NEW,
 # which needs its own audit. The 3.15...4.2 range that stood here generated the same files as a plain 4.0
-# (plan 029). test_cmake_floor holds every other minimum in the tree, and the README, to this one.
+# (plan cmake4-cxx23). test_cmake_floor holds every other minimum in the tree, and the README, to this one.
 cmake_minimum_required(VERSION 4.0)
 
 #-------------------------------------------------------------------------------
-# One build tree per platform (plan 028)
+# One build tree per platform (plan platform-build-dirs)
 #
 # A CMake build tree belongs to one OS and one architecture, and one checkout is built on the Mac
 # and in a Linux container that mounts it. Trees are named <kind>-<os>-<arch> and kept under build/
 # (build/release-macos-arm64, build/asan-linux-arm64). The guard refuses a tree whose name says it
 # is for another platform than this host, an asan-... or tsan-... tree that is not configured for
-# that sanitizer (plan 032), and a tree that was first configured on another platform whatever it is
+# that sanitizer (plan sanitizer-option-and-presets), and a tree that was first configured on another platform whatever it is
 # called; each error names the tree to use. It sits before project(), because the
 # host's architecture is not known after it (CMAKE_HOST_SYSTEM_PROCESSOR is empty until project()
 # runs) and a refused configure should leave no compiler detection behind. Top-level only, so a
@@ -29,13 +29,13 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
         message(FATAL_ERROR "${_cryptocogs_problem}")
     endif()
     set(CRYPTOCOGS_TREE_PLATFORM "${_cryptocogs_host}" CACHE INTERNAL
-        "The platform this build tree was first configured on (plan 028)")
+        "The platform this build tree was first configured on (plan platform-build-dirs)")
 endif()
 
 project(CRYPTOCOGS VERSION 2.1.0 LANGUAGES CXX)
 
 # Allow fetched dependencies that ask for less than CMake 3.5: CMake 4 removed compatibility below it and
-# stops on them. backward-cpp v1.6 says 3.0 and ixwebsocket v12.1.0 says 3.4.1...3.17.2 (plan 029). This stays
+# stops on them. backward-cpp v1.6 says 3.0 and ixwebsocket v12.1.0 says 3.4.1...3.17.2 (plan cmake4-cxx23). This stays
 # with the floor at 4.0: the floor is this project's, not theirs.
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
@@ -57,7 +57,7 @@ option(CRYPTOCOGS_BUILD_BINANCE   "Build the Binance exchange adapter"   ON)
 option(CRYPTOCOGS_BUILD_COINBASE  "Build the Coinbase exchange adapter"  ON)
 option(CRYPTOCOGS_BUILD_CRYPTOCOM "Build the Crypto.com exchange adapter" ON)
 option(CRYPTOCOGS_BUILD_TESTS "Build tests" ON)
-option(CRYPTOCOGS_BUILD_BENCHMARKS "Build Kraken performance benchmarks (plan 025)" OFF)
+option(CRYPTOCOGS_BUILD_BENCHMARKS "Build Kraken performance benchmarks (plan kraken-performance-profiling)" OFF)
 
 # Dependency rules between the exchange/feature flags, checked at configure time.
 if(NOT CRYPTOCOGS_BUILD_KRAKEN AND NOT CRYPTOCOGS_BUILD_BINANCE AND
@@ -79,7 +79,7 @@ endif()
 option(CRYPTOCOGS_INSTALL "Generate install rules and a CMake package config" ${_kapi_install_default})
 
 #-------------------------------------------------------------------------------
-# Sanitizers (opt-in; plan 032, #30)
+# Sanitizers (opt-in; plan sanitizer-option-and-presets, #30)
 #
 #   -DCRYPTOCOGS_SANITIZE=asan    AddressSanitizer + UndefinedBehaviorSanitizer
 #   -DCRYPTOCOGS_SANITIZE=tsan    ThreadSanitizer
@@ -107,7 +107,7 @@ if(_cryptocogs_sanitize_compile)
 endif()
 
 #-------------------------------------------------------------------------------
-# clang-tidy (opt-in; plan 035, #34)
+# clang-tidy (opt-in; plan clang-tidy-opt-in-test-step, #34)
 #
 #   -DCRYPTOCOGS_CLANG_TIDY=clang-tidy    the tool that holds the project's own sources to .clang-tidy: a command on PATH, or a path
 #   -DCRYPTOCOGS_CLANG_TIDY_ARGS="..."    extra arguments for every run, a list
@@ -135,7 +135,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif()
 
 #-------------------------------------------------------------------------------
-# Compiler warnings (plan 036, #47)
+# Compiler warnings (plan warnings-as-errors, #47)
 #
 #   -DCRYPTOCOGS_WARNINGS_AS_ERRORS=OFF    do not make warnings errors (the default is ON)
 #
@@ -149,10 +149,10 @@ endif()
 #
 # This block only works out the list. add_compile_options reaches the targets created after it, in its directory and below, and this
 # project fetches its dependencies in two files (this one and tests/CMakeLists.txt) with add_subdirectory(src) between them, so a
-# call here would either reach the dependencies or miss src/ (plan 036 measured both). Each directory of the project's own targets
-# applies the list itself, as its first act and after any dependency it fetches: src/, tests/ and tests/benchmarks/. A directory
-# that the root adds later does the same (one that tests/ adds after its own call inherits the flags from it), and
-# test_warning_option fails if it does not.
+# call here would either reach the dependencies or miss src/ (plan warnings-as-errors measured both). Each directory of the
+# project's own targets applies the list itself, as its first act and after any dependency it fetches: src/, tests/ and
+# tests/benchmarks/. A directory that the root adds later does the same (one that tests/ adds after its own call inherits the
+# flags from it), and test_warning_option fails if it does not.
 #-------------------------------------------------------------------------------
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/cryptocogs_warnings.cmake)
@@ -193,7 +193,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(nlohmann_json)
 
 #-------------------------------------------------------------------------------
-# toml++ — header-only TOML parser (plan 021)
+# toml++ — header-only TOML parser (plan credentials-from-file)
 #
 # Used ONLY inside src/exchange/common/credentials_file.cpp (the shared
 # Credentials::from_file loader). It never appears in a public header, so it is a
@@ -221,7 +221,7 @@ if(CRYPTOCOGS_BUILD_TESTS)
   #-----------------------------------------------------------------------------
   # ixwebsocket — used only by examples + tests (no core library links it), so
   # it is fetched here and kept out of the cryptocogs install via
-  # IXWEBSOCKET_INSTALL OFF below (plan 017).
+  # IXWEBSOCKET_INSTALL OFF below (plan cmake-install-nits).
   #
   # Pinned at v12.1.0: v12.0.0's IXSocketOpenSSL.cpp warns about two unused
   # parameters (-Wunused-parameter) on every build (#36).
@@ -235,7 +235,7 @@ if(CRYPTOCOGS_BUILD_TESTS)
   set(USE_OPEN_SSL ON CACHE BOOL "" FORCE)
   # ixwebsocket defaults IXWEBSOCKET_INSTALL ON, which would drop its lib,
   # headers, cmake config and pkgconfig into our prefix. Suppress it — same
-  # treatment as INSTALL_GTEST / JSON_Install (plan 017).
+  # treatment as INSTALL_GTEST / JSON_Install (plan cmake-install-nits).
   set(IXWEBSOCKET_INSTALL OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(ixwebsocket)
 
@@ -256,8 +256,8 @@ if(CRYPTOCOGS_BUILD_TESTS)
 endif()
 
 #-------------------------------------------------------------------------------
-# Performance benchmarks (plan 025 Kraken; plan 027 Binance/Coinbase/Crypto.com)
-# — off by default, independent of CRYPTOCOGS_BUILD_TESTS: each adapter's
+# Performance benchmarks (plan kraken-performance-profiling: Kraken; plan remaining-adapters-reserve-vector-growth:
+# Binance/Coinbase/Crypto.com) — off by default, independent of CRYPTOCOGS_BUILD_TESTS: each adapter's
 # benchmark binary needs only that adapter's lib and some shared test fixture
 # headers (included directly, not linked), not gtest/ixwebsocket. Per-adapter
 # gating happens inside tests/benchmarks/CMakeLists.txt, the same convention
@@ -286,9 +286,9 @@ if(CRYPTOCOGS_BUILD_BENCHMARKS)
 endif()
 
 #-------------------------------------------------------------------------------
-# clang-tidy tests (opt-in; plan 035, #34) — registered HERE, after the last target of the project is made: the units are
-# the sources of the targets (D9), and clang_tidy_units fails if a target is made after this call. Nothing is registered unless
-# CRYPTOCOGS_CLANG_TIDY named a tool (above).
+# clang-tidy tests (opt-in; plan clang-tidy-opt-in-test-step, #34) — registered HERE, after the last target of the project is
+# made: the units are the sources of the targets (D9), and clang_tidy_units fails if a target is made after this call. Nothing is
+# registered unless CRYPTOCOGS_CLANG_TIDY named a tool (above).
 #-------------------------------------------------------------------------------
 
 if(_cryptocogs_clang_tidy)
@@ -296,7 +296,7 @@ if(_cryptocogs_clang_tidy)
 endif()
 
 #-------------------------------------------------------------------------------
-# Install + CMake package config (plan 012)
+# Install + CMake package config (plan install-and-package-config)
 #
 # Lets a downstream project `find_package(cryptocogs)` and link
 # `cryptocogs::kraken` / `cryptocogs::binance` against an installed prefix.

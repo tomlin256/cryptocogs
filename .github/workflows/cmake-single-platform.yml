@@ -5,9 +5,10 @@ name: CMake on a single platform
 on:
   push:
     branches: [ "main" ]
-    # Documentation builds nothing and tests nothing, so a change to only these paths does not run CI (plan 031, #40). A run
-    # starts unless every changed path matches, so a path that is not named here runs CI. README.md is not named on purpose:
-    # test_cmake_floor reads it. test_ci_paths holds this list, which must be the same under pull_request and in clang-tidy.yml.
+    # Documentation builds nothing and tests nothing, so a change to only these paths does not run CI (plan ci-skip-docs-only,
+    # #40). A run starts unless every changed path matches, so a path that is not named here runs CI. README.md is not named on
+    # purpose: test_cmake_floor reads it. test_ci_paths holds this list, which must be the same under pull_request and in
+    # clang-tidy.yml.
     paths-ignore:
       - 'docs/**'
       - 'CLAUDE.md'
@@ -17,16 +18,16 @@ on:
       - 'docs/**'
       - 'CLAUDE.md'
   # Manual trigger: a cache can only be measured by a second run on an unchanged tree, and that should not cost a
-  # junk commit (plan 030).
+  # junk commit (plan ci-cache).
   workflow_dispatch:
 
 env:
   # CI's platform is Linux on x86_64, built as Release. The preset (CMakePresets.json) names the tree,
   # build/release-linux-x86_64, and sets its build type; a runner of another architecture fails at the
-  # Configure step, and the build-tree guard in CMakeLists.txt says which preset to use (plan 028).
+  # Configure step, and the build-tree guard in CMakeLists.txt says which preset to use (plan platform-build-dirs).
   PRESET: release-linux-x86_64
   # How much ccache may keep. Every run saves a snapshot of its directory (the commit is in the cache key below), so this
-  # bounds what a run uploads and what the repository's 10 GB is divided by (plan 030, D5).
+  # bounds what a run uploads and what the repository's 10 GB is divided by (plan ci-cache, D5).
   CCACHE_MAXSIZE: 500M
 
 jobs:
@@ -39,11 +40,11 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
-    # libcurl4-openssl-dev only suggests the other two on Ubuntu, so all three are named. ccache is plan 030's.
+    # libcurl4-openssl-dev only suggests the other two on Ubuntu, so all three are named. ccache comes from plan ci-cache.
     - name: Install dependencies
       run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libssl-dev zlib1g-dev ccache
 
-    # Which CMake and which compiler the runner has. The floor (CMake 4.0) and the standard (C++23) of plan 029 are only
+    # Which CMake and which compiler the runner has. The floor (CMake 4.0) and the standard (C++23) of plan cmake4-cxx23 are only
     # as good as the image, so the log says what ran before Configure, which stops on either. The same two versions are the
     # toolchain in the cache keys below: a compile cached by another compiler must not be reused, and ubuntu-latest hands out
     # more than one CMake in the same afternoon (4.4.4 and 4.4.5 on 2026-11-04).
@@ -58,7 +59,7 @@ jobs:
     # outputs. A hit removes the seven git clones, which are most of Configure (nlohmann_json's full history alone takes
     # 15 of its 25 s), and the dependencies' compiles.
     #
-    # Two things set it apart from a plain cache of `_deps` (plan 030):
+    # Two things set it apart from a plain cache of `_deps` (plan ci-cache):
     #  - Under CMake 4 (CMP0168 is NEW) FetchContent keeps its "already cloned" stamps in <tree>/CMakeFiles/fc-stamp and
     #    fc-tmp, not in _deps, so restoring _deps alone still clones all seven. A hit therefore configures with
     #    FETCHCONTENT_FULLY_DISCONNECTED=ON (below): nothing is downloaded or updated, and the restored sources are trusted.
@@ -81,7 +82,7 @@ jobs:
         path: ${{github.workspace}}/build/${{env.PRESET}}/_deps
         key: deps-${{runner.os}}-${{runner.arch}}-${{env.PRESET}}-${{steps.toolchain.outputs.id}}-${{hashFiles('CMakeLists.txt', 'tests/CMakeLists.txt')}}
 
-    # ccache covers what costs: 98% of the build is compiling (plan 030). Its entries are content-addressed over the
+    # ccache covers what costs: 98% of the build is compiling (plan ci-cache). Its entries are content-addressed over the
     # compiler, its flags and the preprocessed source, so a stale or foreign entry just misses and cannot be wrong; that is
     # why restore-keys is safe here. The commit in the key makes every run save its own snapshot, and the restore-keys pick
     # up the most recent earlier one: the latest of the same toolchain first, and then, when a run lands on the other CMake
@@ -109,7 +110,7 @@ jobs:
     - name: Build
       # -j: the build is compile-bound. In run 41852041317, 401 of the 408 s were compiles and 6.5 s were links, and
       # building serially left every core but one idle. nproc is echoed so that the runner's core count stays a
-      # measurement and not an assumption (plan 030).
+      # measurement and not an assumption (plan ci-cache).
       #
       # ccache: the first line says where the cache lives and how large it may grow (never a failure if ccache words it
       # differently). -z zeroes the counters, so that -s after the build reports this build's hits and misses, and the size

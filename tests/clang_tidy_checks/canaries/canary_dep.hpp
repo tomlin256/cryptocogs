@@ -8,7 +8,7 @@
 // =============================================================================
 
 // canary_dep.hpp — a header that clang-tidy must not report on, because it sits where a dependency's would
-// (plan 035, #34). See canary.cpp.
+// (plan clang-tidy-opt-in-test-step, #34). See canary.cpp.
 
 #pragma once
 

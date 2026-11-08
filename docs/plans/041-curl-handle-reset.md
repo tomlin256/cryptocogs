@@ -1,15 +1,16 @@
-# Plan 041 — `CurlHttpClient::perform` starts every call from a reset handle
+# `CurlHttpClient::perform` starts every call from a reset handle
 
 **Status:** Steps 0 to 2 are done (2026-11-06; see the *Outcome*), and the fix is released in
-[v2.1.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.1.0) (2026-11-06) with plans 038, 042 and 043; the record is in plan 043,
-Step 4. Rob approved the plan as written, so D1 to D5 stood at the defaults below (no release). Step 3, the sanitizer trees and Linux, was
-never written up here: the sanitizer runs of plans 042 and 043 are on code that includes this plan's reset and are clean, and the run
-against the old `perform` in `ubuntu-dev` was not done.
+[v2.1.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.1.0) (2026-11-06) with plans curl-header-list-append-failure, curl-timeouts
+and curl-post-sent-once; the record is in plan curl-post-sent-once, Step 4. Rob approved the plan as written, so D1 to D5 stood at the
+defaults below (no release). Step 3, the sanitizer trees and Linux, was never written up here: the sanitizer runs of plans curl-timeouts and
+curl-post-sent-once are on code that includes this plan's reset and are clean, and the run against the old `perform` in `ubuntu-dev` was not
+done.
 
 Closes [#51](https://github.com/tomlin256/cryptocogs/issues/51).
 
-**Follows:** [plan 038](038-curl-header-list-append-failure.md), which found #51, kept it out of its own change on purpose, and added the
-loopback harness (`tests/unit/test_http_client.cpp`) that this plan extends.
+**Follows:** [plan curl-header-list-append-failure](038-curl-header-list-append-failure.md), which found #51, kept it out of its own change
+on purpose, and added the loopback harness (`tests/unit/test_http_client.cpp`) that this plan extends.
 **Raised along the way:** [#56](https://github.com/tomlin256/cryptocogs/issues/56) (bug, priority medium): `perform` sets no timeout, so a
 server that accepts a connection and never replies blocks the caller forever. Reproduced with the scratch program below (still blocked
 after 6 s). Its fix has to set its options after this plan's reset; the issue says so.
@@ -119,8 +120,8 @@ Defaults stand if you approve the plan as written.
 - **D4 No connection-reuse test.** Measured once above (1 connection for 4 requests). `ix::HttpServer` cannot show it, since it closes
   each connection, so a test needs its own keep-alive server (about 80 lines of sockets). A later change that gave each call a fresh
   handle would pass the suite and cost a TCP and TLS handshake per call. *Alternative:* a fifth test with that server, in this plan.
-- **D5 Evidence order**, as in plans 029 and 038: the checkpoint is `debug-macos-arm64` with the gate on; the sanitizer trees and Linux
-  come after the push (Step 3). *Alternative:* the sanitizer trees in the checkpoint.
+- **D5 Evidence order**, as in plans cmake4-cxx23 and curl-header-list-append-failure: the checkpoint is `debug-macos-arm64` with the gate
+  on; the sanitizer trees and Linux come after the push (Step 3). *Alternative:* the sanitizer trees in the checkpoint.
 
 ## Steps
 
@@ -164,10 +165,10 @@ and 4 red. (d) the reset moved to the end of `perform`, after the status is read
 Crypto.com-only line: 141 → 145 gtests, 158 → 162, "3 `CurlHttpClient::perform` tests" → 7); the *Test suite breakdown* row; and a
 *Coding conventions* bullet: `perform` resets its handle first, and an option that should hold for every request is set after the reset,
 on each call (the note #56 will need). Counts are **measured**: `ctest -N` in the default tree, and a Crypto.com-only tree (the other three
-exchanges off) configured, built and run with the gate on, as in plan 038; the gate's registration count, 95 with the benchmarks, should
-not change (no new unit). This plan's *Outcome*. The gate turned off in the tree again (`-DCRYPTOCOGS_CLANG_TIDY=`).
-*Done when:* pushed (documentation only, so no run), and #51 closed by hand (`completed`) with a comment that lists the commits, the
-red-then-green record and the counts.
+exchanges off) configured, built and run with the gate on, as in plan curl-header-list-append-failure; the gate's registration count, 95
+with the benchmarks, should not change (no new unit). This plan's *Outcome*. The gate turned off in the tree again
+(`-DCRYPTOCOGS_CLANG_TIDY=`). *Done when:* pushed (documentation only, so no run), and #51 closed by hand (`completed`) with a comment that
+lists the commits, the red-then-green record and the counts.
 
 ### Step 3 — After the push: measure
 
@@ -218,7 +219,7 @@ Bump the version in the two places above, run the full ctest, commit, push, wait
   the wire were the same with and without the reset in the scratch runs.
 - **Test cost:** the new tests make about 65 loopback requests (60 in the table: the 25 pairs that start with a request that succeeds
   send two, the 10 that start with a throw send one), each on a fresh TCP connection; the three that exist took 0.03 s each under ASan
-  and 2.1 s under TSan on the Mac (plan 038, mostly start-up). The 120 s ctest timeout bounds a hang.
+  and 2.1 s under TSan on the Mac (plan curl-header-list-append-failure, mostly start-up). The 120 s ctest timeout bounds a hang.
 - **`-Werror` and the gate:** no new warning sources expected; the table is a function-local vector, `curl_easy_reset` returns `void`,
   and the file has no optional to check.
 - **Priority:** the issue says high, and a crash in ordinary use of a released version supports it; hence D3.
@@ -226,7 +227,8 @@ Bump the version in the two places above, run the full ctest, commit, push, wait
 ## Outcome
 
 Steps 0 to 2 are done (2026-11-06). Step 3 is measured after the push and recorded at the end of this section. D3 stood at no release
-and recommended `v2.0.1`; the fix went out in `v2.1.0` instead (plan 043, Step 4), with the fixes of plans 038, 042 and 043.
+and recommended `v2.0.1`; the fix went out in `v2.1.0` instead (plan curl-post-sent-once, Step 4), with the fixes of plans
+curl-header-list-append-failure, curl-timeouts and curl-post-sent-once.
 
 ### Commits
 

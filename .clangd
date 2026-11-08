@@ -1,9 +1,10 @@
 CompileFlags:
-  # The editing host's tree (plan 028): clangd runs on the Mac, so this is the Mac's debug tree. Another host
+  # The editing host's tree (plan platform-build-dirs): clangd runs on the Mac, so this is the Mac's debug tree. Another host
   # edits this line. A tree has a compile_commands.json once it has been configured.
   CompilationDatabase: build/debug-macos-arm64
 
-# The clang-tidy checks are in .clang-tidy (plan 035), which clangd reads too: one list serves the editor and the gate.
+# The clang-tidy checks are in .clang-tidy (plan clang-tidy-opt-in-test-step), which clangd reads too: one list serves the editor
+# and the gate.
 
 InlayHints:
   Enabled: Yes

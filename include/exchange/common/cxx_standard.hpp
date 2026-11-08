@@ -12,7 +12,7 @@
 // IWYU pragma: always_keep
 
 // exchange/common/cxx_standard.hpp
-// The one place that says cryptocogs is C++23 (cryptocogs#32, plan 029), for a build that does not use CMake.
+// The one place that says cryptocogs is C++23 (cryptocogs#32, plan cmake4-cxx23), for a build that does not use CMake.
 // It declares nothing, so include-cleaner would call every include of it unused; always_keep (above) says it
 // is kept on purpose.
 //

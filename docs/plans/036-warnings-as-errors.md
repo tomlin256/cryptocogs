@@ -1,4 +1,4 @@
-# Plan 036 — The build's own warnings, and warnings as errors
+# The build's own warnings, and warnings as errors
 
 **Status: Done (2026-11-05). Approved the same day with one change, to D2.** Rob: *"i want -Werror on by default (in fact i want that also in
 flywheel-dag so raise an issue) then approved"*. D2 now makes `-Werror` the default; D6, D8 and Steps 4 to 6 changed with it, and say so. D1, D3,
@@ -9,7 +9,7 @@ Closes [#47](https://github.com/tomlin256/cryptocogs/issues/47) and [#24](https:
 `[[nodiscard]]` results, which are part of the twelve sites below).
 
 The issue is its title, *"Build with warnings as errors, as flywheel-dag does (plan 036, after plan 035)"*. It came from your *"D10 -- i want
-warnings as errors"* on approving [plan 035](035-clang-tidy-opt-in-test-step.md), which kept to clang-tidy and left the build's own flags to a
+warnings as errors"* on approving [plan clang-tidy-opt-in-test-step](035-clang-tidy-opt-in-test-step.md), which kept to clang-tidy and left the build's own flags to a
 plan of its own. The reference is flywheel-dag's
 [compiler_warnings_plan.md](https://github.com/tomlin256/flywheel-dag/blob/main/docs/plans/compiler_warnings_plan.md) (flywheel-dag#4):
 `-Wall -Wextra -Wpedantic -Werror=deprecated-declarations` on the project's own targets and an option that adds `-Werror`, off by default and on
@@ -69,8 +69,9 @@ option on, so that `-Werror` is in the commands, the same 72 units are red (the 
 `clang-diagnostic-*` errors in units that are already red: the six `unused-result`, the `unused-parameter`, and
 `missing-designated-field-initializers` at `kraken_example.cpp` 199:87 and 201:87, which clang-tidy 23 reports at the two lines where
 GCC 13.3 warns and Apple clang 21 does not. They are nine of this plan's twelve sites (the benchmarks are in no default tree). So with
-the option on the gate sees compiler warnings too, as errors; once the sites are fixed it is back at its baseline. Plan 035's D10 override
-(`-Wno-error=deprecated-declarations`) keeps the SDK's libc++ deprecations out, as its M11 and M12 showed.
+the option on the gate sees compiler warnings too, as errors; once the sites are fixed it is back at its baseline. Plan
+clang-tidy-opt-in-test-step's D10 override (`-Wno-error=deprecated-declarations`) keeps the SDK's libc++ deprecations out, as its M11 and
+M12 showed.
 
 ## Decisions to confirm
 
@@ -117,7 +118,7 @@ the option on the gate sees compiler warnings too, as errors; once the sites are
 - **D8. Commits go straight to `main`, one per step, with the `Claude-Session` trailer and no `Co-Authored-By`, and are pushed once the
   step's checkpoint is green.** No release and no version bump: nothing in `include/`, the libraries' sources or the installed package
   changes. If a step finds a site there, I stop and ask. Step 5, which reads CI's first run and builds the trees CI does not, comes after the
-  push of the mechanical change, as you asked on plan 029; the default flips only after it (D2).
+  push of the mechanical change, as you asked on plan cmake4-cxx23; the default flips only after it (D2).
 
 ## The change
 
@@ -222,8 +223,8 @@ visible in every build and CI's first GCC 15.2 run only prints warnings.
   `release-macos-arm64`) and in the container (`debug-` and `release-linux-arm64`: GCC 13.3 at `-O3` with `-Werror`). The `release-`
   trees are the nearest local match to CI's.
 - **Pushed,** and CI's run (`release-linux-x86_64`, GCC 15.2, `-O3`, flags on, `-Werror` off) passes 526 of 526. Step 5 reads its log.
-- **The gate:** with `-DCRYPTOCOGS_CLANG_TIDY=clang-tidy` on a tree with the option on, the picture is plan 035's: 5 green, 72 red, the six
-  proofs pass, no `clang-diagnostic-*` site.
+- **The gate:** with `-DCRYPTOCOGS_CLANG_TIDY=clang-tidy` on a tree with the option on, the picture is plan clang-tidy-opt-in-test-step's: 5
+  green, 72 red, the six proofs pass, no `clang-diagnostic-*` site.
 - **Hand-made changes**, each on a scratch copy, fail exactly the case stated:
 
   | Change | Fails |
@@ -245,7 +246,7 @@ Commit: `build: build the project's own targets with -Wall -Wextra -Wpedantic (s
 
 ### Step 5 — What CI's run and the other trees say
 
-No commit unless something is found; it comes after the push, as you asked on plan 029 (finish and push the mechanical change, then
+No commit unless something is found; it comes after the push, as you asked on plan cmake4-cxx23 (finish and push the mechanical change, then
 measure), and the default does not flip until it is done.
 
 1. **CI's run of Step 4** (GCC 15.2, `-O3`, flags on, `-Werror` off): read its log (`gh run view --log`) and list every `warning:` in
@@ -315,7 +316,7 @@ Commit: `build: build with -Werror by default (step 6/7)`.
   toolchain update that adds a warning stops a build until it is fixed or `=OFF` is passed. `-O2` instrumented GCC is where a spurious warning
   is likeliest, which is why Step 5 builds the sanitizer trees first and Step 6 dispatches the workflow.
 - **`-Werror=deprecated-declarations` is on even with the option off.** A toolchain update that deprecates something a dependency header uses
-  stops a local build, as flywheel-dag#60 saw for clang-tidy 23 with nlohmann/json's `char_traits<unsigned char>` (plan 035, D10). Own code has
+  stops a local build, as flywheel-dag#60 saw for clang-tidy 23 with nlohmann/json's `char_traits<unsigned char>` (plan clang-tidy-opt-in-test-step, D10). Own code has
   none today. The cure is the `SYSTEM` mark of D5, one line per dependency.
 - **The Mac is not in CI.** Apple clang's warnings are checked only on your machine until [#29](https://github.com/tomlin256/cryptocogs/issues/29)
   adds a macOS leg; the default protects the GCC build in CI and whichever builds you run.
@@ -340,7 +341,7 @@ Commit: `build: build with -Werror by default (step 6/7)`.
 **Assumptions**
 
 - `compile_commands.json` of the Makefiles and Ninja generators has one `command` string per unit, and the root sets
-  `CMAKE_EXPORT_COMPILE_COMMANDS` as a normal variable, so it is always written (plan 035 relied on both).
+  `CMAKE_EXPORT_COMPILE_COMMANDS` as a normal variable, so it is always written (plan clang-tidy-opt-in-test-step relied on both).
 - A source directory override makes `FetchContent_MakeAvailable` call `add_subdirectory` on that directory, so the directory properties the
   placement depends on behave as in an online configure. The measurements above use overrides throughout.
 - Nothing is generated at build time, so no target is created that the offline configure cannot see.

@@ -10,7 +10,7 @@
 // Crypto.com WebSocket unit tests (no network — MockWsConnection only):
 //   - HeartbeatResponder decorator (auto-reply + swallow, forward otherwise; a frame it cannot classify, such as a
 //     "method" that is not a string, is forwarded and does not throw, #44; and the callback it installs on the inner
-//     connection outliving the responder, plan 034 / #43);
+//     connection outliving the responder, plan transport-callback-lifetimes / #43);
 //   - cryptocom_frame_descriptor classification (ack/auth by id, push by id -1);
 //   - subscribe ack / auth parsing + auth signing;
 //   - push event from_json field assertions (live market + synthetic user);
@@ -333,7 +333,7 @@ TEST(CryptoComHeartbeat, ForwardsEveryFrameThatIsNotAHeartbeat) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HeartbeatResponder — the callback on the inner connection outlives the responder (plan 034, #43)
+// HeartbeatResponder — the callback on the inner connection outlives the responder (plan transport-callback-lifetimes, #43)
 //
 // The Crypto.com factories give the client the only reference to the responder, while the caller keeps the inner connection. So
 // the client can be released with the connection still open and frames still arriving. The callback the responder installed on

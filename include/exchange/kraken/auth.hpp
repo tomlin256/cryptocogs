@@ -50,7 +50,7 @@ struct KrakenCredentials {
     std::string api_key;     // public key  → API-Key header
     std::string api_secret;  // base64-encoded private key → used for signing
 
-    // Load from a TOML file (plan 021) with top-level string keys:
+    // Load from a TOML file (plan credentials-from-file) with top-level string keys:
     //   api_key    = "..."
     //   api_secret = "..."
     // Path: location.empty() ? $HOME/.kraken/<name> : <location>/<name>.

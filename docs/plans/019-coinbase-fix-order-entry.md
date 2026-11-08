@@ -1,21 +1,21 @@
-# Plan 019 — Coinbase FIX order entry (deferred)
+# Coinbase FIX order entry (deferred)
 
 **Status:** Proposed (deferred)
-**Depends on:** [plan 018 — Coinbase Exchange adapter](018-coinbase-exchange-adapter.md)
+**Depends on:** [plan coinbase-exchange-adapter — Coinbase Exchange adapter](018-coinbase-exchange-adapter.md)
 (REST + WebSocket) must land first.
 
 This is a **design record**, not an actionable step list. FIX order entry is
-deferred because plan 018 already places and cancels orders over REST
+deferred because plan coinbase-exchange-adapter already places and cancels orders over REST
 (`POST`/`DELETE /orders`). FIX buys **lower-latency / higher-frequency order
 entry** — value only when that is actually needed. When scheduled, expand §4 into
-detailed, testable steps (the plan-001/playbook cadence) before writing code.
+detailed, testable steps (the cadence of plan multi-exchange-abstraction and the playbook) before writing code.
 
 ---
 
 ## 1 — Why FIX, and why deferred
 
 Coinbase Exchange has **no WebSocket order entry**. Orders go over either:
-- **REST** — covered by plan 018; sufficient for correctness, fine for
+- **REST** — covered by plan coinbase-exchange-adapter; sufficient for correctness, fine for
   low/medium frequency. *(The v1 order path.)*
 - **FIX Order Entry gateway** — a persistent session for latency-sensitive,
   high-throughput order flow.
@@ -33,7 +33,7 @@ optimization to revisit when latency/throughput demands it.
 | Transport | TLS over TCP (persistent session) |
 | Session msgs | Logon `A`, Heartbeat `0`, Test Request `1`, Resend `2`, Reject `3`, Sequence Reset / Gap Fill `4`, Logout `5` |
 | App msgs (order entry) | NewOrderSingle `D`, OrderCancelRequest `F`, OrderStatusRequest `H`, ExecutionReport `8`, OrderCancelReject `9` |
-| Logon auth | `RawData` carries `base64(HMAC-SHA256(base64_decode(secret), prehash))` over the Coinbase-specified logon fields; passphrase sent in the password field — **reuses plan 018's `coinbase::rest::detail` signer** |
+| Logon auth | `RawData` carries `base64(HMAC-SHA256(base64_decode(secret), prehash))` over the Coinbase-specified logon fields; passphrase sent in the password field — **reuses plan coinbase-exchange-adapter's `coinbase::rest::detail` signer** |
 
 > Target **FIX 5.0 SP2 (FIXT.1.1 session)**. 4.2 is end-of-life.
 
@@ -78,7 +78,7 @@ transfer:
 | `<name>_frame_descriptor` | `coinbase_fix_*` builders/parsers | NewOrderSingle/Cancel out; ExecutionReport/Cancel-Reject in |
 
 **Coinbase FIX adapter** (`exchange::coinbase::fix`): logon signing (reusing
-plan 018's `detail::hmac_sha256`/base64), `NewOrderSingle`/`OrderCancelRequest`
+plan coinbase-exchange-adapter's `detail::hmac_sha256`/base64), `NewOrderSingle`/`OrderCancelRequest`
 builders, `ExecutionReport`/`OrderCancelReject` parsers, and a typed
 request→response binding echoing the WS `TypedWsRequest<R>` idiom. Reuse
 `exchange::OrderType`/`Side`/`TimeInForce`/`OrderStatus` and `TickPrice`. New
@@ -114,15 +114,15 @@ peer lib `libcoinbase_fix.a` (or a `coinbase` sub-target) behind
 - **TLS TCP transport** is new code (OpenSSL `SSL_*` over a raw socket); keep it
   behind `IFixConnection` so all logic is testable without a network.
 - **No public signing/test vectors** for logon or messages → pin construction
-  with the same primitives (the plan-018 precedent) and mark fixtures `synthetic`.
+  with the same primitives (the precedent of plan coinbase-exchange-adapter) and mark fixtures `synthetic`.
 - **Live testing needs credentials + sandbox** (Coinbase sandbox can be flaky);
   unit tests stay fully offline.
-- **Scope creep:** FIX **market data** is *not* in scope — WS (plan 018) covers
+- **Scope creep:** FIX **market data** is *not* in scope — WS (plan coinbase-exchange-adapter) covers
   market data; this plan is **order entry only**.
 
 **Assumptions**
 - Target **FIX 5.0 SP2 / FIXT.1.1**, never the deprecated 4.2 gateway.
 - Hand-rolled scaffold (no QuickFIX), consistent with §3.
-- Built strictly on top of plan 018 (reuses its enums, `TickPrice`, and signer);
+- Built strictly on top of plan coinbase-exchange-adapter (reuses its enums, `TickPrice`, and signer);
   `exchange_common`/`exchange_http` and other adapters remain untouched —
   `exchange::fix::` is a **new** peer scaffold, not a modification of existing ones.

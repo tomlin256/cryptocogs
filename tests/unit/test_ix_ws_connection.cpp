@@ -7,7 +7,7 @@
 // full license information.
 // =============================================================================
 //
-// IxWsConnection against a loopback ix::WebSocketServer (plan 034, #39).
+// IxWsConnection against a loopback ix::WebSocketServer (plan transport-callback-lifetimes, #39).
 //
 // What the destructor promises about the callbacks and the I/O thread. IxWsConnection declares its socket before its four
 // callbacks, so on its own the callbacks are destroyed first, and the I/O thread then delivers the final Close (and any
@@ -20,9 +20,9 @@
 // ixwebsocket does not always deliver the final Close. stop() sets a flag and then closes; the I/O thread leaves its loop at
 // once if it sees the flag before the socket is closing, and then no handshake runs and no Close is delivered. That happens
 // when stop() lands while the thread is still on its way back from a callback, which is where a test that has just waited on
-// a gate opened by that callback puts it: about 4 in 100 runs on the Mac (measured, plan 034). So no assertion here depends on
-// a Close having been delivered, and the one test that needs one (it is what makes a late call possible) repeats the attempt
-// until an attempt has had one.
+// a gate opened by that callback puts it: about 4 in 100 runs on the Mac (measured, plan transport-callback-lifetimes). So no
+// assertion here depends on a Close having been delivered, and the one test that needs one (it is what makes a late call
+// possible) repeats the attempt until an attempt has had one.
 
 #include "exchange/common/ix_ws_connection.hpp"
 #include "callback_probe.hpp"

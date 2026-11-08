@@ -21,7 +21,8 @@ using exchange::Side;
 using exchange::TimeInForce;
 using namespace exchange::binance;
 
-// plan 037 D1: the underlying type of the public enums is pinned; widening one changes the layout of the order-entry structs (#38).
+// plan clear-clang-tidy-findings D1: the underlying type of the public enums is pinned; widening one changes the layout of the
+// order-entry structs (#38).
 static_assert(std::is_same_v<std::underlying_type_t<exchange::binance::BinanceOrderRespType>,       std::uint8_t>);
 static_assert(std::is_same_v<std::underlying_type_t<exchange::binance::rest::BinanceSignAlgorithm>, std::uint8_t>);
 
@@ -149,7 +150,7 @@ TEST(BinanceOrderStatus, MappedValues) {
 }
 
 TEST(BinanceOrderStatus, UnmappedValuesFoldToUnknown) {
-    // Deliberately lossy (plan 004 decision 3): a strict parser here would
+    // Deliberately lossy (plan step-6-binance-rest-private decision 3): a strict parser here would
     // make one odd row blow up an entire openOrders parse.
     EXPECT_EQ(binance_order_status_from_string("PENDING_CANCEL"),
               OrderStatus::Unknown);

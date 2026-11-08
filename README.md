@@ -647,7 +647,7 @@ ctest --test-dir build --output-on-failure                # the tree the quick s
 
 clang-tidy runs as tests too, off until a configure names the tool. It is LLVM 23: `brew install llvm` on a Mac (keg-only, so link
 its `clang-tidy` and `clangd` into a directory on your `PATH`), `clang-tidy-23` from [apt.llvm.org](https://apt.llvm.org) on Ubuntu.
-The tests are green ([plan 037](docs/plans/037-clear-clang-tidy-findings.md), [#46](https://github.com/tomlin256/cryptocogs/issues/46)), so a new finding turns its unit red; [`cmake/cryptocogs_clang_tidy.cmake`](cmake/cryptocogs_clang_tidy.cmake) says what each one proves. CI runs them on every push and pull request that changes more than documentation ([`clang-tidy.yml`](.github/workflows/clang-tidy.yml), [plan 040](docs/plans/040-clang-tidy-ci-job.md)).
+The tests are green ([plan clear-clang-tidy-findings](docs/plans/037-clear-clang-tidy-findings.md), [#46](https://github.com/tomlin256/cryptocogs/issues/46)), so a new finding turns its unit red; [`cmake/cryptocogs_clang_tidy.cmake`](cmake/cryptocogs_clang_tidy.cmake) says what each one proves. CI runs them on every push and pull request that changes more than documentation ([`clang-tidy.yml`](.github/workflows/clang-tidy.yml), [plan clang-tidy-ci-job](docs/plans/040-clang-tidy-ci-job.md)).
 
 ```bash
 cmake --preset debug-macos-arm64 -DCRYPTOCOGS_CLANG_TIDY=clang-tidy

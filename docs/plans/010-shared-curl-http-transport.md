@@ -1,4 +1,4 @@
-# Plan 010 — Extract a shared cURL HTTP transport (de-duplicate the REST clients)
+# Extract a shared cURL HTTP transport (de-duplicate the REST clients)
 
 **Status**: Done — implemented in commits `f17f66c`, `2153208`, `e2d79fc` + docs wrap-up
 **Branch**: `feature/multi-exchange-abstraction`
@@ -22,7 +22,7 @@
 > same reused handle would otherwise still send DELETE). Suite stayed 300 green at
 > every checkpoint; both live REST examples (Binance `time`, Kraken `time`) and a
 > `KRAKEN=OFF` build were re-verified end-to-end through the new transport.
-> Out of scope as planned: the auth-model unification ([plan 011](011-generic-rest-client.md))
+> Out of scope as planned: the auth-model unification ([plan generic-rest-client](011-generic-rest-client.md))
 > and the REST error-model hardening (review M2).
 
 ---
@@ -42,7 +42,7 @@ exchange-specific typed `execute()` methods (envelope/parse + auth model).
 
 **Scope**: transport only (approach **A**). Making `execute()` itself fully
 generic requires unifying the auth-application model and is tracked separately in
-[plan 011](011-generic-rest-client.md) (approach **B**).
+[plan generic-rest-client](011-generic-rest-client.md) (approach **B**).
 
 **Done when**: neither `rest_client.cpp` contains any `curl_*` call; both go
 through `CurlHttpClient`; the full 300-test suite is green; and the live REST
@@ -56,7 +56,7 @@ examples still run.
 | `curl_perform` body | GET/POST | GET/POST/**DELETE** | **yes** (superset) |
 | Performer return | `std::string` (body; **status discarded**) | `std::pair<int,std::string>` (status+body) | unify on `{status, body}` |
 | `execute()` parse | `parse_rest_response<T>(json)` | `parse_binance_response<T>(status, json)` | no — stays per-adapter |
-| Auth application | `req.build(creds)` (self-signs) | `req.build()` + `auth.sign(http)` (`IRestAuth`) | no — see plan 011 |
+| Auth application | `req.build(creds)` (self-signs) | `req.build()` + `auth.sign(http)` (`IRestAuth`) | no — see plan generic-rest-client |
 
 The transport is trivially shareable; the `execute()` bodies are 4 lines each and
 legitimately differ.
@@ -102,7 +102,7 @@ legitimately differ.
    envelope type, and auth model. `json::parse(resp.body)` stays in `execute()`.
 
 7. **Out of scope** (explicitly): unifying the auth model / a single generic
-   `execute()` ([plan 011](011-generic-rest-client.md)); the REST error-model
+   `execute()` ([plan generic-rest-client](011-generic-rest-client.md)); the REST error-model
    hardening from the code review (M2 — folding curl/`json::parse` throws into
    `RestResponse{ok:false}`); curl thread-safety/timeouts. Those become easy,
    *centralised* follow-ups once the transport is one place — noted, not done
@@ -145,8 +145,8 @@ legitimately differ.
 
 - CLAUDE.md: project tree (`src/exchange/common/http_client.cpp`), build-outputs
   / library list, and the conventions paragraph (adjust the "exchange_common
-  links only nlohmann" note per decision 1). Cross-reference plan 011.
-- Flip plan 010 → Done (`docs/plans.md` + header). Final build + `ctest`.
+  links only nlohmann" note per decision 1). Cross-reference plan generic-rest-client.
+- Flip plan shared-curl-http-transport → Done (`docs/plans.md` + header). Final build + `ctest`.
 - **Checkpoint**: `docs: mark plan 010 done`.
 
 ## Testing strategy

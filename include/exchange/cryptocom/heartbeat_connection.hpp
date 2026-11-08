@@ -16,7 +16,7 @@
 // "id":N}. The generic ExchangeWsClient has no concept of replying to an inbound
 // frame, so this small adapter-local decorator wraps the real connection,
 // auto-answers heartbeats (and swallows them), and forwards every other frame
-// untouched. This keeps exchange_common unmodified (plan 020 §2, Option A).
+// untouched. This keeps exchange_common unmodified (plan cryptocom-exchange-adapter §2, Option A).
 //
 // Bodies are defined in src/cryptocom/heartbeat_connection.cpp.
 //
@@ -50,7 +50,7 @@ public:
     // string is not one: it is forwarded like any other, and the handler does not
     // throw on it (it runs on the transport's I/O thread; #44).
     //
-    // Lifetime (plan 034, #43): the handler owns what it needs (cb and a weak
+    // Lifetime (plan transport-callback-lifetimes, #43): the handler owns what it needs (cb and a weak
     // reference to the inner connection) and does not refer to this responder, so
     // the responder may be destroyed while the inner connection is still open and
     // delivering frames. The handler then goes on working, for as long as the

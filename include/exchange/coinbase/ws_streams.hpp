@@ -14,7 +14,7 @@
 //
 // Namespace: exchange::coinbase::ws
 //
-// WHY A BESPOKE CLIENT (plan 018 §2, Option A):
+// WHY A BESPOKE CLIENT (plan coinbase-exchange-adapter §2, Option A):
 // Coinbase's feed is pure pub/sub with NO per-request correlation id — its
 // `subscriptions` ack is a full-state broadcast, so it does not fit the generic
 // id-correlated exchange::ws::ExchangeWsClient::subscribe_async contract that

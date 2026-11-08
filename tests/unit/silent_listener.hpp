@@ -7,7 +7,7 @@
 // full license information.
 // =============================================================================
 //
-// SilentListener — a server that has stopped answering, for the tests of the HTTP timeouts (plan 042, #56).
+// SilentListener — a server that has stopped answering, for the tests of the HTTP timeouts (plan curl-timeouts, #56).
 //
 // A TCP listener on 127.0.0.1 that never calls accept(). The kernel completes the handshake of a client that connects and keeps the
 // bytes it sends, and nothing ever answers: to the client this is a server that accepted the connection, read the request and went

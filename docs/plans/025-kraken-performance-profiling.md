@@ -1,4 +1,4 @@
-# Plan 025 — Kraken performance profiling: benchmark harness + hot-spot findings
+# Kraken performance profiling: benchmark harness + hot-spot findings
 
 **Status:** Done
 **Depends on:** none (targets the Kraken adapter as of v0.5.3)

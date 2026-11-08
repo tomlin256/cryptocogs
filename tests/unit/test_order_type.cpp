@@ -18,7 +18,8 @@
 
 using exchange::OrderType;
 
-// plan 037 D1: the underlying type of the public enums is pinned; widening one changes the layout of the order-entry structs (#38).
+// plan clear-clang-tidy-findings D1: the underlying type of the public enums is pinned; widening one changes the layout of the
+// order-entry structs (#38).
 static_assert(std::is_same_v<std::underlying_type_t<exchange::Side>,                      std::uint8_t>);
 static_assert(std::is_same_v<std::underlying_type_t<exchange::OrderType>,                 std::uint8_t>);
 static_assert(std::is_same_v<std::underlying_type_t<exchange::TimeInForce>,               std::uint8_t>);

@@ -1,21 +1,21 @@
-# Plan 033 — Fix the two ThreadSanitizer races in the tests
+# Fix the two ThreadSanitizer races in the tests
 
 **Status:** Done (2026-11-04). Rob approved the plan as written, so D1 to D5 stood at the defaults below. Steps 0 to 4 are done:
 #27 and #28 are fixed and closed, the Mac's tsan tree passes 514 of 514, and five consecutive `tsan` dispatch runs in CI are green,
-which was plan 032's gate for the nightly.
+which was plan sanitizer-option-and-presets's gate for the nightly.
 
 Closes [#27](https://github.com/tomlin256/cryptocogs/issues/27) and [#28](https://github.com/tomlin256/cryptocogs/issues/28).
 
-**Follows:** [plan 032](032-sanitizer-option-and-presets.md). Its Step 6 ran the `tsan` job in CI and its Step 8 ran the `tsan` tree
-on the Mac: on both, 507 of 509 tests pass and exactly these two fail, with nothing else. Its Step 9 (`tsan` joins the nightly,
-and #30 closes) waits for this plan.
+**Follows:** [plan sanitizer-option-and-presets](032-sanitizer-option-and-presets.md). Its Step 6 ran the `tsan` job in CI and its Step 8
+ran the `tsan` tree on the Mac: on both, 507 of 509 tests pass and exactly these two fail, with nothing else. Its Step 9 (`tsan` joins the
+nightly, and #30 closes) waits for this plan.
 **Not here:** the wall-clock polling in `test_ws_reconnect_session.cpp` ([#42](https://github.com/tomlin256/cryptocogs/issues/42)),
 which needs a seam in the library, and any other finding.
 
 ## Problem
 
-Two data races, both in the tests and neither in the library, are everything ThreadSanitizer finds in the suite (plan 032, Step 8:
-Mac, Apple clang 21.0.0; Step 6: CI, GCC 15.2.0).
+Two data races, both in the tests and neither in the library, are everything ThreadSanitizer finds in the suite (plan
+sanitizer-option-and-presets, Step 8: Mac, Apple clang 21.0.0; Step 6: CI, GCC 15.2.0).
 
 - **#27, `Execute.BlocksUntilResponse`** (`tests/unit/test_ws_client.cpp:260-284`). The injector thread sleeps 50 ms (line 274) and then
   reads `conn_ref->sent_messages[0]` (line 275) to learn the request id, while the main thread is inside `client->execute(req, 2000ms)`,
@@ -93,8 +93,8 @@ Defaults stand if you approve the plan as written.
   tests; a test that blocks forever when broken then fails after two minutes and not at the job's ceiling. `test_presets` (R6) gains
   the rule. *Alternative:* a deadline inside `wait_for_sent`, which puts a wall-clock number into the test code.
 - **D5 The evidence that a TSan fix holds** is each fixed test run 200 times in the `tsan` tree (`ctest --repeat until-fail:200`),
-  and five consecutive green `tsan` dispatch runs in CI, which is plan 032's gate for the nightly. TSan reports a race only when it
-  sees both accesses, so neither is a proof; a new report is a new issue (plan 032, D6).
+  and five consecutive green `tsan` dispatch runs in CI, which is plan sanitizer-option-and-presets's gate for the nightly. TSan reports a
+  race only when it sees both accesses, so neither is a proof; a new report is a new issue (plan sanitizer-option-and-presets, D6).
 
 ## Steps
 
@@ -116,10 +116,10 @@ timeout, one with 60.
 
 ### Step 2 — #28
 
-*Red:* `ctest --preset tsan-macos-arm64 -R BackoffResetsAfterSuccessfulReconnect` fails today (plan 032, Step 8). *Change:* the atomic.
-*Test:* none new. The existing test is the regression test, and the `tsan` tree, one command since plan 032, is its oracle.
-*Checkpoint:* the default tree 507 of 507, `asan` 510 of 510, `tsan` 508 of 509 (the other race is still there); the test passes
-200 times in a row in the `tsan` tree.
+*Red:* `ctest --preset tsan-macos-arm64 -R BackoffResetsAfterSuccessfulReconnect` fails today (plan sanitizer-option-and-presets, Step 8).
+*Change:* the atomic. *Test:* none new. The existing test is the regression test, and the `tsan` tree, one command since plan
+sanitizer-option-and-presets, is its oracle. *Checkpoint:* the default tree 507 of 507, `asan` 510 of 510, `tsan` 508 of 509 (the other race
+is still there); the test passes 200 times in a row in the `tsan` tree.
 *Done when:* the test is green under `tsan` 200 times; the commit says `Closes #28`; pushed.
 
 ### Step 3 — #27
@@ -145,7 +145,7 @@ twenty-six test executables and the new row.
 
 `gh workflow run sanitizers.yml --ref main -f which=tsan`, five times, one at a time (a newer dispatch of the same `which` cancels the
 one in flight; a run is about 6.5 minutes). *Done when:* five consecutive runs are `completed success`, and their ids are in the
-Outcome. Then plan 032's Step 9 runs: the nightly gains `tsan`, and #30 closes.
+Outcome. Then plan sanitizer-option-and-presets's Step 9 runs: the nightly gains `tsan`, and #30 closes.
 
 ## Designs I rejected
 
@@ -157,8 +157,8 @@ Outcome. Then plan 032's Step 9 runs: the nightly gains `tsan`, and #30 closes.
 
 ## Not in this plan
 
-#42, and any change to `WsReconnectSession`. A suppression file. Any other finding of the five runs (a new issue, plan 032 D6). A tag:
-the change is test-only and touches no header under `include/`.
+#42, and any change to `WsReconnectSession`. A suppression file. Any other finding of the five runs (a new issue, plan
+sanitizer-option-and-presets D6). A tag: the change is test-only and touches no header under `include/`.
 
 ## Self-review — risks and assumptions
 
@@ -212,7 +212,8 @@ The 91 sites were renamed with one `sed`; none bound a reference, iterated, took
 drop-in. **The plan said four test files; three more files read the member**: `tests/benchmarks/bench_{binance,cryptocom,kraken}_ws.cpp`,
 which the default build never compiles. I found them by grepping all of `tests/` after the rename. They were compiled in a scratch tree
 with `CRYPTOCOGS_BUILD_BENCHMARKS=ON` and not run; they build with three `-Wunused-result` warnings on `fut.get()` that were there
-before (added to [#24](https://github.com/tomlin256/cryptocogs/issues/24)). The benchmarks' baselines (plans 025 to 027) now include a
+before (added to [#24](https://github.com/tomlin256/cryptocogs/issues/24)). The benchmarks' baselines (plans kraken-performance-profiling,
+kraken-reserve-vector-growth and remaining-adapters-reserve-vector-growth) now include a
 lock and a notify in `send()`, tens of nanoseconds; not re-measured.
 
 The checkpoint on the committed state: the default tree 512 of 512, asan 515 of 515, tsan 514 of 514 (the first time every test passes
@@ -234,11 +235,11 @@ driven by a script that stops at the first run that is not green), all `complete
 
 I read the logs of runs 1 and 5: each says `100% tests passed out of 514`, with `sanitizer_canary_tsan` among them and no ThreadSanitizer
 report; runs 2 to 4 I judged by their conclusion. The main workflow for the same commit (41903524924) was green, as were those for
-`0cdcbf1` and `6e711c0`. The runner's kernel still has no `vm.mmap_rnd_bits`. With the first dispatch of plan 032 (6 min 21 s, before the
-fixes), the cold time of the tsan job over six runs is 4 min 19 s to 7 min 6 s.
+`0cdcbf1` and `6e711c0`. The runner's kernel still has no `vm.mmap_rnd_bits`. With the first dispatch of plan sanitizer-option-and-presets
+(6 min 21 s, before the fixes), the cold time of the tsan job over six runs is 4 min 19 s to 7 min 6 s.
 
-That is plan 032's gate for putting `tsan` in the nightly; its Step 9 is next. #27 and #28 were closed by the commits that say
-`Closes` (`b3ef1e2`, `6e711c0`).
+That is plan sanitizer-option-and-presets's gate for putting `tsan` in the nightly; its Step 9 is next. #27 and #28 were closed by the
+commits that say `Closes` (`b3ef1e2`, `6e711c0`).
 
 **Opened or updated along the way.** A comment on [#24](https://github.com/tomlin256/cryptocogs/issues/24) with three more
 `-Wunused-result` sites, in the benchmarks. [#42](https://github.com/tomlin256/cryptocogs/issues/42), the polling that D3 left alone, is

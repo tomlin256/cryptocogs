@@ -136,7 +136,7 @@ struct BinanceWsPingRequest : TypedWsRequest<BinanceWsPongMessage> {
 // ── order.place / order.cancel ────────────────────────────────────────────────
 //
 // Field sets mirror the REST request structs; result payloads are the REST
-// response shapes verbatim, so the WS responses embed them (plan 006 decision
+// response shapes verbatim, so the WS responses embed them (plan step-8-binance-ws-api decision
 // 5). Signed requests carry creds plus an explicit timestamp: 0 means "system
 // clock at to_json() time"; tests set a fixed value, making the whole frame —
 // signature included — exactly assertable.
@@ -157,7 +157,7 @@ struct BinanceWsNewOrderRequest : TypedWsRequest<BinanceWsNewOrderResponse> {
     OrderType   type{OrderType::Limit};  // required
     std::optional<TimeInForce>          time_in_force;
     std::optional<std::string>          quantity;          // caller-formatted exact
-    std::optional<std::string>          quote_order_qty;   //   decimals (plan 004
+    std::optional<std::string>          quote_order_qty;   //   decimals (plan step-6-binance-rest-private
     std::optional<std::string>          price;             //   decision 6)
     std::optional<std::string>          new_client_order_id;
     std::optional<std::string>          stop_price;

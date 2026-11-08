@@ -17,34 +17,36 @@ target_link_libraries(test_credentials_file exchange_common GTest::gtest_main)
 gtest_discover_tests(test_credentials_file)
 
 # The shared MockWsConnection test double (mock_ws_connection.hpp). Its outbound log is read from a second thread by
-# Execute.BlocksUntilResponse, so what it promises about threads is tested here (plan 033, #27). Header-only; exchange-agnostic.
+# Execute.BlocksUntilResponse, so what it promises about threads is tested here (plan tsan-races-in-the-tests, #27). Header-only;
+# exchange-agnostic.
 add_executable(test_mock_ws_connection test_mock_ws_connection.cpp)
 target_link_libraries(test_mock_ws_connection exchange_common GTest::gtest_main)
 gtest_discover_tests(test_mock_ws_connection)
 
 # ASSERT_HAS_VALUE (assert_has_value.hpp), the optional check that clang-tidy's bugprone-unchecked-optional-access can follow
-# (plan 037, #46). Header-only and free of exchange types, so it links gtest alone and builds in any flag configuration.
+# (plan clear-clang-tidy-findings, #46). Header-only and free of exchange types, so it links gtest alone and builds in any flag
+# configuration.
 add_executable(test_assert_has_value test_assert_has_value.cpp)
 target_link_libraries(test_assert_has_value GTest::gtest_main)
 gtest_discover_tests(test_assert_has_value)
 
-# IxWsConnection against a loopback ix::WebSocketServer (plan 034, #39): what its destructor promises about its callbacks and its
-# I/O thread. Real sockets on 127.0.0.1, no network, no sleeps. The real transport is header-only, so the test links ixwebsocket
-# itself, as the examples do; it is exchange-agnostic and builds in any flag configuration.
+# IxWsConnection against a loopback ix::WebSocketServer (plan transport-callback-lifetimes, #39): what its destructor promises
+# about its callbacks and its I/O thread. Real sockets on 127.0.0.1, no network, no sleeps. The real transport is header-only, so
+# the test links ixwebsocket itself, as the examples do; it is exchange-agnostic and builds in any flag configuration.
 add_executable(test_ix_ws_connection test_ix_ws_connection.cpp)
 target_link_libraries(test_ix_ws_connection exchange_common ixwebsocket GTest::gtest_main)
 gtest_discover_tests(test_ix_ws_connection)
 
 # make_curl_header_list (curl_header_list.hpp, compiled into exchange_http): the "Key: value" list that CurlHttpClient::perform hands
-# to libcurl, and what it does when libcurl cannot grow the list (plan 038, #48). Real libcurl lists and a replaceable append
-# function, no network; exchange-agnostic, so it builds in any flag configuration.
+# to libcurl, and what it does when libcurl cannot grow the list (plan curl-header-list-append-failure, #48). Real libcurl lists
+# and a replaceable append function, no network; exchange-agnostic, so it builds in any flag configuration.
 add_executable(test_curl_header_list test_curl_header_list.cpp)
 target_link_libraries(test_curl_header_list exchange_http GTest::gtest_main)
 gtest_discover_tests(test_curl_header_list)
 
-# CurlHttpClient::perform against a loopback ix::HttpServer (plan 038): what a request carries over a real libcurl transfer. Real
-# sockets on 127.0.0.1, no network, no sleeps. Like test_ix_ws_connection it links ixwebsocket for the server; exchange-agnostic, so
-# it builds in any flag configuration.
+# CurlHttpClient::perform against a loopback ix::HttpServer (plan curl-header-list-append-failure): what a request carries over a
+# real libcurl transfer. Real sockets on 127.0.0.1, no network, no sleeps. Like test_ix_ws_connection it links ixwebsocket for the
+# server; exchange-agnostic, so it builds in any flag configuration.
 add_executable(test_http_client test_http_client.cpp)
 target_link_libraries(test_http_client exchange_http ixwebsocket GTest::gtest_main)
 gtest_discover_tests(test_http_client)
@@ -79,7 +81,7 @@ if(CRYPTOCOGS_BUILD_KRAKEN)
     gtest_discover_tests(test_ws_responses)
 
     # What a bare AddOrderRequest, SubscribeRequest and UnsubscribeRequest hold (their enum members have default
-    # initialisers), and the underlying type of the two enums in ws_api.hpp (plan 037, #46)
+    # initialisers), and the underlying type of the two enums in ws_api.hpp (plan clear-clang-tidy-findings, #46)
     add_executable(test_kraken_ws_api_defaults test_kraken_ws_api_defaults.cpp)
     target_link_libraries(test_kraken_ws_api_defaults kraken GTest::gtest_main)
     gtest_discover_tests(test_kraken_ws_api_defaults)
@@ -137,7 +139,7 @@ if(CRYPTOCOGS_BUILD_BINANCE)
 endif()
 
 #-------------------------------------------------------------------------------
-# Coinbase unit tests (plan 018)
+# Coinbase unit tests (plan coinbase-exchange-adapter)
 #-------------------------------------------------------------------------------
 
 if(CRYPTOCOGS_BUILD_COINBASE)
@@ -173,7 +175,7 @@ if(CRYPTOCOGS_BUILD_COINBASE)
 endif()
 
 #-------------------------------------------------------------------------------
-# Crypto.com unit tests (plan 020)
+# Crypto.com unit tests (plan cryptocom-exchange-adapter)
 #-------------------------------------------------------------------------------
 
 if(CRYPTOCOGS_BUILD_CRYPTOCOM)

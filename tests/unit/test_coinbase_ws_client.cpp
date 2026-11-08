@@ -7,7 +7,7 @@
 // full license information.
 // =============================================================================
 //
-// Verifies the bespoke CoinbaseStreamClient (plan 018 §2 Option A) against the
+// Verifies the bespoke CoinbaseStreamClient (plan coinbase-exchange-adapter §2 Option A) against the
 // shared MockWsConnection — no sockets, no sleeps: pre-open queuing, typed
 // type-keyed dispatch, the signed user-channel subscribe frame, subscriptions/
 // error routing, malformed-frame handling, and idempotent cancel().

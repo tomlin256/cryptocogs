@@ -1,9 +1,9 @@
-# clang-tidy over this project's own sources, as a CI job: the clang_tidy_ tests of plan 035 (#34). See
+# clang-tidy over this project's own sources, as a CI job: the clang_tidy_ tests of plan clang-tidy-opt-in-test-step (#34). See
 # docs/plans/040-clang-tidy-ci-job.md (#49).
 #
-# Why it exists. Plan 035 added the gate off by default and left CI out, because 72 of its 77 units were red and a job that is
-# red gates nothing. Plan 037 cleared the findings (#46), and since then nothing has stopped a new one from landing unseen
-# except somebody turning the gate on by hand.
+# Why it exists. Plan clang-tidy-opt-in-test-step added the gate off by default and left CI out, because 72 of its 77 units were
+# red and a job that is red gates nothing. Plan clear-clang-tidy-findings cleared the findings (#46), and since then nothing has
+# stopped a new one from landing unseen except somebody turning the gate on by hand.
 #
 # What it runs. Nothing is built: clang-tidy reads <tree>/compile_commands.json, so the job configures a tree with
 # CRYPTOCOGS_CLANG_TIDY set and runs the tests whose names begin clang_tidy_: one per translation unit, and the six that prove
@@ -12,9 +12,9 @@
 # (the Mac, the ubuntu-dev container) and the one the editor reads (.clangd).
 #
 # A workflow of its own, like sanitizers.yml, so that a red lint run cannot mask whether the normal gate is green. It has no
-# caches on purpose (plan 040, D1): a hit of the main workflow's would save about 23 s of a job of 3 to 4.5 minutes (three runs
-# measured), and would force the Release tree and leave the benchmarks off. Shallow clones (#54) are the way to a shorter cold
-# configure.
+# caches on purpose (plan clang-tidy-ci-job, D1): a hit of the main workflow's would save about 23 s of a job of 3 to 4.5 minutes
+# (three runs measured), and would force the Release tree and leave the benchmarks off. Shallow clones (#54) are the way to a
+# shorter cold configure.
 #
 # The LLVM major is written once, in the env below, and test_ci_clang_tidy holds it to CRYPTOCOGS_CLANG_TIDY_MAJOR in
 # cmake/cryptocogs_clang_tidy.cmake; clang_tidy_version fails the run on any other major. apt.llvm.org is the LLVM project's own
@@ -24,8 +24,8 @@
 #
 # When it runs. For every push and pull request to main that changes more than documentation, and on demand: Actions >
 # clang-tidy > Run workflow, or `gh workflow run clang-tidy.yml --ref main`. The ignore lists are the main workflow's, and
-# test_ci_paths holds them equal to it, under both triggers (plan 040, D2). It was run on demand alone first, twice, so that the
-# toolchain's opinion was read before it could put a red mark on main.
+# test_ci_paths holds them equal to it, under both triggers (plan clang-tidy-ci-job, D2). It was run on demand alone first, twice,
+# so that the toolchain's opinion was read before it could put a red mark on main.
 #
 # The same locally (the Mac's tree is debug-macos-arm64, and its clang-tidy is Homebrew's):
 #   cmake --preset debug-linux-x86_64 -DCRYPTOCOGS_BUILD_BENCHMARKS=ON -DCRYPTOCOGS_CLANG_TIDY=clang-tidy-23
@@ -35,9 +35,9 @@ name: clang-tidy
 on:
   push:
     branches: [ "main" ]
-    # Documentation builds nothing and tests nothing, so a change to only these paths does not run the job (plan 031). A run
-    # starts unless every changed path matches. test_ci_paths holds this list equal to the main workflow's, and the same under
-    # pull_request.
+    # Documentation builds nothing and tests nothing, so a change to only these paths does not run the job (plan
+    # ci-skip-docs-only). A run starts unless every changed path matches. test_ci_paths holds this list equal to the main
+    # workflow's, and the same under pull_request.
     paths-ignore:
       - 'docs/**'
       - 'CLAUDE.md'

@@ -1,5 +1,5 @@
 # check_cmake_floor.cmake — test_cmake_floor: the project has one CMake floor, and everything that states
-# one states the same (plan 029).
+# one states the same (plan cmake4-cxx23).
 #
 # Run by ctest as `cmake -DSOURCE_DIR=<repo> -P check_cmake_floor.cmake`. The floor is the root
 # CMakeLists.txt's minimum, which must be a plain version: CMakeLists.txt says why it is never a

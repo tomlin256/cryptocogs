@@ -1,5 +1,5 @@
 # check_clang_tidy_module.cmake — test_clang_tidy_module: the functions in cmake/cryptocogs_clang_tidy.cmake, which
-# register the opt-in clang-tidy test step (plan 035, #34).
+# register the opt-in clang-tidy test step (plan clang-tidy-opt-in-test-step, #34).
 #
 # Run by ctest as
 #   cmake -DSOURCE_DIR=<repo> -DSCRATCH_ROOT=<dir> -P check_clang_tidy_module.cmake
@@ -168,8 +168,9 @@ endforeach()
 
 # ── cryptocogs_clang_tidy_args ──────────────────────────────────────────────────────────────────────────────────────
 # Order is the contract: the gate's own arguments, then the SDK, then the caller's. The override of the deprecation
-# error is among the gate's own (plan 035, D10): it is inert until the compile commands carry -Werror=deprecated-
-# declarations, and then it is what keeps a clang-tidy newer than the SDK's libc++ from stopping on nlohmann/json.
+# error is among the gate's own (plan clang-tidy-opt-in-test-step, D10): it is inert until the compile commands carry
+# -Werror=deprecated-declarations, and then it is what keeps a clang-tidy newer than the SDK's libc++ from stopping on
+# nlohmann/json.
 set(base "--warnings-as-errors=*;--extra-arg=-Wno-error=deprecated-declarations")
 set(sysroot "--extra-arg=-isysroot;--extra-arg=/the/sdk")
 cryptocogs_clang_tidy_args("" "" got)

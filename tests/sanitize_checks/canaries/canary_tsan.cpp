@@ -7,7 +7,7 @@
 // full license information.
 // =============================================================================
 
-// canary_tsan.cpp — a deliberate data race (plan 032, #30).
+// canary_tsan.cpp — a deliberate data race (plan sanitizer-option-and-presets, #30).
 //
 // Built and run only in a -DCRYPTOCOGS_SANITIZE=tsan tree, through tests/sanitize_checks/run_canary.cmake, which
 // requires a non-zero exit AND ThreadSanitizer's "data race" report. The program returns 0, so a build whose

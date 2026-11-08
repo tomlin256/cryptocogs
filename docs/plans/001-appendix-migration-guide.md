@@ -1,4 +1,4 @@
-# 001 Appendix — Migration Guide for Existing `cryptocogs` Users
+# Appendix to multi-exchange-abstraction — Migration Guide for Existing `cryptocogs` Users
 
 Companion to [001-multi-exchange-abstraction.md](001-multi-exchange-abstraction.md).
 

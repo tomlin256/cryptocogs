@@ -138,7 +138,7 @@ return a `RestResponse`-shaped type the client can hand back. Always check
 ### Auth
 
 `BinanceAuth : exchange::rest::IRestAuth` (`auth.hpp`) implements the
-`IRestAuth` interface (`rest.hpp`). Headers are declarative (plan 016):
+`IRestAuth` interface (`rest.hpp`). Headers are declarative (plan declarative-headers):
 `auth.hpp` declares the crypto helpers (`hmac_sha256`, `to_hex`, …) under a
 `detail::` namespace, and `src/<name>/auth.cpp` defines them
 (`src/binance/auth.cpp`). Credentials are a plain struct:
@@ -224,7 +224,7 @@ Two worked examples, two shapes:
 
 There is **no `src/binance/ws_client.cpp`**: the WS client is an alias, and the
 factory declared beside it binds your descriptor once. The alias and the
-factory's declaration are in the header (`ws_api.hpp`); since plan 016 the
+factory's declaration are in the header (`ws_api.hpp`); since plan declarative-headers the
 factory's body is in `src/binance/ws_api.cpp`, with the request and event
 bodies:
 

@@ -8,7 +8,7 @@
 // =============================================================================
 //
 // Captured Crypto.com Exchange v1 PUBLIC REST responses (full {id,method,code,
-// result} envelopes), live from api.crypto.com on 2026-06 (plan 020 step 3).
+// result} envelopes), live from api.crypto.com on 2026-06 (plan cryptocom-exchange-adapter step 3).
 // Arrays trimmed to a couple of rows; field names/types are verbatim from the
 // wire (terse single-letter keys, monetary fields as strings, ms timestamps as
 // numbers). Private fixtures are synthetic and live in

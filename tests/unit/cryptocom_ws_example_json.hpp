@@ -7,7 +7,7 @@
 // full license information.
 // =============================================================================
 //
-// Captured Crypto.com Exchange v1 WebSocket frames (plan 020 step 6). The MARKET
+// Captured Crypto.com Exchange v1 WebSocket frames (plan cryptocom-exchange-adapter step 6). The MARKET
 // frames (ticker/trade/book/candlestick pushes, the subscribe acks, and the
 // heartbeat) are LIVE from wss://stream.crypto.com on 2026-06 — note data frames
 // reuse method "subscribe" with id -1 for updates. Arrays are trimmed to a couple

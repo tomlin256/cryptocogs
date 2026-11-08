@@ -1,4 +1,4 @@
-# cryptocogs_warnings.cmake — the warning flags of the project's own targets (plan 036, #47).
+# cryptocogs_warnings.cmake — the warning flags of the project's own targets (plan warnings-as-errors, #47).
 #
 # One pure function maps a compiler, whether this is the top-level project, and the CRYPTOCOGS_WARNINGS_AS_ERRORS option to the
 # flags. It sets one variable and touches no global state, so tests/warning_checks/check_warning_flags.cmake (test_warning_flags)
@@ -18,9 +18,9 @@
 #
 # What the function cannot say is where the list is applied, which is the other half of the design. add_compile_options reaches
 # only the targets created after it in that directory and below, and this project fetches its dependencies in two files, so a
-# call in the root either reaches the dependencies or misses src/ (plan 036 measured both). Each directory of the project's own
-# targets therefore applies the list at its top, after any dependency it fetches: src/, tests/ (after its last fetch) and
-# tests/benchmarks/. A directory added later does the same, and test_warning_option fails if it does not.
+# call in the root either reaches the dependencies or misses src/ (plan warnings-as-errors measured both). Each directory of the
+# project's own targets therefore applies the list at its top, after any dependency it fetches: src/, tests/ (after its last
+# fetch) and tests/benchmarks/. A directory added later does the same, and test_warning_option fails if it does not.
 
 # cryptocogs_warning_flags(<compiler-id> <top-level> <werror> <out>)
 #

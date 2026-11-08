@@ -31,9 +31,9 @@ namespace {
 // NOLINTBEGIN(bugprone-throwing-static-initialization)
 
 // ── BM_JsonParse_AggTradeRaw / BM_AggTradeFromJson ──────────────────────────
-// Plan 027's Binance analog of Kraken's BM_JsonParse_TickerRaw /
-// BM_TickerFromJson (025/026) — aggTrade is Binance's highest-*frequency*
-// public market stream (one push per executed trade), the closest analog to
+// The Binance analog (plan remaining-adapters-reserve-vector-growth) of Kraken's BM_JsonParse_TickerRaw /
+// BM_TickerFromJson (plans kraken-performance-profiling and kraken-reserve-vector-growth) — aggTrade is
+// Binance's highest-*frequency* public market stream (one push per executed trade), the closest analog to
 // Kraken's ticker pick.
 
 void BM_JsonParse_AggTradeRaw(benchmark::State& state) {
@@ -56,7 +56,7 @@ BENCHMARK(BM_AggTradeFromJson);
 // ── BM_DepthUpdateFromJson — ranged book depth ──────────────────────────────
 // BinanceDepthUpdateEvent::from_json (ws_streams.cpp) push_backs into
 // bids/asks with no .reserve(), despite j["b"]/j["a"].size() being known
-// upfront — see docs/plans/027 Design decisions. Depths match the
+// upfront — see docs/plans/027-remaining-adapters-reserve-vector-growth.md Design decisions. Depths match the
 // BM_VectorPushBack_* Args below for a direct, same-N comparison in Step 4.
 
 std::string make_binance_depth_json(int depth) {

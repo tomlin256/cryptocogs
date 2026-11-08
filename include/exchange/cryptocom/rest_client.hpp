@@ -11,7 +11,7 @@
 
 // exchange/cryptocom/rest_client.hpp
 // Type-safe HTTP executor for the Crypto.com Exchange v1 REST API. The libcurl
-// transport is the shared exchange::rest::CurlHttpClient (plan 010); this class
+// transport is the shared exchange::rest::CurlHttpClient (plan shared-curl-http-transport); this class
 // binds the {code,result} envelope/parse and, for private requests, the
 // in-body signing.
 //

@@ -316,7 +316,7 @@ TEST(CoinbaseAuth, ImplementsIRestAuth) {
                   "CoinbaseAuth must derive exchange::rest::IRestAuth");
 }
 
-// ── CoinbaseCredentials::from_file — TOML loader (plan 021) ──────────────────
+// ── CoinbaseCredentials::from_file — TOML loader (plan credentials-from-file) ───
 
 TEST(CoinbaseCredentialsFromFile, LoadsAllThreeFields) {
     namespace fs = std::filesystem;

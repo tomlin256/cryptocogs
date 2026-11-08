@@ -109,7 +109,7 @@ int64_t make_nonce() {
 
 CryptoComCredentials CryptoComCredentials::from_file(const std::string& name,
                                                      const std::string& location) {
-    // TOML file with top-level string keys api_key / api_secret (plan 021).
+    // TOML file with top-level string keys api_key / api_secret (plan credentials-from-file).
     const auto v = exchange::rest::read_toml_credentials(
         name, ".cryptocom", location, {"api_key", "api_secret"});
     return CryptoComCredentials{v[0], v[1]};

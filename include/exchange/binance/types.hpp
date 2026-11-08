@@ -21,7 +21,7 @@
 // kraken_order_type_to_string precedent, Binance keeps its own converter
 // pair per enum alongside (not instead of) the canonical converters.
 //
-// Conversion policy (plan 004 decision 3 — "enum where the wire↔enum
+// Conversion policy (plan step-6-binance-rest-private decision 3 — "enum where the wire↔enum
 // mapping is total, raw string otherwise"):
 //   - Side          : total both directions.
 //   - TimeInForce   : total — Binance's set is exactly {GTC, IOC, FOK};

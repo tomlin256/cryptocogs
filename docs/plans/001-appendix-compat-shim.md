@@ -1,4 +1,4 @@
-# 001 Appendix — Shipped Backwards-Compatibility Shim
+# Appendix to multi-exchange-abstraction — Shipped Backwards-Compatibility Shim
 
 Companion to [001-multi-exchange-abstraction.md](001-multi-exchange-abstraction.md) and [001-appendix-migration-guide.md](001-appendix-migration-guide.md).
 

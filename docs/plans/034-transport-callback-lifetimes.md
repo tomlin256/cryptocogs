@@ -1,4 +1,4 @@
-# Plan 034 — Transport callbacks must not outlive what they call
+# Transport callbacks must not outlive what they call
 
 **Status:** Done (2026-11-05). Rob approved the plan as written, so D1 to D8 stood at the defaults below. The first draft covered #39
 only; #43 was folded in at his request before approval. Steps 0 to 5 are done: #39 and #43 are fixed and closed, the Release
@@ -86,7 +86,7 @@ go (no reference cycle). Unlike #39, ASan *is* an oracle here: `handle_inbound` 
 
 ## The change
 
-**1. `IxWsConnection`** (`include/exchange/common/ix_ws_connection.hpp`, header-only as plan 016 D1 keeps it):
+**1. `IxWsConnection`** (`include/exchange/common/ix_ws_connection.hpp`, header-only as plan declarative-headers D1 keeps it):
 
 ```cpp
     // Stops the socket, which joins its I/O thread, before any member is destroyed: the callbacks below are
@@ -152,8 +152,8 @@ Defaults stand if you approve the plan as written.
   is wording, not a repair. *Alternative:* keep the wording and add the destructor guarantee only.
 - **D6 No tag.** The change touches two public headers, so v1.0.1 is plausible, but a tag is outward-facing: say so if you want it.
 - **D7 Evidence order.** The checkpoint is the full build and ctest of `debug-macos-arm64`. The `asan` and `tsan` trees, the live runs
-  and CI come **after the push** (Step 5), as you asked on plan 029 (get the mechanical change pushed, test more after). Plan 033 put the
-  sanitizer trees in every checkpoint; say so if you want that here.
+  and CI come **after the push** (Step 5), as you asked on plan cmake4-cxx23 (get the mechanical change pushed, test more after). Plan
+  tsan-races-in-the-tests put the sanitizer trees in every checkpoint; say so if you want that here.
 - **D8 The shape of #43's fix: a relay the callback owns**, with a weak reference to the inner connection, and the behaviour above (the
   callback goes on working while the inner connection keeps it). *Alternative:* `enable_shared_from_this` and `weak_from_this()` in the
   responder, the idiom `ExchangeWsClient` and `CoinbaseStreamClient` use; rejected below because the unit tests build the responder on the
@@ -223,7 +223,7 @@ again (three red), the relay drops a heartbeat's reply (the heartbeat test red).
 comments are the ones Steps 1 and 2 test. *Change:* `ws_client_example.cpp` (D4); the comments of `ix_ws_connection.hpp` (the destructor
 and its guarantee, D5, the self-join caveat kept) and `heartbeat_connection.hpp` (the lifetime); `CLAUDE.md` (twenty-seven test
 executables, 510 tests, 521 in ctest, the new row in both tables, the new `CryptoComHeartbeat` tests in the breakdown, a short
-"Connection lifetime" paragraph under *Connection abstraction*, the Crypto.com-only count recomputed from a tree as in plan 033).
+"Connection lifetime" paragraph under *Connection abstraction*, the Crypto.com-only count recomputed from a tree as in plan tsan-races-in-the-tests).
 *Checkpoint:* the default tree 521 of 521, examples build. *Done when:* pushed; the commit says `Closes #39`.
 
 ### Step 5 — After the push: measure
@@ -235,8 +235,8 @@ executables, 510 tests, 521 in ctest, the new row in both tables, the new `Crypt
    second 30.
 3. **Sanitizer trees.** `asan-macos-arm64` and `tsan-macos-arm64` full suites with the options of `CLAUDE.md` (*Sanitizers*), and
    `ctest --repeat until-fail:50` on `test_ix_ws_connection` in the `tsan` tree. This is the first test in the suite that runs ixwebsocket
-   threads under TSan; a report inside ixwebsocket is a new issue (plan 032 D6), not a reason to weaken the test. The three #43
-   "after destruction" tests are the ones ASan judges.
+   threads under TSan; a report inside ixwebsocket is a new issue (plan sanitizer-option-and-presets D6), not a reason to weaken the test.
+   The three #43 "after destruction" tests are the ones ASan judges.
 4. **CI.** The main workflow on the pushed commit, then `gh workflow run sanitizers.yml --ref main -f which=asan` and, when it is done,
    `which=tsan` (one at a time). This is the Linux run of the new tests.
 
@@ -252,7 +252,7 @@ executables, 510 tests, 521 in ctest, the new row in both tables, the new `Crypt
   the same data race as silent destruction.
 - **A raw back-pointer to the inner connection in the relay**: valid in practice, since the relay lives inside the connection, but a raw
   non-owning pointer is what the C++ guidelines forbid; the `weak_ptr` costs one `lock()` per heartbeat.
-- **A transport seam** (an `IWebSocket` interface so a test can fake ixwebsocket): invasive, and plan 016 D1 keeps this header free of
+- **A transport seam** (an `IWebSocket` interface so a test can fake ixwebsocket): invasive, and plan declarative-headers D1 keeps this header free of
   anything but ixwebsocket on purpose. The loopback server tests the real class.
 - **A sanitizer as the oracle for #39**: measured silent (see above). For #43 it is one oracle among two.
 - **A live-network regression test**: needs the network, is rate-limited (429), and fails on heap luck.
@@ -277,8 +277,8 @@ this plan, unproven on the self-join path. A tag (D6).
   run in Step 5 is part of the evidence and not an extra.
 - **The probes call a destroyed callback on purpose, on the unfixed code only.** The bodies read no captures, so the call is benign in
   practice; after the fixes nothing calls a destroyed object.
-- **A real socket in a unit test.** Loopback only, no sleeps, ports retried; a hung wait is stopped by the 120 s test timeout (plan 033
-  D4). A sandbox with no loopback would fail it; GitHub's runners and this Mac have one.
+- **A real socket in a unit test.** Loopback only, no sleeps, ports retried; a hung wait is stopped by the 120 s test timeout (plan
+  tsan-races-in-the-tests D4). A sandbox with no loopback would fail it; GitHub's runners and this Mac have one.
 - **TSan may report inside ixwebsocket** (Step 5.3). That would be a finding, not a flake.
 - **Destruction now waits for the close handshake in the destructor body** (at most `kClosingMaximumWaitingDelayInMs`, 300 ms, per
   connection) instead of in `~WebSocket`. Same wait, earlier; no new latency.

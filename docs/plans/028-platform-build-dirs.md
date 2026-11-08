@@ -1,4 +1,4 @@
-# Plan 028 — One build tree per platform
+# One build tree per platform
 
 **Status:** Done (2026-11-02). Rob approved the plan as written, so D1 to D8 stood at the defaults below; the Outcome says what the steps found.
 **Design source:** flywheel-dag's [platform_build_dirs_plan.md](https://github.com/tomlin256/flywheel-dag/blob/main/docs/plans/platform_build_dirs_plan.md)

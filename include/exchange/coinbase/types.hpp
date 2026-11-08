@@ -20,7 +20,7 @@
 // are lowercase ("buy", "limit", "GTC"), so — per the binance_*/kraken_*
 // precedent — Coinbase keeps its own converter pair per enum.
 //
-// Conversion policy (mirrors plan 004 decision 3 — "enum where the wire↔enum
+// Conversion policy (mirrors plan step-6-binance-rest-private decision 3 — "enum where the wire↔enum
 // mapping is total, raw string otherwise"):
 //   - Side          : total both directions ("buy"/"sell").
 //   - OrderType     : Coinbase's wire `type` is only "limit"/"market" (a stop

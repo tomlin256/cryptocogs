@@ -35,7 +35,7 @@ bool is_heartbeat(const json& j) {
 // responder (the factories give the client the only reference to it, while the caller keeps the connection), so it must not
 // refer to the responder: it carries its own copy of the forward callback and a weak reference to the connection it answers
 // on. Weak, because the callback is a member of that connection, and a strong reference would be a cycle nothing could break
-// (plan 034, #43).
+// (plan transport-callback-lifetimes, #43).
 struct HeartbeatResponder::Relay {
     std::weak_ptr<IWsConnection> inner;
     MessageCb                    forward;

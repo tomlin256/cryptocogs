@@ -1,4 +1,4 @@
-# Plan 039 — `kraken_example`'s WebSocket frames carry the order and the token
+# `kraken_example`'s WebSocket frames carry the order and the token
 
 **Status:** Done (2026-11-06). Approved as written, so D1 stood at the default below. You asked for it to be done quickly, since it is
 only an example: the *Outcome* says what was kept and what was cut. #50 and #52 are closed.
@@ -31,8 +31,8 @@ ws_send(ws_req.to_json(), ws_creds);
 
 `op` holds a limit **buy** of **1.2** at **26500.0** with `order_userref` 100054, and its symbol is `BTC/USD` after the first line. The
 frame has none of that but `order_type` and `side`, and those two are right only because `Limit` and `Buy` are the first enumerators of
-their enums, which a bare request holds since plan 037. (Before it `side` was indeterminate: the demo printed `sell` on the Mac by
-chance, and the read was undefined behaviour.)
+their enums, which a bare request holds since plan clear-clang-tidy-findings. (Before it `side` was indeterminate: the demo printed `sell`
+on the Mac by chance, and the read was undefined behaviour.)
 
 **#52, the token.** `ws_send` ignores its `creds`, and no request is given the token (`"my_ws_token"`, line 66, stands in for the one
 the real code would fetch), so no private frame carries one:
@@ -57,7 +57,7 @@ The demo's own comment above the last two says "Private channels (token required
   which is why the demo copies by hand.
 - The other four requests have a `std::string token` and `SubscribeRequest` an optional one; `private_ws.cpp:66` sets it the same way
   (`req.token = token;`).
-- No test runs an example: `kraken_example` is built and never run (plan 037, D3, compared its output before and after). The one
+- No test runs an example: `kraken_example` is built and never run (plan clear-clang-tidy-findings, D3, compared its output before and after). The one
   precedent for a `cmake -P` check that runs a built target is `sanitizer_canary_*` (`tests/sanitize_checks/run_canary.cmake`).
 - The 11 `[WS SEND]` lines are deterministic: nlohmann::json writes compact, keys sorted, doubles in its own shortest form (the
   `27000.0` of `amend_order` is already there). The REST lines carry a nonce, so the check does not read them.

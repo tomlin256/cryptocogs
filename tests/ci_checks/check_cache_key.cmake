@@ -1,5 +1,5 @@
 # check_cache_key.cmake — test_ci_cache_key: the CI cache of the fetched dependencies is keyed over every file that pins
-# one (plan 030).
+# one (plan ci-cache).
 #
 # Run by ctest as `cmake -DSOURCE_DIR=<repo> -P check_cache_key.cmake`. The workflow restores build/<preset>/_deps under a
 # key that ends in hashFiles(<files>), and on a hit it passes FETCHCONTENT_FULLY_DISCONNECTED=ON, which makes FetchContent

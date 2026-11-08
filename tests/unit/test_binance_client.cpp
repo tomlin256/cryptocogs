@@ -13,7 +13,7 @@
 // (deterministic via BinanceAuth's injectable ClockFn) and the parsed
 // RestResponse<T>. No network or libcurl involved, except in the last test:
 // it makes the production client talk to a SilentListener on loopback, to show
-// that its HttpTimeouts reach the transport (plan 042).
+// that its HttpTimeouts reach the transport (plan curl-timeouts).
 
 #include "exchange/binance/rest_client.hpp"
 #include "assert_has_value.hpp"
@@ -221,7 +221,7 @@ TEST(BinanceClient, NonHmacAlgorithmFoldsIntoErrorResponse) {
 // The production constructor hands its HttpTimeouts to the transport. The
 // server accepts the connection and never answers; one limit is an hour, so
 // only the total limit can end the call. A client that dropped its timeouts
-// would wait the default 30 s and name that limit instead (plan 042, #56).
+// would wait the default 30 s and name that limit instead (plan curl-timeouts, #56).
 TEST(BinanceClient, ProductionClientHandsItsTimeoutsToTheTransport) {
     const CurlGlobal curl;
     ASSERT_TRUE(curl.ok());

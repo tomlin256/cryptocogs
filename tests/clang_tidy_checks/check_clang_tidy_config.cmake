@@ -1,4 +1,4 @@
-# check_clang_tidy_config.cmake — test_clang_tidy_config: .clang-tidy and .clangd (plan 035, #34).
+# check_clang_tidy_config.cmake — test_clang_tidy_config: .clang-tidy and .clangd (plan clang-tidy-opt-in-test-step, #34).
 #
 # Run by ctest as `cmake -DSOURCE_DIR=<repo> -P check_clang_tidy_config.cmake`. It reads two files and lists the headers the
 # checkout owns, needs no clang-tidy, and runs in every tree, because the editor reads .clang-tidy whether or not the gate

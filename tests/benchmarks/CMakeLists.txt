@@ -1,5 +1,6 @@
-# This project's own warning flags (plan 036): the first act of the directory. The root has fetched google benchmark before it adds
-# this directory, so only the benchmarks below get them. The root CMakeLists.txt has the reasons, and the rule for a new directory.
+# This project's own warning flags (plan warnings-as-errors): the first act of the directory. The root has fetched google
+# benchmark before it adds this directory, so only the benchmarks below get them. The root CMakeLists.txt has the reasons, and the
+# rule for a new directory.
 add_compile_options(${_cryptocogs_warning_options})
 
 if(CRYPTOCOGS_BUILD_KRAKEN)

@@ -1,11 +1,11 @@
-# Plan 018 — Coinbase Exchange adapter (REST + WebSocket)
+# Coinbase Exchange adapter (REST + WebSocket)
 
 **Status:** Done (implemented on `feature/coinbase-adapter`; WS model resolved as
 §2 Option A — bespoke `CoinbaseStreamClient`, `exchange_common` untouched)
-**Depends on:** the multi-exchange scaffold (plan 001, complete) and the
+**Depends on:** the multi-exchange scaffold (plan multi-exchange-abstraction, complete) and the
 [add-an-exchange playbook](../agent-add-exchange.md), which this plan follows
 row-for-row using **Binance as the worked reference**.
-**Sibling:** [plan 019 — Coinbase FIX order entry](019-coinbase-fix-order-entry.md)
+**Sibling:** [plan coinbase-fix-order-entry — Coinbase FIX order entry](019-coinbase-fix-order-entry.md)
 (deferred; order placement in *this* plan is over REST).
 
 ---
@@ -23,7 +23,7 @@ API** (`api.exchange.coinbase.com`, formerly Coinbase Pro):
   the authenticated **user channel** (order-lifecycle updates).
 
 Out of scope (recorded, not built here):
-- **FIX order entry** → [plan 019](019-coinbase-fix-order-entry.md) (deferred).
+- **FIX order entry** → [plan coinbase-fix-order-entry](019-coinbase-fix-order-entry.md) (deferred).
 - **FIX market data** → not planned; WS covers market data.
 - **Cursor pagination** of history endpoints (see Risk R4).
 
@@ -154,7 +154,7 @@ checkpoint builds and runs.
 
 ### Step 7 — Build-matrix validation (the decoupling proof)
 - `cmake -B build && cmake --build build` (all flags `ON`) clean; `ctest --output-on-failure` fully green.
-- `cmake -B build-off -DCRYPTOCOGS_BUILD_COINBASE=OFF && cmake --build build-off` — **no `coinbase` target, header, test, or example** exists (matches plan 007's matrix cell for Binance).
+- `cmake -B build-off -DCRYPTOCOGS_BUILD_COINBASE=OFF && cmake --build build-off` — **no `coinbase` target, header, test, or example** exists (matches plan step-9-cmake-build-validation's matrix cell for Binance).
 - `cmake -B build-cb -DCRYPTOCOGS_BUILD_KRAKEN=OFF -DCRYPTOCOGS_BUILD_BINANCE=OFF` — a **Coinbase-only** tree builds and its tests pass.
 - Confirm `cmake --install` ships `include/exchange/coinbase` only when the flag is `ON`. Commit (validation + any install-gating fix only).
 
@@ -209,7 +209,7 @@ deterministic (no `sleep_for`, no wall-clock polling).
 - **R5 — Sandbox flakiness.** Coinbase's sandbox is intermittently unavailable;
   live checks (Step 8) target **public prod** endpoints, which need no creds.
 - **R6 — FIX excluded.** Low-latency order entry is deliberately deferred to
-  [plan 019](019-coinbase-fix-order-entry.md); REST order placement is the v1
+  [plan coinbase-fix-order-entry](019-coinbase-fix-order-entry.md); REST order placement is the v1
   path. No FIX scaffolding is introduced here.
 
 **Assumptions**

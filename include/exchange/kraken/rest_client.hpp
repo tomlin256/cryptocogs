@@ -11,7 +11,7 @@
 
 // exchange/kraken/rest_client.hpp
 // Type-safe HTTP executor for the Kraken REST API. The libcurl transport is the
-// shared exchange::rest::CurlHttpClient (plan 010); this class only binds the
+// shared exchange::rest::CurlHttpClient (plan shared-curl-http-transport); this class only binds the
 // Kraken envelope/parse. Kraken reads errors from the JSON envelope, so it
 // ignores the HTTP status the transport returns.
 //

@@ -1,5 +1,5 @@
 # check_paths.cmake — test_ci_paths: the paths that CI ignores are documentation, and nothing that a build or a check reads
-# (plan 031; every workflow, plan 040).
+# (plan ci-skip-docs-only; every workflow, plan clang-tidy-ci-job).
 #
 # Run by ctest as `cmake -DSOURCE_DIR=<repo> -P check_paths.cmake`. A workflow does not run for a push or a pull request
 # whose changed paths all match its paths-ignore list. That is right for documentation, which builds nothing and tests

@@ -7,7 +7,7 @@
 // full license information.
 // =============================================================================
 
-// canary_ubsan.cpp — a deliberate signed integer overflow (plan 032, #30).
+// canary_ubsan.cpp — a deliberate signed integer overflow (plan sanitizer-option-and-presets, #30).
 //
 // Built and run only in a -DCRYPTOCOGS_SANITIZE=asan tree (that mode is ASan plus UBSan), through
 // tests/sanitize_checks/run_canary.cmake, which requires a non-zero exit AND UBSan's "runtime error" report.

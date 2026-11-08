@@ -1,8 +1,8 @@
-# Plan 035 — clang-tidy as an opt-in test step
+# clang-tidy as an opt-in test step
 
 **Status: Done (2026-11-05). Approved the same day with one change, to D10.** Rob: *"D10 -- i want warnings as errors, but the rest is approved (create
 follow up gh issue for fixing the 329 issues found)"*. D1 to D9 and D11 stand as written. D10 now passes the deprecation override, and
-the build's own warnings as errors are [#47](https://github.com/tomlin256/cryptocogs/issues/47), planned as plan 036 after this one,
+the build's own warnings as errors are [#47](https://github.com/tomlin256/cryptocogs/issues/47), planned as plan warnings-as-errors after this one,
 which was Rob's choice from the three ways D10 could go. The follow-up issue for the 329 findings is
 [#46](https://github.com/tomlin256/cryptocogs/issues/46), opened at approval. The Progress table at the end records each step, and the
 Outcome says where the steps differ from this text.
@@ -41,8 +41,9 @@ pass. Nothing is committed, and nothing was written in the checkout. A *site* is
 
 No unit fails for any reason but a finding: there is no compile error (`clang-diagnostic-*`) on either platform. Every Linux site is
 also a Mac site. The container's tree is stale: it lacks `test_ix_ws_connection.cpp` and `test_mock_ws_connection.cpp`, which plans
-033 and 034 added after its last configure. The Mac's two extra sites are `include/exchange/common/ws_client.inl:119`
-(`bugprone-exception-escape`, Mac only; I did not look into why) and `tests/unit/test_mock_ws_connection.cpp:108` (in one of the two
+tsan-races-in-the-tests and transport-callback-lifetimes added after its last configure. The Mac's two extra sites are
+`include/exchange/common/ws_client.inl:119` (`bugprone-exception-escape`, Mac only; I did not look into why) and
+`tests/unit/test_mock_ws_connection.cpp:108` (in one of the two
 units the container's tree lacks).
 
 The 329 sites on the Mac:
@@ -144,7 +145,7 @@ My defaults, each one a place to edit before approving.
   walk misses, turns a test red. *Alternative:* the glob, which is simpler, also
   analyses a file no target compiles, and in a Crypto.com-only tree registers 52 units of adapters that are switched off. The cost of
   mine is the walk, about thirty lines, and a test for it.
-- **D10 (changed at approval). The deprecation override and the SDK flag both stay; the build's own warnings as errors are plan 036.**
+- **D10 (changed at approval). The deprecation override and the SDK flag both stay; the build's own warnings as errors are plan warnings-as-errors.**
   The first draft passed no override, because the compile commands carry no `-Werror`. Rob: *"i want warnings as errors"*. Every run
   therefore passes `--extra-arg=-Wno-error=deprecated-declarations`, as flywheel-dag does, so that the day the build carries
   `-Werror=deprecated-declarations` the gate does not stop on the SDK's libc++ (measured above: 65 of 77 units without it). It is
@@ -291,7 +292,7 @@ three scripts.
   | M10a the walk keeps a source generated into the build tree | `test_clang_tidy_wiring` |
   | M10b `select` without its `_deps` rule | `test_clang_tidy_wiring` (both the stub and the real root, where a dependency's sources are under this build's `_deps`) and `test_clang_tidy_module` |
   | M10c `select` without its under-the-root rule | `test_clang_tidy_wiring` and `test_clang_tidy_module` |
-  | M11 `add_compile_options(-Werror=deprecated-declarations)` after the dependencies in the root (what plan 036 will do) | nothing: the gate's picture is unchanged, 5 green, 72 red, 329 sites, no compile error, which is what D10's override is for |
+  | M11 `add_compile_options(-Werror=deprecated-declarations)` after the dependencies in the root (what plan warnings-as-errors will do) | nothing: the gate's picture is unchanged, 5 green, 72 red, 329 sites, no compile error, which is what D10's override is for |
   | M12 M11, and the override dropped from `cryptocogs_clang_tidy_args` | `test_clang_tidy_module`, and on the Mac 65 of the 77 units, each with a `clang-diagnostic-deprecated-declarations` error in the SDK's libc++ |
 
 Commit: `build: add .clang-tidy and the opt-in clang_tidy_ tests (step 3/6)`.
@@ -355,9 +356,9 @@ first comment equal what the gate printed on both platforms (any that differ are
   tree.
 - **GCC-shaped compile commands.** The Linux trees' commands carry only `-g` or `-O3`, `-std=gnu++23` and the include flags, and the
   container run had no compile error. A GCC-only flag added to the project later would stop clang-tidy with an unknown-argument error;
-  plan 036's warning flags (`-Wall -Wextra -Wpedantic`, `-Werror=deprecated-declarations`) are ones clang knows, and M11 and M12 are
+  plan warnings-as-errors's warning flags (`-Wall -Wextra -Wpedantic`, `-Werror=deprecated-declarations`) are ones clang knows, and M11 and M12 are
   where this plan shows the gate surviving the one that matters.
-- **The override is inert until plan 036 (D10).** A flag that nothing exercises rots, so M11 simulates the build carrying
+- **The override is inert until plan warnings-as-errors (D10).** A flag that nothing exercises rots, so M11 simulates the build carrying
   `-Werror=deprecated-declarations` and M12 removes the override, and `test_clang_tidy_module` asserts it is in the arguments.
 - **A file no target compiles is outside the gate** (D9), where flywheel-dag's glob analyses it with inferred flags. It is also outside the
   build.
@@ -384,7 +385,7 @@ first comment equal what the gate printed on both platforms (any that differ are
 
 - **Clearing the 329 sites**: [#46](https://github.com/tomlin256/cryptocogs/issues/46), in a fresh session. #38's two parts stay with
   #38 until its ABI question is answered.
-- **The build's own warnings as errors**: [#47](https://github.com/tomlin256/cryptocogs/issues/47), plan 036, written after this plan
+- **The build's own warnings as errors**: [#47](https://github.com/tomlin256/cryptocogs/issues/47), plan warnings-as-errors, written after this plan
   is done (D10). Nothing here changes a compile flag.
 - **A CI job** (D4), **wider checks** (D3), and **Include Cleaner**.
 - **Presets for the gate** (D5), and a gate in the sanitizer trees: it works there but proves nothing the debug tree does not.
@@ -408,7 +409,7 @@ first comment equal what the gate printed on both platforms (any that differ are
 
 | Step | Status | Notes |
 |---|---|---|
-| 0 Approval | Done | Proposed in `1217ac6`, linked from #34. Rob approved on 2026-11-05 with D10 changed (override stays; the build's warnings as errors are #47, plan 036 after this). #46 opened for the 329 findings and linked from #34 and #38; #47 opened for warnings as errors. |
+| 0 Approval | Done | Proposed in `1217ac6`, linked from #34. Rob approved on 2026-11-05 with D10 changed (override stays; the build's warnings as errors are #47, plan warnings-as-errors after this). #46 opened for the 329 findings and linked from #34 and #38; #47 opened for warnings as errors. |
 | 1 Start from green | Done | No commit. Mac, `debug-macos-arm64`: configure prints only the two CMake deprecation notices that #26 tracks (backward-cpp, CLI11) and exits 0, the build was up to date, ctest 521 of 521 in 36 s. Container, `debug-linux-arm64`: the same two notices, the build recompiled the two newest tests with no compiler warning in 1 min 50 s, ctest 521 of 521 in 12 s, and its compile database now has all 77 units. |
 | 2 The module, test first | Done | `build: add cmake/cryptocogs_clang_tidy.cmake and the test that holds it (step 2/6)`. `test_clang_tidy_module` was red first (the module did not exist), then green in 0.2 s. 42 hand-made mutants of the module, each run through the test on a scratch copy, are all killed by the assertion meant to catch them. The first pass left two alive, the root's `NORMAL_PATH` dropped in `test_name` and in `select`, because no case spelled the root with dot segments; two (`/x/../r/.`) were added and both are killed. Mac: configure output identical to Step 1's, build up to date with no warning, ctest 522 of 522 in 21 s. Container: the same, 522 of 522 in 24 s. |
 | 3 The configuration and the gate | Done | `build: add .clang-tidy and the opt-in clang_tidy_ tests (step 3/6)`. **Gate off:** configure output identical to Step 1's, build with no warning, ctest 524 of 524, `ctest -N` lists no `clang_tidy_` test, and the compile database is byte-identical to the one before. **Gate on, Mac** (`debug-macos-arm64`): 83 registered, 607 in all; the six proofs pass; 5 units green and 72 red, twice, identically, in 20 s at `-j8`; the gate's own log digests to 329 sites, no `clang-diagnostic`, and no red unit without a finding. A Crypto.com-only tree registers 31 and a benchmarks tree 90, and `clang_tidy_units` passes in both. A tool no host has stops the configure with `CRYPTOCOGS_CLANG_TIDY=<value> is not a command or a path this host can run`, and so do the tests off. **The editor:** an LSP probe of Homebrew clangd 23.1.4 over 145 files of a scratch copy publishes the same 101 hints with `.clangd`'s list gone and `.clang-tidy` in place as with the list and no `.clang-tidy`, and 32 with neither (clangd's own 26 `unused-includes` and the six `-Wunused-result`): clangd reads `.clang-tidy`. **Hand-made changes**, each on a scratch copy: M1 to M12 fail what the table says (M1: 77 units red; M2 and M4: 38 red; M3: the units unchanged; M5: 0 red, the vacuity; M6: the two green includers turn red and exactly the 11 includers report the seed; M11: unchanged, all 127 database entries carrying the flag; M12: 65 units with `clang-diagnostic-deprecated-declarations`); and C1 to C12 (`.clang-tidy`, `.clangd`, the root) and W1 to W17 (the module's registration and the root) fail `test_clang_tidy_config` and `test_clang_tidy_wiring`. **Differs from the plan:** M10 found the walk's directory rules redundant and not enough: a dependency named into another tree's `_deps` inside the checkout (what the wiring test's real-root case does) is under the root and not under its own build tree. The walk now recurses everywhere and `select` drops anything under a `_deps`, so M10 is three changes (10a to 10c); the wiring test gained that real-root case (gate on, over the real targets, so the root's own call is exercised in every tree), and W17 survived until it also read `CTestTestfile.cmake` (ctest finds a bare command name on its PATH, so the listing cannot tell a resolved tool); and `test_clang_tidy_config` holds that the call follows the root's last `add_subdirectory`. |
@@ -424,7 +425,7 @@ default, it registers none, and the default build, `ctest` and CI are unchanged 
 the Mac, 524 in the container, and 524 in CI (run 42029447037, Linux x86_64, GCC 15.2). The gate is not enabled anywhere: no CI job, no
 preset, and the variable is off in both trees. Its findings are the baseline in
 [#46](https://github.com/tomlin256/cryptocogs/issues/46), 329 sites with 72 of the 77 units red, and the build's own warnings as errors
-are [#47](https://github.com/tomlin256/cryptocogs/issues/47), plan 036, to be written next. Pushed as `e6ee97b` (step 2), `a94b0e1`
+are [#47](https://github.com/tomlin256/cryptocogs/issues/47), plan warnings-as-errors, to be written next. Pushed as `e6ee97b` (step 2), `a94b0e1`
 (step 3) and the step 6 commit.
 
 Where the steps differ from the text above, which was left as written where it is history:
@@ -461,7 +462,7 @@ What this does not settle:
 
 - **The 329 sites**: [#46](https://github.com/tomlin256/cryptocogs/issues/46), planned and done in a fresh session. #38's ABI question about
   the 14 `performance-enum-size` sites comes first for those.
-- **The build's warnings as errors** (D10): [#47](https://github.com/tomlin256/cryptocogs/issues/47), plan 036: nine warnings in two
+- **The build's warnings as errors** (D10): [#47](https://github.com/tomlin256/cryptocogs/issues/47), plan warnings-as-errors: nine warnings in two
   files today (six are #24), the placement of the flags across a root and a `tests/` that both fetch dependencies, a test that holds
   both halves, and CI turning the option on. It needs your approval as a plan before any of it starts.
 - **A CI job** (D4) and **wider checks** (D3), once the gate is green.

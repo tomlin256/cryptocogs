@@ -1,5 +1,5 @@
 # check_warning_flags.cmake — test_warning_flags: the warning flags that cmake/cryptocogs_warnings.cmake gives the project's
-# own targets (plan 036, #47).
+# own targets (plan warnings-as-errors, #47).
 #
 # Run by ctest as
 #   cmake -DSOURCE_DIR=<repo> -P check_warning_flags.cmake

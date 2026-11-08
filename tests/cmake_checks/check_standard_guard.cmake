@@ -1,5 +1,5 @@
 # check_standard_guard.cmake — test_standard_guard: every public header refuses to compile below C++23, and
-# says why (plan 029).
+# says why (plan cmake4-cxx23).
 #
 # Run by ctest as
 #   cmake -DCXX=<compiler> -DINCLUDE_DIR=<repo>/include -DEXTRA_INCLUDE_DIRS=<dir>|<dir>... -DWORK_DIR=<dir>

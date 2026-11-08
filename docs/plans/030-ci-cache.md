@@ -1,4 +1,4 @@
-# Plan 030 — CI: cache the build
+# CI: cache the build
 
 **Status:** Done (2026-11-04). Rob approved the plan as written, so D1 to D5 stood at the defaults below, and approved pushing
 its commits to `main` and linking it from #37. The Outcome has the numbers, and the plan marks where a step changed it
@@ -143,7 +143,7 @@ env:
   and cannot be wrong. The second prefix lets a run that lands on the other CMake of the alternation (above) reuse
   a snapshot whose compiler is the same.
 - `CMakePresets.json` is unchanged: "a kind preset sets `CMAKE_BUILD_TYPE` and nothing else; CI adds its own flags"
-  (plan 028), and the launcher is CI's own.
+  (plan platform-build-dirs), and the launcher is CI's own.
 
 ## Decisions to confirm
 
@@ -242,7 +242,7 @@ says `Closes #37`.
 
 ## Not in this plan
 
-`paths:` filters, which became [plan 031](031-ci-skip-docs-only.md) (#40) after Rob asked for them while this plan ran;
+`paths:` filters, which became [plan ci-skip-docs-only](031-ci-skip-docs-only.md) (#40) after Rob asked for them while this plan ran;
 `concurrency` with `cancel-in-progress`; `timeout-minutes`; a sanitizer workflow; a macOS leg; the slow and variable apt
 step (#41).
 
@@ -287,7 +287,7 @@ step (#41).
 | D2a, dispatch: CMake 4.4.4, `deps` miss | 41881271159 | 57.8 s | 27.1 s | 3.6 s | 8.8 s |
 | D2b, dispatch: CMake 4.4.4, `deps` miss | 41881275977 | 81.8 s | 35.0 s | 11.8 s | 12.1 s |
 | **D3, dispatch: CMake 4.4.4, `deps` hit** | 41881778529 | **35.0 s** | **1.7 s** | 3.9 s | 12.1 s |
-| A real commit, plan 031 Step 1, which edits `tests/CMakeLists.txt`: `deps` miss, `8860993` | 41883029251 | 69.1 s | 32.5 s | 4.7 s | 12.9 s |
+| A real commit, plan ci-skip-docs-only Step 1, which edits `tests/CMakeLists.txt`: `deps` miss, `8860993` | 41883029251 | 69.1 s | 32.5 s | 4.7 s | 12.9 s |
 
 The first three rows are read from the API's step timings. The two ccache runs are read from their job logs (first to last
 line, and the gaps between step headers), because GitHub's displayed status of both stayed `queued` long after their logs
@@ -337,7 +337,7 @@ D3's 35 s is the floor for an unchanged tree. A commit that edits a widely inclu
 header recompiles its dependents, and one that edits `CMakeLists.txt` or `tests/CMakeLists.txt` misses the `deps-` key once
 (about 25 s of clones), because the key hashes whole files and `tests/CMakeLists.txt` also registers every test.
 
-**The first real commit after them (run E).** Plan 031's Step 1 added a test, so it edited `tests/CMakeLists.txt`, which is in the
+**The first real commit after them (run E).** Plan ci-skip-docs-only's Step 1 added a test, so it edited `tests/CMakeLists.txt`, which is in the
 `deps-` key: the key missed once, Configure took 32.5 s with its seven clones, and the dependencies were compiled through
 ccache. ccache itself hit all 125 compiles, because the edit changed no compile, and Build took 4.7 s. The job took 69.1 s and
 ctest passed 505 of 505, the two new checks included. A commit that edits a widely included header would recompile its

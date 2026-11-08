@@ -236,7 +236,7 @@ TEST(BinanceAuth, RejectsNonHmacAlgorithm) {
     EXPECT_NO_THROW(BinanceAuth(creds).sign(req));
 }
 
-// ── BinanceCredentials::from_file — TOML loader (plan 021) ───────────────────
+// ── BinanceCredentials::from_file — TOML loader (plan credentials-from-file) ───
 
 TEST(BinanceCredentialsFromFile, LoadsTomlAndPreservesDefaults) {
     namespace fs = std::filesystem;

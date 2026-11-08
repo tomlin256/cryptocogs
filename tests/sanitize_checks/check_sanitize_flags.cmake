@@ -1,5 +1,5 @@
 # check_sanitize_flags.cmake — test_sanitize_flags: the CRYPTOCOGS_SANITIZE mode mapping in
-# cmake/cryptocogs_sanitize.cmake (plan 032).
+# cmake/cryptocogs_sanitize.cmake (plan sanitizer-option-and-presets).
 #
 # Run by ctest as
 #   cmake -DSOURCE_DIR=<repo> -P check_sanitize_flags.cmake

@@ -1,5 +1,5 @@
 # check_clang_tidy_wiring.cmake — test_clang_tidy_wiring: cryptocogs_clang_tidy_add_tests() registers the clang-tidy tests, and
-# the root CMakeLists.txt refuses a tool it cannot run (plan 035, #34).
+# the root CMakeLists.txt refuses a tool it cannot run (plan clang-tidy-opt-in-test-step, #34).
 #
 # Run by ctest as
 #   cmake -DSOURCE_DIR=<repo> -DSCRATCH_ROOT=<dir> -DNLOHMANN_JSON_SRC=<dir> -DTOMLPLUSPLUS_SRC=<dir> -DIXWEBSOCKET_SRC=<dir>

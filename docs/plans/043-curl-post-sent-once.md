@@ -1,4 +1,4 @@
-# Plan 043 — `CurlHttpClient::perform` never lets libcurl send a POST or a DELETE twice
+# `CurlHttpClient::perform` never lets libcurl send a POST or a DELETE twice
 
 **Status:** Done (2026-11-06), released as [v2.1.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.1.0) (2026-11-06). Rob
 approved the plan as written, so D1 to D4 stood at the defaults below (no release), and then asked for the release. Steps 0 to 4 are
@@ -6,14 +6,14 @@ recorded in the *Outcome*.
 
 Closes [#58](https://github.com/tomlin256/cryptocogs/issues/58).
 
-**Follows:** [plan 041](041-curl-handle-reset.md), which keeps connections across the handle reset (that is how a client comes to have a
-connection to reuse), and [plan 042](042-curl-timeouts.md), whose check of the failures other than a timeout found this.
+**Follows:** [plan curl-handle-reset](041-curl-handle-reset.md), which keeps connections across the handle reset (that is how a client comes to have a
+connection to reuse), and [plan curl-timeouts](042-curl-timeouts.md), whose check of the failures other than a timeout found this.
 **Not here:** the words of the error when a connection closes with no reply ([#57](https://github.com/tomlin256/cryptocogs/issues/57),
 which this plan makes more pressing: D3); a way for a read-only POST to keep connection reuse (D2); a release (D4).
 
 ## Problem
 
-`CurlHttpClient` keeps connections open between calls: plan 041 kept them across `curl_easy_reset` on purpose. When libcurl writes a
+`CurlHttpClient` keeps connections open between calls: plan curl-handle-reset kept them across `curl_easy_reset` on purpose. When libcurl writes a
 request on a reused connection and the connection ends before a single byte of reply, it takes the connection for one that went stale
 while idle, makes a new one and writes the same request again. Its own log says so: `Connection died, retrying a fresh connect (retry
 count: 1)`. `perform` returns the second attempt's reply, and nothing in the result says there were two. The server may have received and
@@ -66,7 +66,7 @@ The variant block is the only difference between the programs behind the `HEAD` 
   connection when done with the transfer": it acts *after* a transfer, which is why it cannot stop a request from riding a connection
   that an earlier GET left.
 - **The option is not sticky.** `curl_easy_reset` clears it, and row F shows it: the GETs after a POST and a DELETE still reuse a
-  connection. It is set on each call, like the timeouts (plan 042).
+  connection. It is set on each call, like the timeouts (plan curl-timeouts).
 - **Connections do not pile up.** Ten POSTs leave 5 connections open, on both systems: libcurl's cache limit (`CURLOPT_MAXCONNECTS`,
   default 5, and at the limit "curl closes the oldest one in the cache").
 - **Deterministic.** Rows A, B, C, E, F and G, 100 runs each per variant on the Mac: one distinct output per variant (600 scenario runs
@@ -112,7 +112,7 @@ fixture (libcurl initialised once per suite):
    `/order…` only on a connection that has carried a request before (row A above). Each row: `perform` returns 200, the server read two
    requests, and the second is on a connection other than the first's, with `served_before == 0`. The after-a-GET rows are what
    `FORBID_REUSE` alone would fail.
-4. `GetsKeepSharingOneConnection`: three GETs, `connections() == 1`. Passes on `HEAD`; it holds plan 041's reuse against a fix that
+4. `GetsKeepSharingOneConnection`: three GETs, `connections() == 1`. Passes on `HEAD`; it holds plan curl-handle-reset's reuse against a fix that
    gives up on it.
 5. `AMixOfMethodsGivesPostAndDeleteAConnectionEach`: `GET`, `POST`, `GET`, `DELETE`, `GET`: `connections() == 3`, and the POST and the
    DELETE each have `served_before == 0`. It does not say which cached connection a GET reuses, which is libcurl's choice.
@@ -131,7 +131,7 @@ Defaults stand if you approve the plan as written.
   connection causes, each of them an order of unknown outcome, stop happening to orders. The cost is the handshake.
   *Alternatives:* (i) `FORBID_REUSE` as well, which closes the order's connection at once (nothing idle is left by orders; a GET after an
   order cannot use its connection); it changes nothing about the guarantee, so I left it out, and you can say otherwise. (ii)
-  `FORBID_REUSE` instead: rejected by row G. (iii) The option on every method, or reuse off: rejected by row E, since it undoes plan 041
+  `FORBID_REUSE` instead: rejected by row G. (iii) The option on every method, or reuse off: rejected by row E, since it undoes plan curl-handle-reset
   for market-data polling. (iv) Keep reuse for orders and veto libcurl's second connection once the request has gone out
   (`CURLOPT_OPENSOCKETFUNCTION` and a debug callback): saves the handshake, but it needs `CURLOPT_VERBOSE` to learn that the request went
   out, depends on libcurl calling the two callbacks in that order, was not measured, and turns every stale-connection race into a failed
@@ -202,7 +202,7 @@ and `clang-tidy` runs of the commit green (GCC 15.2, clang-tidy 23).
 twice by the transport; the cost; and that a call which fails after the request went out may have been acted on. `CLAUDE.md`: the
 structure tree (`keepalive_server.hpp`; the `http_client.cpp` and `test_http_client.cpp` lines), *Running tests* (563 → 568 gtests, 581 →
 586 in ctest, the Crypto.com-only line 153 → 158 gtests and 170 → 175, 14 → 19 `CurlHttpClient` tests), the *Test suite breakdown* row,
-and the *Coding conventions* bullets: plan 042's last sentence (which says a POST can reach the server twice, #58) becomes a pointer, and a
+and the *Coding conventions* bullets: plan curl-timeouts's last sentence (which says a POST can reach the server twice, #58) becomes a pointer, and a
 new bullet records what was done. Counts are **measured** (`ctest -N` in the default tree and a Crypto.com-only tree with the gate on); the
 gate's 95 units should not change (no new `.cpp`). This plan's *Outcome*. The gate turned off in the tree again. Full ctest, because
 `test_cmake_floor` reads the README. *Done when:* pushed, and #58 closed by hand (`completed`) with a comment that lists the commits, the
@@ -223,7 +223,7 @@ Bump the version in `CMakeLists.txt` and the `GIT_TAG` example in `README.md`, f
 
 - **`FORBID_REUSE` on POST and DELETE.** Closes a connection after the transfer, so it does not stop a POST from riding one that a GET
   left (row G measured: sent twice).
-- **The option on every method, or no reuse at all.** A GET is harmless to repeat, and plan 041 kept connections for it (row E).
+- **The option on every method, or no reuse at all.** A GET is harmless to repeat, and plan curl-handle-reset kept connections for it (row E).
 - **A short `CURLOPT_MAXAGE_CONN` for POST and DELETE.** It narrows the window in which a reused connection is old; it does not close it.
 - **Detecting the retry instead of preventing it** (`CURLINFO_NUM_CONNECTS`, or counting `CURLINFO_HEADER_OUT` events in a debug callback).
   It can only report after the second send, and the duplicate is the harm. And `NUM_CONNECTS` cannot tell: measured, the retried POST of
@@ -275,7 +275,7 @@ Steps 0 to 4 are done (2026-11-06); Steps 3 and 4 are at the end of this section
 | 2 | `7ae151c` | `README.md`, `CLAUDE.md` and this *Outcome*; #58 closed by hand after the push |
 | 3 | `a46fbf8` | the record of the sanitizer runs |
 | 4 | `cec63b5` | `chore: bump version to 2.1.0`; the annotated tag `v2.1.0` on it and the GitHub release (Latest) |
-| 4 | the commit that adds the last section below | the record of the release, and the status lines of plans 038, 041 and 042 |
+| 4 | the commit that adds the last section below | the record of the release, and the status lines of plans curl-header-list-append-failure, curl-handle-reset and curl-timeouts |
 
 ### Red, then green
 
@@ -315,9 +315,9 @@ crashed. Every row is what the plan predicted.
 
 (d) is why test 3 has rows after a GET: `FORBID_REUSE` closes a connection after its transfer, so a POST that follows a GET still rides the
 GET's, and only those rows (and the sequence of test 5) see it. (e) and (f) are why test 4 exists: without it, an option on every method
-would pass tests 1 to 3 and undo plan 041 for market-data polling. (g) is D1's alternative (i): the guarantee is the same and no test can
-tell the two apart, nor should one. The nine `CurlHttpClientPerform` tests that existed before this plan were not run row by row; the
-full suite is the checkpoint below.
+would pass tests 1 to 3 and undo plan curl-handle-reset for market-data polling. (g) is D1's alternative (i): the guarantee is the same and
+no test can tell the two apart, nor should one. The nine `CurlHttpClientPerform` tests that existed before this plan were not run row by
+row; the full suite is the checkpoint below.
 
 ### Repeated
 
@@ -340,7 +340,7 @@ Each new test 200 times in a row, `ctest --repeat until-fail:200`, as ctest runs
 The gate's units did not change, as planned: no `.cpp` was added (88 in a default tree, 95 with the benchmarks, 35 in a Crypto.com-only
 one). `CLAUDE.md` carries the new numbers: 563 → 568 gtests and 581 → 586 in ctest; the Crypto.com-only line 153 → 158 gtests and 170 →
 175; 14 → 19 `CurlHttpClient` tests; and, for the structure tree, the `http_client.cpp` and `test_http_client.cpp` lines and the new
-`keepalive_server.hpp`, the `test_http_client` rows of the two test tables, and the *Coding conventions*: plan 042's bullet no longer says
+`keepalive_server.hpp`, the `test_http_client` rows of the two test tables, and the *Coding conventions*: plan curl-timeouts's bullet no longer says
 that a POST can reach the server twice, and a new bullet records this plan. `README.md` has a `### REST — connections` subsection after
 *timeouts*.
 
@@ -356,7 +356,7 @@ that a POST can reach the server twice, and a new bullet records this plan. `REA
 - **The Linux red half was run on its own.** The plan called the full 586-of-586 run in `ubuntu-dev` "also the Linux red-then-green
   evidence"; a green run is only the green half. The five tests were run against the transport without the fix in the same container
   (the table above), then with it.
-- **The Crypto.com-only tree was run, not only listed**: 210 of 210, where plan 042 recorded such a tree as built and listed with
+- **The Crypto.com-only tree was run, not only listed**: 210 of 210, where plan curl-timeouts recorded such a tree as built and listed with
   `ctest -N`.
 - **The first version of `KeepAliveServer::serve` had two identical branches** that each closed the connection (the editor's clang-tidy,
   `bugprone-branch-clone`); they became one condition, `drop_(request) || !send_all(...)`, before the first build.
@@ -374,7 +374,7 @@ Run on `7ae151c`, which has the code of `1a34a3e`. No finding, so no issue.
 | CI on the documentation commit `7ae151c`: `release-linux-x86_64`, `clang-tidy` | 586 of 586 (16.1 s of tests; the job took 43 s), 95 of 95 (125.6 s of tests; 2 min 59 s) |
 
 The 589 and 588 are the 586 and the sanitizer's own tests (the canaries and the coverage test). The two Mac runs were serial, as the
-commands in `CLAUDE.md` are written, which is why their times are longer than the parallel runs of plan 042. TSan was the one the plan
+commands in `CLAUDE.md` are written, which is why their times are longer than the parallel runs of plan curl-timeouts. TSan was the one the plan
 watched: the server thread of `KeepAliveServer` and the test thread share the request list and the connection count, behind one mutex,
 and every test that uses it passed under TSan on the Mac and in CI. Each of the five new tests passes under both sanitizers on the Mac.
 Under TSan on the Mac every `CurlHttpClientPerform` test takes about 2.1 s, the nine that existed before this plan included; the
@@ -383,9 +383,10 @@ tests in CI and reported nothing.
 
 ### Release (Step 4)
 
-Rob asked for it (*"Do the release"*), so D4's "yes" ran, with the version that plans 042 and 043 named: `v2.1.0`, a minor release, for the
-fixes of plans 038 (#48), 041 (#51), 042 (#56) and this one (#58), none of which was in a tag. The bump commit `cec63b5` changes
-`project(CRYPTOCOGS VERSION …)` in `CMakeLists.txt` and the `GIT_TAG` example in `README.md`, and nothing else.
+Rob asked for it (*"Do the release"*), so D4's "yes" ran, with the version that plans curl-timeouts and curl-post-sent-once named: `v2.1.0`,
+a minor release, for the fixes of plans curl-header-list-append-failure (#48), curl-handle-reset (#51), curl-timeouts (#56) and this one
+(#58), none of which was in a tag. The bump commit `cec63b5` changes `project(CRYPTOCOGS VERSION …)` in `CMakeLists.txt` and the `GIT_TAG`
+example in `README.md`, and nothing else.
 
 | Check | Result |
 |---|---|
@@ -396,15 +397,15 @@ fixes of plans 038 (#48), 041 (#51), 042 (#56) and this one (#58), none of which
 | the tag | annotated, `v2.1.0` on `cec63b5`, pushed after both runs were green; the GitHub release is not a draft and is Latest |
 
 - **The notes name more than the plan said.** Step 4 named #51, #56 and #58. The notes also name #48, which was fixed after v2.0.0 (plan
-  038) while v2.0.0's own notes list it as still open, and, under *Also in this tag*, #49, #50 and #52 (CI and an example, not the
-  library).
+  curl-header-list-append-failure) while v2.0.0's own notes list it as still open, and, under *Also in this tag*, #49, #50 and #52 (CI and
+  an example, not the library).
 - **The layout.** `CurlHttpClient` grows from 40 to 56 bytes (Apple clang 21, libc++, arm64) because it holds its `HttpTimeouts`. The four
-  REST clients keep their size (48, 48, 48 and 56): they hold the transport through a `std::shared_ptr`. Plan 042's D6 chose a minor
+  REST clients keep their size (48, 48, 48 and 56): they hold the transport through a `std::shared_ptr`. Plan curl-timeouts's D6 chose a minor
   version for "a new defaulted constructor parameter" and did not measure this, and v2.0.0 was a major release for a layout change (the 14
   enums). The notes say it and tell a consumer to rebuild what includes the headers, as v2.0.0's did. The number stands, since a tag is not
   moved; `CurlHttpClient` is the one public class whose size changed, and the REST clients construct it for the caller.
 - **Two tests were left out of the local runs.** While this was done the working tree held changes that are not part of this plan and
-  were not committed with it: `tests/doc_checks/` and an edit of `tests/CMakeLists.txt` (a size budget for `CLAUDE.md`, plan 044, #60).
+  were not committed with it: `tests/doc_checks/` and an edit of `tests/CMakeLists.txt` (a size budget for `CLAUDE.md`, plan claude-md-trim, #60).
   Its `test_claude_md_budget` fails by design on today's `CLAUDE.md` (159,987 characters against 38,000). The two budget tests were
   excluded from the local ctest runs above (588 tests with them, 586 without, one red), and the bump commit was made with
   `git commit -o CMakeLists.txt README.md`, so it holds none of that work. CI ran on the commit alone.

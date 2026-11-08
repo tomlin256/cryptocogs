@@ -34,7 +34,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(CLI11)
 
 #-------------------------------------------------------------------------------
-# This project's own warning flags (plan 036)
+# This project's own warning flags (plan warnings-as-errors)
 #
 # Here, after the last fetch above and before the first target below: add_compile_options reaches only the targets created after
 # it, in this directory and in unit/, so none of the dependencies above gets the flags and every target below does. That is why
@@ -77,8 +77,8 @@ if(CRYPTOCOGS_BUILD_KRAKEN)
     target_link_libraries(kraken_example kraken ixwebsocket spdlog::spdlog CLI11::CLI11 example_backward)
 
     # The one example that is run: its stub transport prints the WebSocket frames it builds, and nothing else looked at them
-    # (plan 039, #50 and #52). Registered here, so a tree without the Kraken adapter has no example and no test. The check needs
-    # the example built, as every test needs its executable.
+    # (plan kraken-example-ws-frames, #50 and #52). Registered here, so a tree without the Kraken adapter has no example and no
+    # test. The check needs the example built, as every test needs its executable.
     add_test(NAME test_kraken_example
              COMMAND ${CMAKE_COMMAND}
                      -DEXAMPLE=$<TARGET_FILE:kraken_example>
@@ -159,7 +159,7 @@ endif()
 add_subdirectory(unit)
 
 #-------------------------------------------------------------------------------
-# Build-tree naming (plan 028): plain cmake -P scripts, so they run in every tree
+# Build-tree naming (plan platform-build-dirs): plain cmake -P scripts, so they run in every tree
 #-------------------------------------------------------------------------------
 
 # The platform tag and the name check in cmake/cryptocogs_platform.cmake, against a fixed table.
@@ -191,7 +191,7 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 endif()
 
 #-------------------------------------------------------------------------------
-# What the project asks of its builders and promises its consumers (plan 029): plain cmake -P scripts
+# What the project asks of its builders and promises its consumers (plan cmake4-cxx23): plain cmake -P scripts
 #-------------------------------------------------------------------------------
 
 # One CMake floor. The root CMakeLists.txt states it, and every other minimum in the checkout and the
@@ -251,7 +251,7 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR AND CRYPTOCOGS_INSTALL)
 endif()
 
 #-------------------------------------------------------------------------------
-# What CI caches (plan 030): a plain cmake -P script
+# What CI caches (plan ci-cache): a plain cmake -P script
 #-------------------------------------------------------------------------------
 
 # The workflow restores the fetched dependencies under a key that hashes the files pinning them, and on a hit it
@@ -266,13 +266,13 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 endif()
 
 #-------------------------------------------------------------------------------
-# What starts CI (plan 031): a plain cmake -P script
+# What starts CI (plan ci-skip-docs-only): a plain cmake -P script
 #-------------------------------------------------------------------------------
 
 # A workflow does not run for a push or a pull request that changes only the paths in its paths-ignore lists. Those
 # must be documentation: an ignored file that a build or a check reads can break in a change that no run looked at.
-# This holds the lists of every workflow that a push or a pull request starts to the checkout, and to each other (plan 040).
-# Top level only, where the checkout it reads is this project's own.
+# This holds the lists of every workflow that a push or a pull request starts to the checkout, and to each other (plan
+# clang-tidy-ci-job). Top level only, where the checkout it reads is this project's own.
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
     add_test(NAME test_ci_paths
              COMMAND ${CMAKE_COMMAND}
@@ -281,7 +281,7 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 endif()
 
 #-------------------------------------------------------------------------------
-# What the clang-tidy workflow runs (plan 040): a plain cmake -P script
+# What the clang-tidy workflow runs (plan clang-tidy-ci-job): a plain cmake -P script
 #-------------------------------------------------------------------------------
 
 # The workflow cannot be run here, so this holds what a run would find out late or not at all: that it names the LLVM major the
@@ -295,7 +295,7 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 endif()
 
 #-------------------------------------------------------------------------------
-# CLAUDE.md stays small (plan 044, cryptocogs#60): plain cmake -P scripts
+# CLAUDE.md stays small (plan claude-md-trim, cryptocogs#60): plain cmake -P scripts
 #-------------------------------------------------------------------------------
 
 # Claude Code loads the root CLAUDE.md whole at the start of every session, and a CLAUDE.md in a subdirectory when it first reads a
@@ -317,7 +317,7 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 endif()
 
 #-------------------------------------------------------------------------------
-# Sanitizers (plan 032): plain cmake -P scripts
+# Sanitizers (plan sanitizer-option-and-presets): plain cmake -P scripts
 #-------------------------------------------------------------------------------
 
 # The CRYPTOCOGS_SANITIZE mode -> options mapping in cmake/cryptocogs_sanitize.cmake. A plain script, so it runs in every
@@ -386,7 +386,7 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR AND
 endif()
 
 #-------------------------------------------------------------------------------
-# clang-tidy, opt in (plan 035, #34): plain cmake -P scripts
+# clang-tidy, opt in (plan clang-tidy-opt-in-test-step, #34): plain cmake -P scripts
 #-------------------------------------------------------------------------------
 
 # The functions in cmake/cryptocogs_clang_tidy.cmake that resolve the tool, build its arguments, name the tests and choose
@@ -432,7 +432,7 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 endif()
 
 #-------------------------------------------------------------------------------
-# Compiler warnings (plan 036, #47): plain cmake -P scripts
+# Compiler warnings (plan warnings-as-errors, #47): plain cmake -P scripts
 #-------------------------------------------------------------------------------
 
 # The mapping in cmake/cryptocogs_warnings.cmake: which flags the project's own targets get for a compiler, for the top level or
@@ -446,11 +446,11 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/warning_checks/check_warning_flags.cmake)
 endif()
 
-# The flags reach the project's own targets and nothing else (plan 036, #47). It configures the real root into scratch trees, over
-# the dependency sources this build already fetched, so it needs no network and compiles nothing, and reads each tree's
-# compile_commands.json: with no option and with the other value, as a subproject of a parent project, and (where this build has
-# google benchmark) with the benchmarks. It is given this tree's compiler and generator, so that what it classifies is what this
-# tree builds. Top level only.
+# The flags reach the project's own targets and nothing else (plan warnings-as-errors, #47). It configures the real root into
+# scratch trees, over the dependency sources this build already fetched, so it needs no network and compiles nothing, and reads
+# each tree's compile_commands.json: with no option and with the other value, as a subproject of a parent project, and (where this
+# build has google benchmark) with the benchmarks. It is given this tree's compiler and generator, so that what it classifies is
+# what this tree builds. Top level only.
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
     # The root fetches google benchmark after this directory is processed, so its sources are named from the cache here: the
     # override if the tree has one, else where FetchContent puts them.

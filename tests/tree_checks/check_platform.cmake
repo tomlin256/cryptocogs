@@ -1,5 +1,5 @@
 # check_platform.cmake — test_platform_name: the platform tag and the build-tree name check in
-# cmake/cryptocogs_platform.cmake (plans 028 and 032).
+# cmake/cryptocogs_platform.cmake (plans platform-build-dirs and sanitizer-option-and-presets).
 #
 # Run by ctest as `cmake -DSOURCE_DIR=<repo> -P check_platform.cmake`. It needs no configure and no
 # build tree, so it finishes in milliseconds, and it holds a fixed table, so it does not depend on the

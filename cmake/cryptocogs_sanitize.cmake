@@ -1,4 +1,4 @@
-# cryptocogs_sanitize.cmake — the CRYPTOCOGS_SANITIZE modes (plan 032, #30).
+# cryptocogs_sanitize.cmake — the CRYPTOCOGS_SANITIZE modes (plan sanitizer-option-and-presets, #30).
 #
 # One pure function maps a mode to the options that switch it on. It sets two variables and touches no global
 # state, so tests/sanitize_checks/check_sanitize_flags.cmake (test_sanitize_flags) runs it under `cmake -P` in

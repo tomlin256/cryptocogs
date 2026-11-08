@@ -1,4 +1,5 @@
-# check_kraken_example.cmake — test_kraken_example: the WebSocket frames that kraken_example prints (plan 039, #50 and #52).
+# check_kraken_example.cmake — test_kraken_example: the WebSocket frames that kraken_example prints (plan
+# kraken-example-ws-frames, #50 and #52).
 #
 # Run by ctest as `cmake -DEXAMPLE=<kraken_example> -DGOLDEN=<kraken_example_ws_frames.txt> -P check_kraken_example.cmake`.
 # The demo's transport is a stub: ws_send prints each frame as "[WS SEND] <json>" and sends nothing, so what the demo builds is

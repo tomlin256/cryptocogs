@@ -1,5 +1,5 @@
 # check_package_version.cmake — test_package_version: which find_package version requests the package
-# accepts (plan 029).
+# accepts (plan cmake4-cxx23).
 #
 # Run by ctest as
 #   cmake -DVERSION_FILE=<build>/cryptocogsConfigVersion.cmake -DPROJECT_VERSION=<version>

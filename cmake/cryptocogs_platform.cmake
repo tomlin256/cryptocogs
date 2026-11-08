@@ -1,5 +1,6 @@
 # cryptocogs_platform.cmake — which platform a build tree is for, and the check that a tree is not
-# named for another platform, nor for a sanitizer it is not configured for (plans 028 and 032).
+# named for another platform, nor for a sanitizer it is not configured for (plans platform-build-dirs and
+# sanitizer-option-and-presets).
 #
 # A CMake build tree belongs to one OS and one architecture: it records the absolute path of its
 # source, the compiler, the target and the flags. One checkout is built on the Mac and in a Linux

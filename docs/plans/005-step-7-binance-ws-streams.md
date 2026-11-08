@@ -1,12 +1,12 @@
-# Plan 005 — Step 7: Binance WebSocket market streams
+# Step 7: Binance WebSocket market streams
 
 **Status**: Done — implemented in commits `7d461fc` (7.1), `5409a69` (7.2), `da8eda5` (7.3), `b833587` (7.4), `195d482` (7.5); suite 255 → 277 green; example live-verified against `stream.binance.com`
-**Parent**: [Plan 001, Step 7](001-multi-exchange-abstraction.md#step-7--binance-websocket-market-streams)
+**Parent**: [Plan multi-exchange-abstraction, Step 7](001-multi-exchange-abstraction.md#step-7--binance-websocket-market-streams)
 **Branch**: `feature/multi-exchange-abstraction`
 **Message formats**: [001-appendix-binance-message-formats.md §3 + §5](001-appendix-binance-message-formats.md)
-**Scaffold contract**: [Plan 001 §A2](001-multi-exchange-abstraction.md#a2-websocket-request-scaffold--typedwsrequestr-and-typedsubscriberequest)
+**Scaffold contract**: [Plan multi-exchange-abstraction §A2](001-multi-exchange-abstraction.md#a2-websocket-request-scaffold--typedwsrequestr-and-typedsubscriberequest)
 
-Implements plan 001 Step 7: a Binance market-stream client built entirely on
+Implements plan multi-exchange-abstraction Step 7: a Binance market-stream client built entirely on
 the existing `exchange::ws::ExchangeWsClient` — Binance contributes only a
 frame descriptor, push message types, a subscribe-request scaffold, and a
 factory. No changes to the generic client, transport, or reconnect machinery.
@@ -42,7 +42,7 @@ drive Binance streams with zero client changes.
    `exchange::ws::make_exchange_ws_client(url, binance_stream_frame_descriptor, eh)`
    via the existing common overload in `ix_ws_connection.hpp` — same as
    Kraken, where the URL overload deliberately lives in the common layer so
-   only callers that want the real transport pull in ixwebsocket. (Plan 001's
+   only callers that want the real transport pull in ixwebsocket. (Plan multi-exchange-abstraction's
    "`make_binance_stream_client(url)`" line is satisfied by this pair; adding
    a URL overload *inside* `ws_streams.hpp` would leak the ixwebsocket
    include into every user, which Kraken's layout deliberately avoids.)
@@ -52,7 +52,7 @@ drive Binance streams with zero client changes.
    `BaseWsResponse` subtypes (verified in `ws_client.inl`), so the ack maps:
    success ack `{"result":null,"id":N}` → `success=true`; error frame
    `{"error":{"code":C,"msg":M},"id":N}` → `success=false`,
-   `error="M"`. This is plan 001 §A2's "ok from result-present / no-error",
+   `error="M"`. This is plan multi-exchange-abstraction §A2's "ok from result-present / no-error",
    implemented through the existing type-dispatch — no client change.
 
 4. **Push `from_json` unwraps the combined-stream wrapper.**
@@ -65,7 +65,7 @@ drive Binance streams with zero client changes.
    delivers) and bare payloads (what the documented fixtures are).
 
 5. **Dispatch is descriptor-only — no Binance `identify_message`/
-   `MessageKind` classifier.** Plan 001 is explicit that the frame descriptor
+   `MessageKind` classifier.** Plan multi-exchange-abstraction is explicit that the frame descriptor
    is the non-negotiable piece and the richer caller-facing classifier is
    optional. Nothing needs one yet (`bookTicker`'s missing `"e"` field makes
    bare-payload classification ambiguous anyway — on the combined endpoint
@@ -122,7 +122,7 @@ drive Binance streams with zero client changes.
    avoid.
 
 10. **Out of scope**: user-data streams / listenKey (needs REST keepalive
-    plumbing — its own step), the WS API trading endpoint (plan 001 Step 8),
+    plumbing — its own step), the WS API trading endpoint (plan multi-exchange-abstraction Step 8),
     SUBSCRIBE batching (decision 6), `!ticker@arr` / `@depth@100ms`-style
     helpers (raw strings reach them), `LIST_SUBSCRIPTIONS`/`SET_PROPERTY`
     methods, a wired-up `WsReconnectSession` resubscribe demo (machinery
@@ -398,9 +398,9 @@ log with sensible fields.
 `feat: step 7.5 — Binance WS stream example (live-verified)`
 
 ### Wrap-up (after 7.5)
-"**Done**:" paragraph at the end of plan 001 Step 7 (commit trail, decisions,
+"**Done**:" paragraph at the end of plan multi-exchange-abstraction Step 7 (commit trail, decisions,
 test count); flip this plan to Done in `docs/plans.md` — separate
-`docs: mark plan 005 done` commit, per the plan-003/004 precedent.
+`docs: mark plan 005 done` commit, per the precedent of plans step-5-binance-rest-public and step-6-binance-rest-private.
 
 ---
 
@@ -432,14 +432,14 @@ test count); flip this plan to Done in `docs/plans.md` — separate
 - **Stream fixtures are pinned to the appendix, not live captures.** Streams
   are public, so a capture pass is possible — but the appendix shapes are
   Binance's own documented examples, and the live example (7.5) is the
-  drift detector. Same stance as plan 003's REST fixtures.
+  drift detector. Same stance as plan step-5-binance-rest-public's REST fixtures.
 - **Live verification depends on network reachability** of
-  `stream.binance.com` from the dev machine (plan 003's live REST runs
+  `stream.binance.com` from the dev machine (plan step-5-binance-rest-public's live REST runs
   succeeded, so assumed fine). If a subcommand fails live, that's a real
   error — stop and fix, not shrug.
 - **No reconnect/resubscribe wiring in this step.** `WsReconnectSession` is
   ready and Binance's ~24 h forced disconnect is real, but composing
-  session + resubscribe is caller policy (plan 001 assigns it to the
+  session + resubscribe is caller policy (plan multi-exchange-abstraction assigns it to the
   caller's `ConnectFn`). The example stays minimal, mirroring Kraken's.
 
 ### What "done" looks like

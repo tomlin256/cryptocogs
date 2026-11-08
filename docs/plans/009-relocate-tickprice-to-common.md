@@ -1,4 +1,4 @@
-# Plan 009 — Relocate `TickPrice` from the Kraken adapter to the common layer
+# Relocate `TickPrice` from the Kraken adapter to the common layer
 
 **Status**: Done — implemented in commits `77f6eec` (move) + the docs/wrap-up commit
 **Branch**: `feature/multi-exchange-abstraction`
@@ -104,7 +104,7 @@ proof it no longer depends on Kraken.
 ## Step 2 — Docs + wrap-up
 
 - Update `CLAUDE.md` per decision 5.
-- Flip plan 009 → Done (`docs/plans.md` + header). Final build + `ctest` sanity.
+- Flip plan relocate-tickprice-to-common → Done (`docs/plans.md` + header). Final build + `ctest` sanity.
 - **Checkpoint**: `docs: mark plan 009 done — TickPrice relocation`.
 
 ## Self-review — risks & assumptions

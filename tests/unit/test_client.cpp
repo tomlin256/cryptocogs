@@ -157,7 +157,7 @@ TEST(KrakenRestClient, PrivateExecute_PropagatesErrors) {
 }
 
 // ---------------------------------------------------------------------------
-// KrakenCredentials::from_file — TOML format (plan 021)
+// KrakenCredentials::from_file — TOML format (plan credentials-from-file)
 // ---------------------------------------------------------------------------
 
 TEST(CredentialsFromFile, LoadsTomlFile) {
@@ -221,7 +221,7 @@ TEST(KrakenRestClient, MalformedBodyFoldsIntoErrorResponse) {
 }
 
 // ---------------------------------------------------------------------------
-// Timeouts (plan 042, #56): the one test here that uses the real transport.
+// Timeouts (plan curl-timeouts, #56): the one test here that uses the real transport.
 // ---------------------------------------------------------------------------
 
 // The production constructor hands its HttpTimeouts to the transport. The

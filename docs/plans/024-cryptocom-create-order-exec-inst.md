@@ -1,7 +1,7 @@
-# Plan 024 — `exec_inst` (post-only) support on `CryptoComCreateOrderRequest`
+# `exec_inst` (post-only) support on `CryptoComCreateOrderRequest`
 
 **Status:** Done
-**Depends on:** [plan 020 — Crypto.com Exchange adapter](020-cryptocom-exchange-adapter.md) (Done)
+**Depends on:** [plan cryptocom-exchange-adapter — Crypto.com Exchange adapter](020-cryptocom-exchange-adapter.md) (Done)
 
 ## Motivation
 
@@ -50,7 +50,7 @@ already carries (per `test_cryptocom_auth.cpp`'s own header comment): *"No offic
 Crypto.com signature vector is published, so ... sign() is pinned by recomputing
 its documented digest assembly independently."* Adding `exec_inst` doesn't make
 signing any less verified than `side`/`price`/`quantity`/`time_in_force` are today
-— it's the same accepted risk class as the rest of plan 020, not a new one.
+— it's the same accepted risk class as the rest of plan cryptocom-exchange-adapter, not a new one.
 
 ## Scope
 
@@ -82,7 +82,7 @@ signing any less verified than `side`/`price`/`quantity`/`time_in_force` are tod
   — `params["exec_inst"] = *req.exec_inst` needs no manual array construction.
 - **Version bump: `0.5.2` → `0.5.3`** (purely additive — an unset `exec_inst`
   produces a byte-identical body to today, so this isn't the breaking-change class
-  plan 021 bumped a minor version for).
+  plan credentials-from-file bumped a minor version for).
 
 ## Steps
 
@@ -119,8 +119,8 @@ Each step ends with a checkpoint: full `cmake --build build` **and**
   description under "Crypto.com adapter reference" → REST table/prose; note the
   `EXEC_INST_POST_ONLY` constant.
 - `CMakeLists.txt`: bump `project(CRYPTOCOGS VERSION 0.5.2 ...)` → `0.5.3`.
-- Mark plan 024 **Done** in `docs/plans.md`; update
-  [plan 020](020-cryptocom-exchange-adapter.md)'s own text if it still says
+- Mark plan cryptocom-create-order-exec-inst **Done** in `docs/plans.md`; update
+  [plan cryptocom-exchange-adapter](020-cryptocom-exchange-adapter.md)'s own text if it still says
   exec_inst is omitted.
 - **Done:** full build + test green.
 

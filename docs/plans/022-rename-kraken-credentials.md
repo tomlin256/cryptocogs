@@ -1,4 +1,4 @@
-# Plan 022 — Rename Kraken `Credentials` → `KrakenCredentials`
+# Rename Kraken `Credentials` → `KrakenCredentials`
 
 ## Motivation
 
@@ -10,7 +10,7 @@ more than one exchange and inconsistent with the rest of the codebase (it alread
 has a `KrakenAuth`). Rename it to **`KrakenCredentials`**.
 
 This is a **breaking change** (accepted — consistent with the project's no-compat
--shim philosophy from plan 014, so **no deprecated alias** is kept).
+-shim philosophy from plan remove-compat-shim, so **no deprecated alias** is kept).
 
 ## Decision
 
@@ -40,7 +40,8 @@ and `read_toml_credentials`, so the rename is a safe whole-word replace.
   **generic/conceptual** (the pattern for any new exchange, e.g.
   `build(const <Exchange>Credentials&)`), not the Kraken type — left as-is.
   `001-appendix-migration-guide.md` and the other **historical plan docs**
-  (001/004/006/011/016/018/020…) record past state and are **not** retro-edited.
+  (multi-exchange-abstraction, step-6-binance-rest-private, step-8-binance-ws-api, generic-rest-client,
+  declarative-headers, coinbase-exchange-adapter, cryptocom-exchange-adapter…) record past state and are **not** retro-edited.
 - One **comment** mention in `include/exchange/common/credentials_file.hpp`
   ("every adapter's Credentials::from_file") — genericise the wording.
 
@@ -58,23 +59,23 @@ and `read_toml_credentials`, so the rename is a safe whole-word replace.
 ### Step 2 — Docs
 - Update `CLAUDE.md`, `agent-add-exchange.md`, the migration guide, and the
   `credentials_file.hpp` comment.
-- Mark plan 022 Done in `docs/plans.md`.
+- Mark plan rename-kraken-credentials Done in `docs/plans.md`.
 - Commit.
 
-## Sequencing (relative to plan 021, in flight)
+## Sequencing (relative to plan credentials-from-file, in flight)
 
-Recommended: **finish plan 021 first** (Steps 4 Coinbase, 5 Crypto.com, 6 docs),
-then execute 022. 021's remaining code steps don't touch Kraken's `Credentials`,
-so they're unaffected; 022 will re-touch the few Kraken credential lines 021's doc
-step writes (small, mechanical rework) in exchange for keeping each plan a clean,
-independently-committed unit. Alternative on request: do 022 now (before 021's doc
-step) so the docs are written once with the final name.
+Recommended: **finish plan credentials-from-file first** (Steps 4 Coinbase, 5 Crypto.com, 6 docs),
+then execute this plan. The remaining code steps of credentials-from-file don't touch Kraken's `Credentials`,
+so they're unaffected; this plan will re-touch the few Kraken credential lines that the doc
+step of credentials-from-file writes (small, mechanical rework) in exchange for keeping each plan a clean,
+independently-committed unit. Alternative on request: do this plan now (before the doc
+step of credentials-from-file) so the docs are written once with the final name.
 
 ## Self-review — risks
 
 - **Whole-word safety:** the one risk is over-matching; mitigated by `\bCredentials\b`
   and a per-hunk review, plus the post-rename grep assertion in Step 1's Done.
 - **Breaking change:** intentional, no alias; folds into the same 0.5.0 breaking
-  bump already planned in 021 (no separate bump needed).
+  bump already planned in credentials-from-file (no separate bump needed).
 - **No behavioural change:** pure rename — existing tests passing unchanged is the
   proof.

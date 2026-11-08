@@ -7,11 +7,11 @@
 // full license information.
 // =============================================================================
 //
-// What the Kraken WebSocket requests that hold an enum are before any field is set (plan 037, #46).
+// What the Kraken WebSocket requests that hold an enum are before any field is set (plan clear-clang-tidy-findings, #46).
 // AddOrderRequest, SubscribeRequest and UnsubscribeRequest give each enum member a default initialiser, so a bare request
 // is defined (the first enumerator) and serialises to a definite frame. Those members used to have none, and a bare
 // request's to_json() read an indeterminate value. Also pins the underlying type of the two enums that ws_api.hpp declares
-// (plan 037 D1).
+// (plan clear-clang-tidy-findings D1).
 
 #include "exchange/kraken/ws_api.hpp"
 
@@ -24,7 +24,8 @@ using namespace exchange::kraken::ws;
 using exchange::OrderType;
 using exchange::Side;
 
-// plan 037 D1: the underlying type of the public enums is pinned; widening one changes the layout of the order-entry structs (#38).
+// plan clear-clang-tidy-findings D1: the underlying type of the public enums is pinned; widening one changes the layout of the
+// order-entry structs (#38).
 static_assert(std::is_same_v<std::underlying_type_t<SubscribeChannel>, std::uint8_t>);
 static_assert(std::is_same_v<std::underlying_type_t<MessageKind>, std::uint8_t>);
 

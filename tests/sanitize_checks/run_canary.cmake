@@ -1,4 +1,4 @@
-# run_canary.cmake — sanitizer_canary_*: run a canary and require the sanitizer to catch it (plan 032).
+# run_canary.cmake — sanitizer_canary_*: run a canary and require the sanitizer to catch it (plan sanitizer-option-and-presets).
 #
 # Run by ctest as `cmake -DCANARY=<exe> -DEXPECT=<regex> -P run_canary.cmake`. Each canary
 # (tests/sanitize_checks/canaries/) commits one deliberate violation and returns 0 itself, so the exit status and

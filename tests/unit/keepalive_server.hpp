@@ -7,7 +7,8 @@
 // full license information.
 // =============================================================================
 //
-// KeepAliveServer — an HTTP/1.1 server that keeps its connections open, for the tests of connection reuse (plan 043, #58).
+// KeepAliveServer — an HTTP/1.1 server that keeps its connections open, for the tests of connection reuse (plan
+// curl-post-sent-once, #58).
 //
 // A TCP server on 127.0.0.1: raw sockets, one thread. It reads every request in full (the head, then Content-Length bytes), records it
 // with the connection it came on, and then does what the test's DropRule says: answers 200 "ok" and keeps the connection open for the

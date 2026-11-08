@@ -7,7 +7,7 @@
 // full license information.
 // =============================================================================
 //
-// CallbackProbe — finds a callback that is called after it was destroyed (plan 034, #39 and #43).
+// CallbackProbe — finds a callback that is called after it was destroyed (plan transport-callback-lifetimes, #39 and #43).
 //
 // A destroyed std::function is still callable in practice: libc++ and libstdc++ do not clear it, so `if (cb)` is true and the
 // call lands in a destroyed closure. A transport that destroys its callbacks before its I/O thread has stopped does exactly

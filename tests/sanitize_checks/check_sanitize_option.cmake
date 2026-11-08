@@ -1,5 +1,5 @@
 # check_sanitize_option.cmake — test_sanitize_option: the CRYPTOCOGS_SANITIZE option in the root CMakeLists.txt
-# reaches the project's own targets (plan 032).
+# reaches the project's own targets (plan sanitizer-option-and-presets).
 #
 # Run by ctest as
 #   cmake -DSOURCE_DIR=<repo> -DSCRATCH_ROOT=<dir> -DNLOHMANN_JSON_SRC=<dir> -DTOMLPLUSPLUS_SRC=<dir>

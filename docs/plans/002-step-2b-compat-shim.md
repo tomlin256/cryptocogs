@@ -1,13 +1,13 @@
-# 002 — Step 2b: Ship the Kraken Backwards-Compatibility Shim
+# Step 2b: Ship the Kraken Backwards-Compatibility Shim
 
-> **MANDATORY — Branch and commit discipline** (inherited from plan 001)
+> **MANDATORY — Branch and commit discipline** (inherited from plan multi-exchange-abstraction)
 >
 > All work continues on `feature/multi-exchange-abstraction`. Commit at the
 > completion of every phase (and at meaningful sub-step checkpoints). Every
 > checkpoint must include a full build and full `ctest` run — both green —
 > before moving on.
 
-**Goal**: Implement [Step 2b](001-multi-exchange-abstraction.md#step-2b--ship-the-kraken-backwards-compatibility-shim) of plan 001 — ship the deprecated `kraken::` compatibility shim described in [001-appendix-compat-shim.md](001-appendix-compat-shim.md), so existing `cryptocogs` consumers compile and run unchanged against the refactored library.
+**Goal**: Implement [Step 2b](001-multi-exchange-abstraction.md#step-2b--ship-the-kraken-backwards-compatibility-shim) of plan multi-exchange-abstraction — ship the deprecated `kraken::` compatibility shim described in [001-appendix-compat-shim.md](001-appendix-compat-shim.md), so existing `cryptocogs` consumers compile and run unchanged against the refactored library.
 
 ---
 
@@ -20,7 +20,7 @@
 | Phase 3 — compat compile-proof + behavioural tests | **Done** — `test_compat_shim.cpp` (see the as-implemented note at the end of Phase 3) |
 
 **Done elsewhere / superseded**:
-- **`install()` / packaging** — was punted here, then done in [plan 012](012-install-and-package-config.md): `cmake --install` ships the libs, public headers, and a `find_package(cryptocogs)` package config; the shim headers are installed when `CRYPTOCOGS_BUILD_COMPAT_SHIM` is on.
+- **`install()` / packaging** — was punted here, then done in [plan install-and-package-config](012-install-and-package-config.md): `cmake --install` ships the libs, public headers, and a `find_package(cryptocogs)` package config; the shim headers are installed when `CRYPTOCOGS_BUILD_COMPAT_SHIM` is on.
 - **The `tests/compat/` example-relocation** (original Phase 3.1) — superseded; see the as-implemented note.
 
 The default `CRYPTOCOGS_BUILD_COMPAT_SHIM=ON` now does real work: it gates the
@@ -89,7 +89,7 @@ This file implements `exchange::ws::ExchangeWsClient::{init, set_on_disconnect, 
 ### 1.5 — Delete the now-dead duplicate REST/types implementation
 Once 1.1–1.2 land, nothing references `kraken::`/`kraken::rest::` symbols except the two Phase-1.3 files — and *those* still compile against the old (still-full) headers, which still provide the symbols `src/kraken_types.cpp` / `src/kraken_rest_client.cpp` define. **Do not delete these `.cpp`s yet** — Phase 2 makes them genuinely dead (by turning `KrakenRestClient` into a type alias) and removes them then. Phase 1's `.cpp` changes are limited to 1.4's relocation.
 
-- Update `src/CMakeLists.txt` comments to reflect the new state honestly (the "Legacy kraken:: namespace implementations (shim support)" comment is misleading — `kraken_ws_client.cpp` was never that; say so plainly, e.g. "Old kraken:: implementations — retired in Phase 2 of plan 002" pending that phase).
+- Update `src/CMakeLists.txt` comments to reflect the new state honestly (the "Legacy kraken:: namespace implementations (shim support)" comment is misleading — `kraken_ws_client.cpp` was never that; say so plainly, e.g. "Old kraken:: implementations — retired in Phase 2 of plan step-2b-compat-shim" pending that phase).
 
 ### Checkpoint commit
 `feat: step 2b phase 1 — finish migrating tests/examples to exchange::kraken::`
@@ -108,7 +108,7 @@ option(CRYPTOCOGS_BUILD_COMPAT_SHIM
        "Install deprecated kraken_*.hpp compatibility headers (source-compat for pre-refactor callers)"
        ON)
 ```
-(Plan 001 §F lists this as one of four eventual options; the other three — `CRYPTOCOGS_BUILD_KRAKEN/BINANCE/TESTS` — and the dependency-rule guards belong to Step 8, not here. Adding only this one, scoped to what 2b needs, keeps the change minimal and avoids speculatively wiring guards for libraries that don't exist yet.)
+(Plan multi-exchange-abstraction §F lists this as one of four eventual options; the other three — `CRYPTOCOGS_BUILD_KRAKEN/BINANCE/TESTS` — and the dependency-rule guards belong to Step 8, not here. Adding only this one, scoped to what 2b needs, keeps the change minimal and avoids speculatively wiring guards for libraries that don't exist yet.)
 
 ### 2.2 — Create `include/kraken_compat.hpp` (Layer 2 — the namespace shim)
 Reopens `namespace kraken { … }` on top of the new layout. Structure per the appendix's design, **with verified names**:
@@ -211,7 +211,7 @@ quiet), linking `cryptocogs ixwebsocket GTest::gtest_main`:
   and the reason the file links ixwebsocket (`kraken_ix_ws_connection.hpp` pulls
   in `IxWsConnection`). If any forwarder or a `kraken_compat.hpp` alias stops
   resolving against the new layout, this fails to compile — exactly the guard
-  the TickPrice → `exchange::` move (plan 009) would have needed.
+  the TickPrice → `exchange::` move (plan relocate-tickprice-to-common) would have needed.
 - **Forwarding identity** `static_assert`s: `kraken::{Side,OrderType,TickPrice,
   OrderParams}`, `kraken::rest::KrakenRestClient`, `kraken::ws::{KrakenWsClient,
   WsReconnectSession}` are the same types as their `exchange::…` originals.
@@ -239,7 +239,7 @@ and 3.2's separate file split are superseded by the above and were **not** done.
 |---|---|---|
 | Mechanical migration (Phase 1) misses a `kraken::` reference the compiler doesn't catch (e.g. inside a string, comment, or `using namespace` that silently resolves to the wrong overload) | Low–Medium | The build is the gate — anything the compiler can catch, it will. For `using namespace kraken::rest` ambiguities specifically: Step 2's existing re-exports (`using exchange::rest::HttpRequest;` etc., confirmed present in `exchange/kraken/rest_api.hpp` / `ws_client.hpp` / `ws_api.hpp`) mean most dual-resolution risk is already retired — the namespaces were designed to coexist. |
 | `[[deprecated]]` warnings firing inside our **own** `tests/compat/` build (intentional — they're calling deprecated names on purpose) could be mistaken for new bugs by anyone watching CI output, or could trip `-Werror` if the project ever adds it | Low | `-DCRYPTOCOGS_SUPPRESS_DEPRECATION` on those specific targets (3.1, 3.2) keeps that build leg warning-clean; the *absence* of suppression on a deliberate one-line proof target (noted as optional in 3.1) is the intentional, documented exception. |
-| `exchange_common` is specced in plan 001 §F as a future `INTERFACE` (header-only) target, yet `src/exchange/common/ws_client.cpp` (Phase 1.4's relocation target) clearly needs to compile *somewhere* with real object code | Medium (pre-existing design tension, not introduced here) | Out of scope for 2b — the file already compiles into the single `cryptocogs` STATIC target today and will continue to after the path-only move; behaviour is unchanged. Step 8 ("wire all guards together") is where `exchange_common`'s final shape gets resolved (e.g. it may need to become a static lib after all, or `ws_client.cpp` may need to compile into both `cryptocogs` and `binance`). Flagging it now so it isn't a surprise at Step 8. |
+| `exchange_common` is specced in plan multi-exchange-abstraction §F as a future `INTERFACE` (header-only) target, yet `src/exchange/common/ws_client.cpp` (Phase 1.4's relocation target) clearly needs to compile *somewhere* with real object code | Medium (pre-existing design tension, not introduced here) | Out of scope for 2b — the file already compiles into the single `cryptocogs` STATIC target today and will continue to after the path-only move; behaviour is unchanged. Step 8 ("wire all guards together") is where `exchange_common`'s final shape gets resolved (e.g. it may need to become a static lib after all, or `ws_client.cpp` may need to compile into both `cryptocogs` and `binance`). Flagging it now so it isn't a surprise at Step 8. |
 | `test_compat_shim.cpp`'s mock-WS assertion (3.2.2) needs a `MockWsConnection` — the existing one lives as a private class inside `test_ws_client.cpp` | Low | Either duplicate a minimal local mock (small, ~40 lines, matches project's existing per-file mock pattern — `test_ws_client.cpp`'s own banner says tests are self-contained) or extract a shared test-only header. Given the project's stated preference for "real implementations over mocks" *of production code* (this mock is infrastructure, not the thing under test) and minimal abstraction, duplication-in-place is the more consistent choice — deferred to implementation time once the exact assertions are drafted. |
 | Phase 2's header rewrite of the *already-shimmed* 3 files (`kraken_ws_client.hpp` etc.) removes their existing inline `make_ws_client` forwarders — if anything in the *migrated* (Phase 1) test/example code still calls `kraken::ws::make_ws_client(...)` directly (rather than the new `make_kraken_ws_client`), Phase 1's own checkpoint would already have caught it (compile error) — but worth double-checking no migrated file slipped through with an old factory call before Phase 2 removes the old inline forwarder it was relying on | Low | `grep -rn "kraken::ws::make_ws_client" tests/unit tests/examples` immediately before starting Phase 2 — should return zero hits outside the two preserved files. Cheap, mechanical pre-flight check. |
 
@@ -247,7 +247,7 @@ and 3.2's separate file split are superseded by the above and were **not** done.
 
 1. The two preserved example files (`rest_client_example.cpp`, `ws_client_example.cpp`) are the *only* `tests/examples/` files that were byte-identical to pre-refactor — confirmed via `git diff --stat 8bc0316 HEAD`. If Rob has a different pair in mind for the compat-proof (e.g. wants `kraken_example.cpp` instead, since `CLAUDE.md` calls it the "combined REST + WebSocket demo"), that's a one-line change to which files Phase 1.3 skips and Phase 3.1 moves — flagging the assumption rather than guessing.
 2. `CRYPTOCOGS_SUPPRESS_DEPRECATION` is a new macro this plan introduces (no existing precedent in the tree — confirmed via grep). Its name is fixed by the appendix design; this plan does not deviate from it.
-3. The removal-version placeholder (`vNEXT_MAJOR` in the `#pragma message` text) stays a placeholder — plan 001's compat-shim appendix says the actual version gets stated "in the shim headers and README" as part of release prep, which is Step 8/9 territory, not 2b.
+3. The removal-version placeholder (`vNEXT_MAJOR` in the `#pragma message` text) stays a placeholder — plan multi-exchange-abstraction's compat-shim appendix says the actual version gets stated "in the shim headers and README" as part of release prep, which is Step 8/9 territory, not 2b.
 4. Phase 1's `.cpp` deletions are deferred to Phase 2 (not done in Phase 1) specifically so each phase's checkpoint is independently buildable and green — Phase 1 alone leaves duplication in place but *complete and correct*; Phase 2 alone removes it. Splitting them the other way (delete first, migrate second) would leave an intermediate broken state.
 
 ### What could go wrong

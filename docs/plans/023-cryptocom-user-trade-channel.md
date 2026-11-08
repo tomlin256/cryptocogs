@@ -1,7 +1,7 @@
-# Plan 023 — Crypto.com `user.trade` WS channel (deferred)
+# Crypto.com `user.trade` WS channel (deferred)
 
 **Status:** Stub — not yet scoped
-**Depends on:** [plan 020 — Crypto.com Exchange adapter](020-cryptocom-exchange-adapter.md) (Done)
+**Depends on:** [plan cryptocom-exchange-adapter — Crypto.com Exchange adapter](020-cryptocom-exchange-adapter.md) (Done)
 
 This is a **gap record**, not an actionable step list. Do not implement from this
 doc — expand it into a real design + step list first, per the repo's planning
@@ -34,7 +34,7 @@ optimization — never a correctness prerequisite.
 
 So `user.trade` buys **lower-latency fill delivery** (a push row the instant a
 trade executes, vs. a REST round-trip after the `user.order` trigger) — not
-correctness, not a missing capability. Same shape as plan 019 (Coinbase FIX):
+correctness, not a missing capability. Same shape as plan coinbase-fix-order-entry (Coinbase FIX):
 a real capability gap, worth a design doc, not worth blocking a shipping
 consumer on.
 
@@ -45,7 +45,7 @@ consumer on.
   `instrument_name`, side, `traded_quantity`, `traded_price`, `fees`,
   `fee_instrument_name`, `liquidity_indicator`, timestamps) — presumably the
   same underlying data pushed instead of polled, but **unverified**: no public
-  docs vector or live capture pinned yet (same R2/R3 risk class as plan 020 —
+  docs vector or live capture pinned yet (same R2/R3 risk class as plan cryptocom-exchange-adapter —
   terse keys, string-vs-number ambiguity by field).
 - A channel-name helper `user_trade_channel(instrument)` → `"user.trade.<i>"`
   (mirrors `user_order_channel`), a `CryptoComUserTradeSubscribe` alias, and a
@@ -57,5 +57,5 @@ consumer on.
 
 Pin the wire shape (official docs or a live capture under a funded sandbox/prod
 account) before writing any code, then expand this into a real plan with a
-step list and test plan, per the repo's planning convention (see plan 020 or
-019 for the expected shape). Not scheduled; no consumer is blocked on it.
+step list and test plan, per the repo's planning convention (see plan cryptocom-exchange-adapter or
+coinbase-fix-order-entry for the expected shape). Not scheduled; no consumer is blocked on it.

@@ -1,5 +1,5 @@
 # check_presets.cmake — test_presets: CMakePresets.json names one build tree per kind and platform, and
-# says only what makes each name true (plans 028 and 032).
+# says only what makes each name true (plans platform-build-dirs and sanitizer-option-and-presets).
 #
 # Run by ctest as
 #   cmake -DSOURCE_DIR=<repo> -DHOST_SYSTEM_NAME=<name> [-DPRESETS_DIR=<dir>] -P check_presets.cmake
@@ -21,7 +21,7 @@
 #       and carry its host's condition; each test preset sets execution.noTestsAction to error, so a
 #       test preset that points at a tree with no tests cannot report a green run, execution.timeout
 #       to 120, so that a test that blocks when it is broken fails after two minutes and not at the
-#       ceiling of the job that runs it (plan 033), and output.outputOnFailure to true.
+#       ceiling of the job that runs it (plan tsan-races-in-the-tests), and output.outputOnFailure to true.
 #   R7  `cmake -S <dir> --list-presets=all` lists, for the configure, build and test presets, exactly
 #       the presets in the file that are for HOST_SYSTEM_NAME's OS: one per kind on Darwin, two per
 #       kind on Linux, none elsewhere. This is the end-to-end check that CMake agrees with the text of

@@ -7,8 +7,8 @@
 // full license information.
 // =============================================================================
 
-// canary_own.hpp — a header that clang-tidy must report on when it sits under include/exchange/ (plan 035, #34).
-// See canary.cpp.
+// canary_own.hpp — a header that clang-tidy must report on when it sits under include/exchange/ (plan
+// clang-tidy-opt-in-test-step, #34). See canary.cpp.
 
 #pragma once
 

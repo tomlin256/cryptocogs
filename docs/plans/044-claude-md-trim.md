@@ -1,12 +1,12 @@
-# Plan 044 — CLAUDE.md holds rules and traps, not reference: 162 KB to 20 KB, with a size test
+# CLAUDE.md holds rules and traps, not reference: 162 KB to 20 KB, with a size test
 
 **Status:** Done (2026-11-06). Rob approved the plan as written, so D1 to D5 stood at the defaults below. The steps and their results are
 in the *Outcome*.
 
 Closes [cryptocogs#60](https://github.com/tomlin256/cryptocogs/issues/60).
 
-**Follows:** [plan 043](043-curl-post-sent-once.md), which landed while this was prepared: its rule about the connection of a POST or a
-DELETE is carried into the new file.
+**Follows:** [plan curl-post-sent-once](043-curl-post-sent-once.md), which landed while this was prepared: its rule about the connection of
+a POST or a DELETE is carried into the new file.
 **Not here:** the other stale files (the README's test paragraph and dependency table, [cryptocogs#31](https://github.com/tomlin256/cryptocogs/issues/31)
 and [cryptocogs#35](https://github.com/tomlin256/cryptocogs/issues/35)) and the two bugs the old text got wrong
 ([cryptocogs#21](https://github.com/tomlin256/cryptocogs/issues/21), [cryptocogs#42](https://github.com/tomlin256/cryptocogs/issues/42)).
@@ -41,13 +41,13 @@ it). What it held, from a read of the 157 KB version against the tree:
 - build, test, options, install and build trees; sanitizers, clang-tidy, compiler warnings and CI, each with its commands, its test
   names and the rules a test enforces on an edit;
 - the test rules (no network, no sleeps, `ASSERT_HAS_VALUE`, no allocation at namespace scope, an example's `main()`), the coding
-  conventions that are not in a header, and the `CurlHttpClient` rule of plan 043;
+  conventions that are not in a header, and the `CurlHttpClient` rule of plan curl-post-sent-once;
 - a *Releasing* section (the version-bump commit, the annotated tag, the GitHub Release), a sentence saying the repository stands alone,
   and *Keeping this file short*, which says what belongs here and names the size test.
 
 What was deleted is derivable from a place that stays and is named: the venue sections from the header comment blocks and the README; the
 tree, tables and counts from `git ls-files`, `ctest -N` and the check scripts' headers; the CI cost and run-id history from the workflow
-comments and plans 030 to 043; the `CurlHttpClient`, `ASSERT_HAS_VALUE`, `CallbackProbe` and `MockWsConnection` prose from `http_client.cpp`,
+comments and the fourteen plans from ci-cache to curl-post-sent-once (in the order of the table in unnumbered-plan-docs); the `CurlHttpClient`, `ASSERT_HAS_VALUE`, `CallbackProbe` and `MockWsConnection` prose from `http_client.cpp`,
 `http_client.hpp`, `assert_has_value.hpp`, `callback_probe.hpp` and `mock_ws_connection.hpp`.
 
 **2. `docs/dev-recipes.md`** (new, not loaded automatically): the GCC 15 container, the three compiler differences the tree has met, and the
@@ -60,10 +60,11 @@ through stdin, so no `docker cp` leaves a root-owned file in the sticky `/tmp` o
 
 **4. `docs/agent-add-exchange.md`**, which the new `CLAUDE.md` points at for a new venue, is corrected where it was wrong: four adapters
 and not two; two common libraries and one peer per adapter; the crypto helpers and the WebSocket factories are declared in the header and
-defined in `src/<name>/` since plan 016; the link line includes `exchange_http`. The checklist rows that said "header-only" follow.
+defined in `src/<name>/` since plan declarative-headers; the link line includes `exchange_http`. The checklist rows that said "header-only" follow.
 
-**5. `docs/plans.md`** is deleted. It stopped at plan 027 and said the opposite of the convention since then, that the issue is the index.
-No file asks for it any more: only plans 004 to 029, which are history, mention it.
+**5. `docs/plans.md`** is deleted. It stopped at plan remaining-adapters-reserve-vector-growth and said the opposite of the convention since
+then, that the issue is the index. No file asks for it any more: only the twenty-six plans from step-6-binance-rest-private to cmake4-cxx23
+(the order is in the table of unnumbered-plan-docs), which are history, mention it.
 
 **6. `test_claude_md_budget`** and **`test_claude_md_budget_fixtures`**, `tests/doc_checks/`, registered at the top level in
 `tests/CMakeLists.txt`:
@@ -134,7 +135,7 @@ Each step ends with a build and the whole suite.
   `#namespace-layout`). It is history and is left as it is.
 - **Not touched, and still stale.** Most line numbers cited in `docs/agent-add-exchange.md` §2 drifted (the citations of `auth.hpp:91`,
   `rest.hpp:43` and `auth.hpp:66` were removed with the edit; `rest.hpp:32` and `:57`, `rest_api.hpp:55` and `:119` remain and point at the
-  wrong lines); its §4 still mentions a compat shim that plan 014 removed. Neither is wrong about structure; both are in one issue.
+  wrong lines); its §4 still mentions a compat shim that plan remove-compat-shim removed. Neither is wrong about structure; both are in one issue.
 - **Assumption.** The 40000-character cut-off for an on-demand `CLAUDE.md` is as Claude Code's memory documentation states it; the root
   file is loaded whole, and its 21000-byte budget is a choice, not a cap.
 
@@ -180,12 +181,12 @@ words the case expected), so the accept cases now look for the per-file line.
 Dry-run in `ubuntu-dev`: a copy of `HEAD` through `git archive | docker exec -i … tar -x` (all files owned by the container user), an
 old file put over a new one through `tee`, then the script through `docker exec -i ubuntu-dev bash -s`: an offline configure of the
 `asan-linux-arm64` preset with the seven `FETCHCONTENT_SOURCE_DIR_*` options, a build of `test_tick_price`, and a run with
-`ASAN_OPTIONS=detect_leaks=1` (clean). The step that needs an old, leaking source was not run; the recipe is the one plan 038 used with
-`docker cp` replaced.
+`ASAN_OPTIONS=detect_leaks=1` (clean). The step that needs an old, leaking source was not run; the recipe is the one plan
+curl-header-list-append-failure used with `docker cp` replaced.
 
 ### What differed from the plan
 
-The root is 20,114 bytes, not the 19,258 of the first draft: *Releasing*, the plan 043 rule, the "stands alone" sentence and *Keeping
+The root is 20,114 bytes, not the 19,258 of the first draft: *Releasing*, the plan curl-post-sent-once rule, the "stands alone" sentence and *Keeping
 this file short* are in it, and the guard paragraph, the clang-tidy test list and the CI notes were cut to make room. The naming rule for
 build trees is written out, because the repository is public and a reader of it may not have the guide that states it. *Releasing* follows the bump
 commit of v2.1.0, which landed meanwhile: it changes `project(CRYPTOCOGS VERSION …)` in `CMakeLists.txt` and the `GIT_TAG` example in

@@ -1,4 +1,4 @@
-# cryptocogs_clang_tidy.cmake — the helpers of the opt-in clang-tidy test step (plan 035, #34).
+# cryptocogs_clang_tidy.cmake — the helpers of the opt-in clang-tidy test step (plan clang-tidy-opt-in-test-step, #34).
 #
 # The step runs clang-tidy over this repo's own translation units as ctest tests, one per file, and is off unless a configure
 # asks for it:
@@ -87,10 +87,10 @@ endfunction()
 #   --warnings-as-errors=*   every finding is an error, so a unit is red or green. It is not in .clang-tidy, because clangd
 #                            would then show every hint in the editor as an error.
 #   -Wno-error=deprecated-declarations
-#                            The project wants warnings as errors (plan 035, D10; the build's own are #47), and with a
-#                            compile command that carries -Werror=deprecated-declarations a clang-tidy newer than the SDK's
-#                            libc++ stops on nlohmann/json's CBOR declarations, which name std::char_traits<unsigned char>,
-#                            a specialization libc++ deprecates: the error is in the SDK's headers, from a use in a
+#                            The project wants warnings as errors (plan clang-tidy-opt-in-test-step, D10; the build's own are
+#                            #47), and with a compile command that carries -Werror=deprecated-declarations a clang-tidy newer than
+#                            the SDK's libc++ stops on nlohmann/json's CBOR declarations, which name std::char_traits<unsigned
+#                            char>, a specialization libc++ deprecates: the error is in the SDK's headers, from a use in a
 #                            dependency's, and Apple clang building the same headers is silent. Here a deprecation is a
 #                            warning, --warnings-as-errors makes it an error where it is in this repo's own files, and the
 #                            header filter drops it in the SDK's and the dependencies'. It is inert while the compile
@@ -257,7 +257,8 @@ endfunction()
 #
 #   clang_tidy_<path>     one per unit: a .cpp that a target of this project compiles, named from its path under the root, so
 #                         that `ctest -R '^clang_tidy_src_binance_'` runs one adapter's. A unit that no target compiles is not
-#                         one, and an adapter that is switched off has no targets. D9 of plan 035 has the reasons.
+#                         one, and an adapter that is switched off has no targets. D9 of plan clang-tidy-opt-in-test-step has the
+#                         reasons.
 #   clang_tidy_version    the tool is LLVM CRYPTOCOGS_CLANG_TIDY_MAJOR. The Mac, the container and a CI job one day run one
 #                         major, and this is what stops them drifting apart unseen.
 #   clang_tidy_checks     .clang-tidy enables the families it should, and none of the checks it removes.

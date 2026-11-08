@@ -1,4 +1,4 @@
-# Plan 029 — CMake 4 and C++23, released as v1.0.0
+# CMake 4 and C++23, released as v1.0.0
 
 **Status:** Done (2026-11-04), released as v1.0.0, apart from the checks that need the Linux container (Step 8; the Outcome
 says which and why). Rob approved the plan as written, so D1 to D9 stood at the defaults below, and approved pushing this
@@ -20,7 +20,7 @@ The repo asks for CMake 3 and C++17 in these places (`git grep` on 2026-11-04, o
 | `CMakeLists.txt:1` | `cmake_minimum_required(VERSION 3.15...4.2)`, a range |
 | `CMakeLists.txt:34` | `set(CMAKE_POLICY_VERSION_MINIMUM 3.5)`, for the fetched dependencies (below) |
 | `CMakeLists.txt:39` | `set(CMAKE_CXX_STANDARD 17)` |
-| `src/CMakeLists.txt:38, 60, 82, 111, 136, 163` | `target_compile_features(<lib> PUBLIC cxx_std_17)` on `exchange_common`, `exchange_http` and the four adapters; the export of plan 017 hands it to every `find_package` consumer |
+| `src/CMakeLists.txt:38, 60, 82, 111, 136, 163` | `target_compile_features(<lib> PUBLIC cxx_std_17)` on `exchange_common`, `exchange_http` and the four adapters; the export of plan cmake-install-nits hands it to every `find_package` consumer |
 | `tests/tree_checks/check_platform.cmake:14`, `check_tree_name.cmake:15` and `:143`, `check_presets.cmake:31` | `cmake_minimum_required` 3.15, 3.15 (twice; the second is in the scratch project the test writes) and 3.19 |
 | `tests/CMakeLists.txt:165` | `test_presets` is registered only for CMake 3.21 or later |
 | `cmake/cryptocogs_platform.cmake:25` | "Only commands CMake 3.15 has are used" |
@@ -99,7 +99,7 @@ Seven parts, all from flywheel-dag's two plans except T3, with this repo's diffe
    by T4 below, which fails until it has the guard.
 4. **googletest v1.16.0 to v1.18.0**, before the standard moves, so no commit prints the new warning.
 5. **Four `cmake -P` check scripts in `tests/cmake_checks/`** (new; not a name beginning `build`, which `.gitignore`
-   ignores), registered at the top level like the checks of plan 028:
+   ignores), registered at the top level like the checks of plan platform-build-dirs:
 
    | Test | Script | Asserts |
    |---|---|---|
@@ -132,7 +132,7 @@ My defaults, each one a place to edit before approving.
   `SameMajorVersion` enforce the break (above), and from then on a change that breaks consumers needs 2.0. A tag cannot be
   taken back once a consumer pins it. The alternative is **v0.7.0**, which reads "major" as "big": the version file then
   accepts a request for 0.6 (`SameMajorVersion` ignores the minor in 0.x), so only the tag and a consumer's pin carry the
-  signal. Plan 028 (D6) refused 1.0.0 because that change said nothing about the API; this one is the break.
+  signal. Plan platform-build-dirs (D6) refused 1.0.0 because that change said nothing about the API; this one is the break.
 - **D2. The floor is a plain `cmake_minimum_required(VERSION 4.0)`.** Not the `3.15...4.2` range, whose policy
   settings are the audit a range needs and whose result I measured to be identical (673 files); not 4.2 or 4.4, which are
   only what the Mac or the runner happens to have. 4.0.7 is the version Step 8 runs to make the floor real.
@@ -145,7 +145,7 @@ My defaults, each one a place to edit before approving.
 - **D5. T3 is mine, T5 is flywheel-dag's, and each can be struck on its own.** Without T3
   nothing notices a library target that loses its
   `cxx_std_23` (the top-level `CMAKE_CXX_STANDARD` still compiles it, and the export silently drops the requirement:
-  the hazard plan 017 fixed by hand). Without T5 nothing but the version number holds the promise that a 0.x consumer is
+  the hazard plan cmake-install-nits fixed by hand). Without T5 nothing but the version number holds the promise that a 0.x consumer is
   refused.
 - **D6. CI prints its CMake and compiler versions, and gets no leg for the floor.** flywheel-dag added a job on
   Kitware's 4.0.7 and removed it again ([flywheel-dag#59](https://github.com/tomlin256/flywheel-dag/issues/59)): a CMake
@@ -164,7 +164,7 @@ My defaults, each one a place to edit before approving.
   docs), not pushed, and #3 still open. The live `ubuntu-dev` gets the
   packages only when you recreate it with `./start.sh --detach`, which closes any shell open in it, so that is yours.
   Until then Step 1 installs them by hand in the running container (`sudo apt-get install -y --no-install-recommends
-  libcurl4-openssl-dev libssl-dev zlib1g-dev`), as plan 028's D8 did; the install is lost at the recreate, and the new
+  libcurl4-openssl-dev libssl-dev zlib1g-dev`), as plan platform-build-dirs's D8 did; the install is lost at the recreate, and the new
   image has them anyway. The alternative is to wait for the recreate.
 
 ## Steps
@@ -337,11 +337,12 @@ In scratch copies, so that no tree of the checkout is disturbed. The one possibl
   against a prefix installed by CMake 4.4.5, or it does not, and the README says which.
 - **The compilers.** In the container at C++23: GCC 13.3.0 (`release-linux-arm64`, `debug-linux-arm64`) and Clang 18.1.3
   (`clang-linux-arm64`), full ctest each, against Step 1's C++17 numbers. AddressSanitizer with UndefinedBehaviorSanitizer
-  and LeakSanitizer over the full suite in a hand-made `asan-linux-arm64` tree, as plan 028 Step 4 ran it (flags
+  and LeakSanitizer over the full suite in a hand-made `asan-linux-arm64` tree, as plan platform-build-dirs Step 4 ran it (flags
   `-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer`,
   `ASAN_OPTIONS=detect_stack_use_after_return=1:strict_string_checks=1:detect_leaks=1`). ThreadSanitizer is not rerun: its
   two reports are the test races of #27 and #28 and nothing here touches them.
-- **Speed.** The benchmark binaries (`CRYPTOCOGS_BUILD_BENCHMARKS=ON`, plans 025 to 027) built at C++17 and at C++23 in
+- **Speed.** The benchmark binaries (`CRYPTOCOGS_BUILD_BENCHMARKS=ON`, plans kraken-performance-profiling,
+  kraken-reserve-vector-growth and remaining-adapters-reserve-vector-growth) built at C++17 and at C++23 in
   two hand-made Mac trees, five repetitions each, interleaved, the means compared against the coefficients of variation the
   plans record (about 1% for Kraken; 3 to 5% at the smallest absolute scales). A row beyond that is repeated before it is
   called real.
@@ -412,7 +413,7 @@ Commit: `docs(plan): results for 029 — CMake 4 and C++23 (step 10/10)`.
 - **The older plans.** Their "C++17" and "CMake 3.15" were true when written. `docs/plans.md` is not updated; the issue is
   the index of undone work.
 - **The scratch trees on this machine** (`build-bench`, `build-compat`, `build-ubsan`, `build2`, the old tree in `build/`):
-  plan 028 left them, and so does this. My probe copies under `build/probe/` are deleted when the plan is committed.
+  plan platform-build-dirs left them, and so does this. My probe copies under `build/probe/` are deleted when the plan is committed.
 
 ## Self-review — risks and assumptions
 
@@ -491,7 +492,8 @@ passed the same counts with the two of #26, up to Step 7; CI (ubuntu-26.04, GCC 
 
 - Step 8 is partly done. Not run: AddressSanitizer, UndefinedBehaviorSanitizer and LeakSanitizer over the suite in the
   container, and a container run at the release tip. The speed comparison (C++17 against C++23, the benchmark harness
-  of plans 025 to 027) was started and stopped at Rob's instruction ("skip the performance testing … we can test more
+  of plans kraken-performance-profiling, kraken-reserve-vector-growth and remaining-adapters-reserve-vector-growth) was
+  started and stopped at Rob's instruction ("skip the performance testing … we can test more
   after it's pushed"); the two trees built, and no number was taken. All three follow the push.
 - Step 8 made a commit after all: the README sentence about an installed package, and the `v1.0.0` and `find_package(… 1)`
   snippets (`62dd391`), pushed with the release.
@@ -511,7 +513,7 @@ not force-restart Docker, and on Rob's instruction ("Docker is dead so skip any 
 - Rob restarts Docker Desktop (`./start.sh --detach` does it, and recreates `ubuntu-dev` from the image that docker-ubuntu#3
   fixed). Then: the sanitizer run, a container run of the tip, and the benchmark comparison, in that order.
 - docker-ubuntu: #3 is still open (closing it was refused by the session's permission classifier), and one docs commit
-  (plan 003's Outcome after the push) is not pushed.
+  (plan step-5-binance-rest-public's Outcome after the push) is not pushed.
 - [#35](https://github.com/tomlin256/cryptocogs/issues/35), the README's other stale statements, and
   [#38](https://github.com/tomlin256/cryptocogs/issues/38), the `performance-enum-size` and unused-include findings.
 - Not done: a GitHub release object for v1.0.0 (D7); "Latest release" on GitHub still reads v0.0.3.

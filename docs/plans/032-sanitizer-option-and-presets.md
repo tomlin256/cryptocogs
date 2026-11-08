@@ -1,7 +1,7 @@
-# Plan 032 — A sanitizer option and presets: `asan` and `tsan` trees, and a nightly that runs them
+# A sanitizer option and presets: `asan` and `tsan` trees, and a nightly that runs them
 
 **Status:** Done (2026-11-05), except for one done-when that was not met. Rob approved the plan as written, so D1 to D8 stood at the defaults below. Steps 0 to 9 are done and pushed: #27 and #28 were fixed by
-[plan 033](033-tsan-races-in-the-tests.md), and `tsan` is in the nightly. Step 9 asked for a green `schedule` run before #30 closed. The tick of 03:41 UTC on 2026-11-05 made no
+[plan tsan-races-in-the-tests](033-tsan-races-in-the-tests.md), and `tsan` is in the nightly. Step 9 asked for a green `schedule` run before #30 closed. The tick of 03:41 UTC on 2026-11-05 made no
 run (see the Outcome), and Rob asked for #30 to be closed that day without one, so no scheduled run has been read.
 
 Closes [#30](https://github.com/tomlin256/cryptocogs/issues/30) — "A sanitizer option and presets: asan and tsan trees are
@@ -11,14 +11,14 @@ hand-made today".
 flags took effect, a check of the link lines and a nightly workflow. This plan differs from it in D4 (the coverage check also
 reads `compile_commands.json`, so the fetched dependencies' own sources are checked), D7 (no caches in the nightly) and in what it
 measures.
-**Follows:** [plan 028](028-platform-build-dirs.md), which made the `asan` and `tsan` trees by hand, found the two TSan races,
+**Follows:** [plan platform-build-dirs](028-platform-build-dirs.md), which made the `asan` and `tsan` trees by hand, found the two TSan races,
 and left this issue for later.
 **Blocked, for Step 9 only, by:** [#27](https://github.com/tomlin256/cryptocogs/issues/27) and
 [#28](https://github.com/tomlin256/cryptocogs/issues/28), the two races. They get plans of their own (D7).
 
 ## Problem
 
-Plan 028 built an AddressSanitizer tree and a ThreadSanitizer tree by hand — `-DCMAKE_CXX_FLAGS="-fsanitize=…"` in
+Plan platform-build-dirs built an AddressSanitizer tree and a ThreadSanitizer tree by hand — `-DCMAKE_CXX_FLAGS="-fsanitize=…"` in
 `build/asan-linux-arm64` and `build/tsan-linux-arm64` — and ran them once. They cannot be rebuilt from the repository: the flags
 live in a plan's prose; nothing stops a tree called `tsan-…` from being configured without them, because the guard reads the OS
 and the architecture in a tree's name and nothing else; and nothing in CI runs a sanitizer. A bug of the kind sanitizers find
@@ -26,7 +26,7 @@ shows itself only when a toolchain change happens to expose it, or when someone 
 
 ### What I measured (2026-11-04)
 
-- **The hand-made trees** (plan 028, Step 4; container, GCC 13.3.0, Linux aarch64, `RelWithDebInfo`, `--parallel 8`):
+- **The hand-made trees** (plan platform-build-dirs, Step 4; container, GCC 13.3.0, Linux aarch64, `RelWithDebInfo`, `--parallel 8`):
   `-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer` with
   `ASAN_OPTIONS=detect_stack_use_after_return=1:strict_string_checks=1:detect_leaks=1` ran 499 of 499 with no report (configure
   40 s, build 133 s, ctest 8 s). `-fsanitize=thread` ran 497 of 499 with two reports, both races in the tests and not the
@@ -113,13 +113,13 @@ Defaults stand if you approve the plan as written.
 - **D3 Dependencies are instrumented too, and the option leaves the build type alone.** The flags go in before the first
   `FetchContent_MakeAvailable`, because a directory's options reach only the targets created after the call. TSan needs it: it
   sees only synchronisation it can intercept or instrument, so a hand-rolled handshake inside uninstrumented code reads as a
-  race on our side. The presets, not the option, choose `RelWithDebInfo` (line numbers for reports, `-O2` speed; what plan 028's
+  race on our side. The presets, not the option, choose `RelWithDebInfo` (line numbers for reports, `-O2` speed; what plan platform-build-dirs's
   trees used).
 - **D4 Prove it with canaries and a coverage check** (about 300 lines of CMake and C++ in all): canaries, a check of the
   link lines, and a compile-side half that checks the compile lines too. A sanitizer tree whose flags never reached the compiler is green on
   every real test; that is the failure this issue is about (the name and the flags drifting apart), in another form.
 - **D5 The guard checks the sanitizer in a tree's name.** `asan-…` and `tsan-…` trees must be configured for that mode;
-  `release-…` with `asan` stays legal. This changes plan 028's "the guard examines the OS and the architecture in the name,
+  `release-…` with `asan` stays legal. This changes plan platform-build-dirs's "the guard examines the OS and the architecture in the name,
   not the kind" for these two kinds only. The platform table itself is untouched, so its copies stay the same.
 - **D6 Findings policy.** A sanitizer finding is a bug outside this plan: one `bug`-labelled issue, and I tell you; if the fix
   is small and gets a regression test that is red under the sanitizer first, it may be fixed here, otherwise I stop and ask. No
@@ -141,7 +141,7 @@ Defaults stand if you approve the plan as written.
 Every checkpoint is a full build and ctest of `debug-macos-arm64` (the Mac's editing tree), all green and warning-free; the
 push then starts the main workflow, which must stay green. That tree is not built at the moment (`ctest -N` there lists 31
 entries, all `_NOT_BUILT`), so Step 1 begins with a baseline. The counts below are derived from the 505 that `CLAUDE.md` and
-plan 031's CI run record, and are replaced by the real numbers in the Outcome. Commits are `<type>: … (step N/9)`; the last
+plan ci-skip-docs-only's CI run record, and are replaced by the real numbers in the Outcome. Commits are `<type>: … (step N/9)`; the last
 says `Closes #30`.
 
 ### Step 0 — Approval
@@ -316,8 +316,8 @@ says both run; a scheduled run is read from `gh run list --workflow sanitizers.y
 - **Free-form flags** (`CRYPTOCOGS_SANITIZE=address,undefined`) — D2.
 - **`CMAKE_CXX_FLAGS` in the preset,** as the hand-made trees did — the flags would live in JSON where no pure-function test can
   reach them, a `-DCMAKE_CXX_FLAGS` on a command line would replace them, and the guard would have no variable naming the mode.
-- **Sanitizer legs in the main workflow** — a red sanitizer leg would hide whether the normal gate is green, and plan 030's
-  caches and plan 031's path filter would have to be keyed per leg.
+- **Sanitizer legs in the main workflow** — a red sanitizer leg would hide whether the normal gate is green, and plan ci-cache's
+  caches and plan ci-skip-docs-only's path filter would have to be keyed per leg.
 - **Per-push sanitizers** — D1. **Caches in the nightly** — D7.
 - **Folding #27 and #28 into this plan** — each says "for its own plan"; #27 changes a mock shared by four adapters' WebSocket
   tests; and this plan's mechanical steps are what make their fixes provable without a hand-made tree.
@@ -332,7 +332,7 @@ A check of the workflow file beyond what `test_presets` already pins.
 
 ## Self-review — risks and assumptions
 
-- **The size of the one-off pass is unknown.** Plan 028 ran it once, on GCC/aarch64, and found two test races. Apple's runtime
+- **The size of the one-off pass is unknown.** Plan platform-build-dirs ran it once, on GCC/aarch64, and found two test races. Apple's runtime
   and GCC on the runner may find more. If a pass finds more than a handful of independent bugs, I stop after Step 6 and come
   back with the list, not with a growing pile of fixes.
 - **macOS is not Linux.** Step 8's Mac result is provisional; Step 6's Linux run is the real one, and LeakSanitizer exists only
@@ -356,13 +356,13 @@ A check of the workflow file beyond what `test_presets` already pins.
   result is recorded.
 - **The guard change touches a tree that every build goes through.** Rule 2 only examines `asan-…` and `tsan-…` names in the
   platform shape, and the tests above include the near misses (`asanx-…`, `release-…` with `asan`).
-- **I read the unit-test rule as covering code and the invariants of configuration that can be tested offline,** as plans 030
-  and 031 did. The workflow has no test of its own; its dispatch run is its test. Say if you want a check of the file.
+- **I read the unit-test rule as covering code and the invariants of configuration that can be tested offline,** as plans ci-cache
+  and ci-skip-docs-only did. The workflow has no test of its own; its dispatch run is its test. Say if you want a check of the file.
 
 ## Outcome
 
 Steps 1 to 9 are done and pushed. Step 9 waited for [#27](https://github.com/tomlin256/cryptocogs/issues/27) and
-[#28](https://github.com/tomlin256/cryptocogs/issues/28), which [plan 033](033-tsan-races-in-the-tests.md) fixed; the first scheduled run, which its
+[#28](https://github.com/tomlin256/cryptocogs/issues/28), which [plan tsan-races-in-the-tests](033-tsan-races-in-the-tests.md) fixed; the first scheduled run, which its
 done-when asks for, has not happened (see "The scheduled run" at the end).
 Measured on the Mac (Apple clang 21.0.0, CMake 4.4.5, Unix Makefiles, 12 cores) and on `ubuntu-latest` (GCC 15.2.0, CMake 4.4.4,
 4 cores, kernel 7.0.0-1017-azure).
@@ -453,18 +453,18 @@ only `CLAUDE.md` and started no run (`gh api …/actions/runs?head_sha=57e103d` 
 TSan on the Mac reports #28 at `test_ws_reconnect_session.cpp:244` (CI at 233: the other side of the same pair) and #27 inside libc++'s
 `std::string` and `std::vector` (CI at `test_ws_client.cpp:275`). No `atos` stall was seen. LeakSanitizer is Linux-only; CI ran with
 `detect_leaks=1` and was clean. Nothing turned up that the plan did not expect, so D6 had nothing to do beyond #27 and #28, and
-[plan 033](033-tsan-races-in-the-tests.md) proposes their fix.
+[plan tsan-races-in-the-tests](033-tsan-races-in-the-tests.md) proposes their fix.
 
 **Opened along the way.** [#42](https://github.com/tomlin256/cryptocogs/issues/42) (`test_ws_reconnect_session.cpp`
 sleeps and polls although `CLAUDE.md` says it is deterministic).
 
-**Step 9** (`a940546`). Plan 033 fixed #27 and #28 (`6e711c0`, `b3ef1e2`; the Mac's tsan tree passes 514 of 514), and five consecutive
-`tsan` dispatch runs on `b3ef1e2` were green: 41903619210, 41904405730, 41905586543, 41906615392 and 41907779281, 4 min 19 s to 7 min 6 s
-each. The matrix now falls through to both modes: `which == 'tsan'` gives tsan, `which == 'asan'` gives asan, anything else gives both.
-I checked the four inputs (`tsan`, `asan`, `both`, none) offline, and a dispatch with `which: both` exercised the branch that the
-schedule takes (run 41909134424, `a940546`): both jobs green, asan 515 of 515 in 10 min 2 s and tsan 514 of 514 in 4 min 10 s. The asan
-run is the slowest of the three, and the build step is what varied (8 min 36 s, against 6 min 16 s on the first run; apt 13 s,
-configure 31 s, test 35 s), so the 20-minute ceiling is 2 times the slowest cold run and not the 2.3 that Step 6 wrote down; the
+**Step 9** (`a940546`). Plan tsan-races-in-the-tests fixed #27 and #28 (`6e711c0`, `b3ef1e2`; the Mac's tsan tree passes 514 of 514), and
+five consecutive `tsan` dispatch runs on `b3ef1e2` were green: 41903619210, 41904405730, 41905586543, 41906615392 and 41907779281,
+4 min 19 s to 7 min 6 s each. The matrix now falls through to both modes: `which == 'tsan'` gives tsan, `which == 'asan'` gives asan,
+anything else gives both. I checked the four inputs (`tsan`, `asan`, `both`, none) offline, and a dispatch with `which: both` exercised the
+branch that the schedule takes (run 41909134424, `a940546`): both jobs green, asan 515 of 515 in 10 min 2 s and tsan 514 of 514 in
+4 min 10 s. The asan run is the slowest of the three, and the build step is what varied (8 min 36 s, against 6 min 16 s on the first run;
+apt 13 s, configure 31 s, test 35 s), so the 20-minute ceiling is 2 times the slowest cold run and not the 2.3 that Step 6 wrote down; the
 comment and `CLAUDE.md` say so (`2ff151d`). `CLAUDE.md`'s CI paragraph says that both modes run nightly and what the runs cost.
 
 **The scheduled run (2026-11-05).** The tick of 03:41 UTC made no run. A waiter polled

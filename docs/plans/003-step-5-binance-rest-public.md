@@ -1,6 +1,6 @@
-# 003 — Step 5: Binance REST Public (Market Data) Endpoints
+# Step 5: Binance REST Public (Market Data) Endpoints
 
-> **MANDATORY — Branch and commit discipline** (inherited from plan 001)
+> **MANDATORY — Branch and commit discipline** (inherited from plan multi-exchange-abstraction)
 >
 > All work continues on `feature/multi-exchange-abstraction`. Commit at the
 > completion of every sub-step below. Every checkpoint must include a full
@@ -8,7 +8,7 @@
 > on.
 
 **Goal**: Implement [Step 5](001-multi-exchange-abstraction.md#step-5--binance-rest-public-endpoints)
-of plan 001 — the 8 Binance Spot public market-data endpoints, with mock-based
+of plan multi-exchange-abstraction — the 8 Binance Spot public market-data endpoints, with mock-based
 unit tests and a CLI example program. Step 5's "done when": *"Market data
 endpoints are implemented and unit-tested with mock HTTP performers."*
 
@@ -17,14 +17,15 @@ endpoints are implemented and unit-tested with mock HTTP performers."*
 ## Design decisions confirmed before writing code
 
 These were verified by reading the as-built Step-4 scaffold and resolve
-drift between plan 001's prose and the actual code:
+drift between plan multi-exchange-abstraction's prose and the actual code:
 
 1. **Base class**: every new request type inherits the **local**
    `exchange::binance::rest::TypedPublicRequest<R>` defined in
    `include/exchange/binance/rest_api.hpp` (not
    `exchange::rest::TypedPublicRequest<R>` from the common scaffold — plan
-   001's text names the common one, but `BinanceRestClient::execute`'s SFINAE
-   is gated on the local `PublicRequest`, exactly mirroring Kraken's pattern).
+   multi-exchange-abstraction's text names the common one, but
+   `BinanceRestClient::execute`'s SFINAE is gated on the local `PublicRequest`,
+   exactly mirroring Kraken's pattern).
    Concretely:
    ```cpp
    struct BinanceFooRequest : TypedPublicRequest<BinanceFoo> {
@@ -33,7 +34,7 @@ drift between plan 001's prose and the actual code:
    ```
 
 2. **Naming**: top-level types keep the `Binance` prefix exactly as plan
-   001's Step-5 table names them (`BinancePing`, `BinanceServerTime`, …,
+   multi-exchange-abstraction's Step-5 table names them (`BinancePing`, `BinanceServerTime`, …,
    `BinanceTradesResult`). Per-row/nested helper structs (price levels,
    klines, symbol info, trade rows, ticker entries) are unprefixed plain
    names living in the same `rest_api.hpp`, matching Kraken's
@@ -57,7 +58,7 @@ drift between plan 001's prose and the actual code:
 
 5. **CMake**: two new standalone test executables —
    `test_binance_rest_requests` and `test_binance_rest_responses` — following
-   the existing per-file `test_binance_auth` pattern. Plan 001 Step 9
+   the existing per-file `test_binance_auth` pattern. Plan multi-exchange-abstraction Step 9
    explicitly owns consolidating all `test_binance_*` files into one
    `binance_unit_tests` binary; doing that here would be scope creep into
    Step 9.

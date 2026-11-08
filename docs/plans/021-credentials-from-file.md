@@ -1,4 +1,4 @@
-# Plan 021 — TOML `from_file` credential loaders for all four adapters
+# TOML `from_file` credential loaders for all four adapters
 
 ## Motivation
 
@@ -145,7 +145,7 @@ Each coding step ends with a checkpoint: full `cmake --build build` **and**
 - Validate: a Crypto.com-only configure/build/test (`-DCRYPTOCOGS_BUILD_KRAKEN=OFF
   -DCRYPTOCOGS_BUILD_BINANCE=OFF -DCRYPTOCOGS_BUILD_COINBASE=OFF`) still passes,
   and `cmake --install build --prefix <tmp>` produces **no** toml++ files.
-- Mark plan 021 **Done** in `docs/plans.md`.
+- Mark plan credentials-from-file **Done** in `docs/plans.md`.
 - **Done:** full build + test green; install prefix clean.
 
 ## Self-review — risks, assumptions, alternatives

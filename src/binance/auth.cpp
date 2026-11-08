@@ -55,7 +55,7 @@ std::string to_hex(const std::string& bytes) {
 
 BinanceCredentials BinanceCredentials::from_file(const std::string& name,
                                                  const std::string& location) {
-    // TOML file with top-level string keys api_key / api_secret (plan 021);
+    // TOML file with top-level string keys api_key / api_secret (plan credentials-from-file);
     // api_secret maps to secret_key. algorithm / recv_window_ms keep defaults.
     const auto v = exchange::rest::read_toml_credentials(
         name, ".binance", location, {"api_key", "api_secret"});

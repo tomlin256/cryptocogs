@@ -1,4 +1,5 @@
-# check_clang_tidy_units.cmake — clang_tidy_units: the units the gate registered are the units the tree compiles (plan 035, D9).
+# check_clang_tidy_units.cmake — clang_tidy_units: the units the gate registered are the units the tree compiles (plan
+# clang-tidy-opt-in-test-step, D9).
 #
 # Run by ctest, in a tree configured with CRYPTOCOGS_CLANG_TIDY, as
 #   cmake -DSOURCE_DIR=<repo> -DBUILD_DIR=<tree> "-DREGISTERED=<unit>|<unit>|..." -P check_clang_tidy_units.cmake

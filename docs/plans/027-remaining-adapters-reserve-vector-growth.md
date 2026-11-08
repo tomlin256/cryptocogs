@@ -1,25 +1,27 @@
-# Plan 027 — Benchmark + `.reserve()` vector growth for Binance/Coinbase/Crypto.com
+# Benchmark + `.reserve()` vector growth for Binance/Coinbase/Crypto.com
 
 **Status:** Done
-**Depends on:** [025 — Kraken performance profiling](025-kraken-performance-profiling.md),
-[026 — Kraken `.reserve()` fix](026-kraken-reserve-vector-growth.md) (v0.5.3, HEAD `cd521c8`)
+**Depends on:** [Kraken performance profiling](025-kraken-performance-profiling.md),
+[Kraken `.reserve()` fix](026-kraken-reserve-vector-growth.md) (v0.5.3, HEAD `cd521c8`)
 **Closes:** [GitHub issue #22](https://github.com/tomlin256/cryptocogs/issues/22) — "Review
 Binance/Coinbase/Crypto.com adapters for the same JSON-parse + unreserved-vector patterns as plan 025/026"
 
 ## Motivation
 
-Plans 025/026 profiled the **Kraken** adapter only and found two things: (1)
+Plans kraken-performance-profiling and kraken-reserve-vector-growth profiled the
+**Kraken** adapter only and found two things: (1)
 `json::parse()` dominates WS message-dispatch cost (~84% of per-message time,
 not stack allocation or return-by-value), and (2) every `push_back`/
 `emplace_back`-into-`std::vector<T>` loop in `src/kraken/{ws_api,rest_api}.cpp`
 grows from empty with no `.reserve()` first, a real but modest win (~1.5–4.8%
 of the relevant parse cost, confirmed in isolation regardless of end-to-end
-noise — see 026's Results). Both plans explicitly scoped out
+noise — see the Results of plan kraken-reserve-vector-growth). Both plans explicitly scoped out
 Binance/Coinbase/Crypto.com. Issue #22 asks to close that gap: grep the three
 remaining adapters for the same unreserved-vector pattern, and re-run enough
 of the `tests/benchmarks/` harness on their WS hot path to confirm — not
 assume — the same parse-dominance conclusion generalizes. This plan does both,
-combined (unlike 025/026's deliberate split), because 026 already answered the
+combined (unlike the deliberate split of plans kraken-performance-profiling
+and kraken-reserve-vector-growth), because the latter already answered the
 one question that made splitting them useful the first time: whether
 `.reserve()` is worth doing at all. It is, unconditionally, on its own
 low-risk merits (see Design decisions) — so there's no reason to gate the
@@ -32,22 +34,23 @@ issue #22's actual open question (does parse-dominance generalize).
   `src/coinbase/{rest_api,ws_streams}.cpp` (no separate `ws_api.cpp` for
   Coinbase), `src/cryptocom/{rest_api,ws}.cpp` — every `push_back`/
   `emplace_back`-into-`std::vector<T>` loop sourced from a JSON array with a
-  known `.size()`, same grep as 026's Kraken site list (full tables in Design
+  known `.size()`, same grep as the Kraken site list of plan
+  kraken-reserve-vector-growth (full tables in Design
   decisions — 47 sites total: 19 Binance, 12 Coinbase, 16 Crypto.com). One new
   benchmark binary per adapter (`binance_benchmarks`, `coinbase_benchmarks`,
   `cryptocom_benchmarks`), each with one "high-frequency market tick" and one
-  "deepest vector" WS dispatch benchmark, mirroring 025 Step 3's Kraken
-  treatment closely enough to compare, not the full six-benchmark-plus-
+  "deepest vector" WS dispatch benchmark, mirroring Step 3 of plan kraken-performance-profiling (its Kraken
+  treatment) closely enough to compare, not the full six-benchmark-plus-
   sampling-profile apparatus (issue #22 explicitly scopes this to "a quick
-  benchmark check," not a repeat of 025's full investigation).
+  benchmark check," not a repeat of the full investigation in plan kraken-performance-profiling).
 - **Out of scope:** REST-side benchmarks (issue #22 §2 explicitly scopes the
   "confirm it generalizes" check to the **WS hot path** — REST's
   network-dominance conclusion rests on real libcurl RTT, which is identical
   architecture across all four adapters and isn't re-litigated here). A
-  sampling-profiler pass (025's corroborating evidence for Kraken; not
+  sampling-profiler pass (the corroborating evidence for Kraken in plan kraken-performance-profiling; not
   repeated for three more adapters absent a reason to distrust the
   micro-benchmarks). Any adapter-specific optimization beyond `.reserve()`
-  (e.g. a faster parser) — 025's candidate #2 remains explicitly unstarted and
+  (e.g. a faster parser) — candidate #2 of plan kraken-performance-profiling remains explicitly unstarted and
   ungated by this plan, same as it is for Kraken.
 - **Out of scope:** `CoinbaseStreamClient::send_queue_.push_back(payload)`
   (`ws_streams.cpp:246`) — a single queued outbound message, not a loop over a
@@ -55,7 +58,7 @@ issue #22's actual open question (does parse-dominance generalize).
 - **Out of scope:** any `std::map`-keyed result field (none turned up in the
   grep for these three adapters — Binance/Coinbase/Crypto.com's
   open-orders-style endpoints all return arrays, unlike Kraken's map-keyed
-  `OpenOrdersResult`/etc. — so unlike 026 there is no map exclusion list to
+  `OpenOrdersResult`/etc. — so unlike plan kraken-reserve-vector-growth there is no map exclusion list to
   write).
 - **Out of scope:** request-*building* JSON-array sites. Unlike Kraken (which
   had two: `BatchAddRequest::to_json`, `AddOrderBatchRequest::build`), grepping
@@ -67,12 +70,12 @@ issue #22's actual open question (does parse-dominance generalize).
 
 ## Design decisions (confirm at approval)
 
-- **Same core safety rule as plan 026:** every `.reserve()` call reuses the
+- **Same core safety rule as plan kraken-reserve-vector-growth:** every `.reserve()` call reuses the
   loop's own already-iterated expression, inserted immediately before the
   loop. If the existing range-for safely iterates that expression, `.size()`
   on the same object immediately before is equally safe — no new failure mode
   is introduced. This is why no new unit tests are needed (below).
-- **New wrinkle plan 026 didn't have — four sites source from
+- **New wrinkle plan kraken-reserve-vector-growth didn't have — four sites source from
   `j.value(key, json::array())`, not a plain `[]`/`.at()` subscript:**
   `BinanceAccount::from_json`'s `balances`/`permissions`
   (`rest_api.cpp:307,309`), `BinanceNewOrderResponse::from_json`'s `fills`
@@ -234,22 +237,22 @@ issue #22's actual open question (does parse-dominance generalize).
     concern from parse/dispatch cost, same isolation principle as benchmarking
     `ExchangeWsClient` alone for Kraken/Binance.
 - **The benchmark step (Step 4) is measurement only, no `src/` changes** —
-  same discipline as plan 025. It exists to answer issue #22's actual open
+  same discipline as plan kraken-performance-profiling. It exists to answer issue #22's actual open
   question (does parse-dominance generalize), not to gate whether `.reserve()`
-  is worth doing — 026 already settled that question generically (real,
+  is worth doing — plan kraken-reserve-vector-growth already settled that question generically (real,
   free, zero-behavior-change, worth doing regardless of end-to-end
   visibility). So Steps 5–7 apply all 47 sites unconditionally once Step 4
   lands, rather than making the fix conditional on each adapter's end-to-end
   delta being visible.
 - **No new unit tests for the `.reserve()` fixes themselves** — identical
-  structural safety argument as plan 026 (reusing an already-safely-iterated
+  structural safety argument as plan kraken-reserve-vector-growth (reusing an already-safely-iterated
   expression cannot introduce a new failure mode; `.reserve()` cannot change
   `size()`, values, or ordering). Existing `from_json` field-assertion
   coverage in `test_{binance,coinbase,cryptocom}_rest_responses.cpp` and
   `test_{binance,coinbase,cryptocom}_ws_client.cpp` is the correctness
   regression guard; Step 8's benchmark re-run is the performance regression
   guard.
-- **No version bump** — same precedent as plan 026 (capacity-hint-only change
+- **No version bump** — same precedent as plan kraken-reserve-vector-growth (capacity-hint-only change
   to already-shipped adapters, no API/ABI/behavior change).
 
 ## Steps
@@ -258,7 +261,7 @@ Each step ends with a checkpoint: full `cmake --build build` **and**
 `ctest --output-on-failure` from `build/` both green (confirms the default,
 benchmarks-off tree is unaffected), then a commit. Steps 1–3 additionally
 build+run a `build-bench/` tree (`-DCRYPTOCOGS_BUILD_BENCHMARKS=ON`, same
-`RelWithDebInfo` treatment as plan 025) as their actual deliverable.
+`RelWithDebInfo` treatment as plan kraken-performance-profiling) as their actual deliverable.
 
 ### Step 1 — Binance: harness generalization + benchmarks
 - Generalize the top-level `CMakeLists.txt` benchmark block per Design
@@ -341,11 +344,11 @@ build+run a `build-bench/` tree (`-DCRYPTOCOGS_BUILD_BENCHMARKS=ON`, same
 
 ### Step 8 — Re-benchmark + Results write-up + close out
 - Rebuild `build-bench/` against the patched sources; re-run all three new
-  binaries (filtered to the ranged/reserve benchmarks, as plan 026 Step 3
+  binaries (filtered to the ranged/reserve benchmarks, as plan kraken-reserve-vector-growth Step 3
   did).
 - Append a **Results** section: per-adapter before/after tables (ranged
   `FromJson` total + isolated `VectorPushBack` no/with-reserve), and a verdict
-  consistent with (or explaining any divergence from) plan 026's own finding
+  consistent with (or explaining any divergence from) plan kraken-reserve-vector-growth's own finding
   that the isolated win is real even when swamped by end-to-end noise.
 - Update this plan's Status to **Done**; update `docs/plans.md`'s row.
 - Comment on and close GitHub issue #22 referencing this plan
@@ -366,9 +369,9 @@ was ≤1.6% for every benchmark except the sub-20ns `WithReserve/10` entries
 (3.4–4.6% CV — expected at that absolute scale, where measurement granularity
 itself is a larger fraction of the result). Re-run locally before trusting
 absolute numbers on different hardware, though the *relative* story (per
-plan 025) is expected to hold anywhere.
+plan kraken-performance-profiling) is expected to hold anywhere.
 
-**Per-adapter dispatch breakdown** — mirrors plan 025's Kraken table
+**Per-adapter dispatch breakdown** — mirrors plan kraken-performance-profiling's Kraken table
 (`BM_JsonParse_*Raw` / `BM_*FromJson` / `BM_OnRawMessage_*` end-to-end):
 
 | | Binance (aggTrade) | Coinbase (ticker) | Crypto.com (ticker) |
@@ -412,7 +415,7 @@ linear-scaling shape as Kraken's `BM_BookFromJson`:
 
 **Reserve-ceiling callout** — isolated `BM_VectorPushBack_NoReserve` vs.
 `_WithReserve` (one vector; doubled below for the bids+asks pair the ranged
-benchmark actually parses, same treatment plan 025 used for Kraken's
+benchmark actually parses, same treatment plan kraken-performance-profiling used for Kraken's
 `BookData`):
 
 | Adapter | Depth | No-reserve | With-reserve | Save (bids+asks) | % of ranged `FromJson` total |
@@ -430,17 +433,17 @@ benchmark actually parses, same treatment plan 025 used for Kraken's
 | Crypto.com | 100 | 218 ns | 67.1 ns | 301.8 ns | 2.4% |
 | Crypto.com | 500 | 627 ns | 365 ns | 524.0 ns | 0.86% |
 
-This reproduces Kraken's shape almost exactly (026: 4.8%@100, 1.5%@500) —
+This reproduces Kraken's shape almost exactly (plan kraken-reserve-vector-growth: 4.8%@100, 1.5%@500) —
 all three land in the same 2–3%@100 / <1%@500 range, proportionally smaller
 at higher depth because parse cost grows faster than the reserve win. **This
-confirms 026's generic conclusion holds across adapters: real, cheap,
+confirms the generic conclusion of plan kraken-reserve-vector-growth holds across adapters: real, cheap,
 worth doing, and definitionally not the fix for the headline parse cost.**
 
 **Conclusion for Steps 5–7:** all three adapters confirm issue #22's premise
 closely enough — parse is the largest cost component everywhere, and the
 `.reserve()` win is real and in the same 1–9% range Kraken showed — to proceed
 with the unconditional fix per the Design decisions above. Nothing here
-changes 025's own candidate-fix priority order: `.reserve()` (this plan) is
+changes the candidate-fix priority order of plan kraken-performance-profiling: `.reserve()` (this plan) is
 worth doing regardless of message rate; investigating `json::parse` cost
 itself remains gated on a confirmed production message rate, same as Kraken.
 
@@ -453,7 +456,7 @@ filtered to the ranged `FromJson` and `VectorPushBack` benchmarks, and
 compared against the Findings section's recorded "before" numbers.
 
 **Ranged `FromJson`** (DOM→struct only — the JSON string is parsed once
-outside the timed loop, same shape as Kraken's `BM_BookFromJson` in 026;
+outside the timed loop, same shape as Kraken's `BM_BookFromJson` in plan kraken-reserve-vector-growth;
 see the Verdict below for why "full end-to-end" would be the wrong label for
 either):
 
@@ -498,30 +501,30 @@ as expected, since these two benchmarks never called the patched code.
 **Verdict:** all three adapters show a clean, monotonic, reproducible
 improvement at every depth, roughly matching (and at the smaller depths,
 modestly exceeding) the doubled-isolated-reserve prediction — no adapter
-regressed at any depth. This is a cleaner reproduction than plan 026 itself
+regressed at any depth. This is a cleaner reproduction than plan kraken-reserve-vector-growth itself
 got for Kraken's structurally identical `BM_BookFromJson` (same shape: DOM
 parsed once outside the timed loop, only `from_json` timed inside), which
 showed a smaller, less consistent improvement and an outright regression at
 depth 500 despite similarly low reported CV. Both are measuring the same
 kind of small (hundreds-of-ns), noise-susceptible effect, so this plan
 doesn't claim to know *why* this session's numbers came out cleaner than
-026's — plausibly ordinary cross-session machine-state variance (load
+those of plan kraken-reserve-vector-growth — plausibly ordinary cross-session machine-state variance (load
 average, allocator arena warm-up, thermal state), the same category of cause
-026 identified for its own noisier result, rather than anything specific to
+that plan kraken-reserve-vector-growth identified for its own noisier result, rather than anything specific to
 these three adapters. The mechanism itself (confirmed unchanged above) is
 what actually matters and is not in question either way: `.reserve()` is
-real, free, and zero-behavior-change, per 026's original conclusion — here it
+real, free, and zero-behavior-change, per the original conclusion of plan kraken-reserve-vector-growth — here it
 happens to also show up cleanly end-to-end, which is a bonus, not the basis
 for the fix.
 
 ## Self-review — risks, assumptions, follow-on
 
 - **Risk — reserve on the wrong expression.** Same class of risk as plan
-  026's #1, at ~2.6× the site count (47 vs. 18). Mitigated identically: each
+  kraken-reserve-vector-growth's #1, at ~2.6× the site count (47 vs. 18). Mitigated identically: each
   site is reviewed individually against the tables above, not blind
   find-replace.
 - **Risk — the four `j.value(key, json::array())` sites are a pattern plan
-  026 never had to handle** (Kraken's sites were all plain `[]`/`.at()`
+  kraken-reserve-vector-growth never had to handle** (Kraken's sites were all plain `[]`/`.at()`
   subscripts returning references). Mitigated by the hoist-to-local variant
   in Design decisions, which is strictly safer than a naive repeated
   `.value()` call, not a weaker version of the core rule.
@@ -533,21 +536,22 @@ for the fix.
   mechanics.
 - **Assumption — one "high-frequency" and one "deepest" message per adapter
   is a reasonable, not exhaustive, proxy** for that adapter's WS hot path —
-  the same judgment call plan 025 made for Kraken (ticker/book), not a claim
+  the same judgment call plan kraken-performance-profiling made for Kraken (ticker/book), not a claim
   every message type was profiled.
 - **Assumption — `.reserve()` stays behavior-free for every touched element
   type.** Verified by inspection, not assumed: `BinanceBookLevel`,
   `CoinbaseL2Level{double,double}`, `CryptoComWsBookLevel{double,double,int64_t}`,
   and the rest are all plain structs of primitives/strings — no custom
   allocator, no reserve-triggered exception path beyond `std::bad_alloc`
-  (unhandled everywhere else in this codebase too), same as plan 026's
+  (unhandled everywhere else in this codebase too), same as plan kraken-reserve-vector-growth's
   equivalent assumption for Kraken's types.
 - **Scope-creep guard.** REST benchmarks, a sampling-profiler pass, and any
   fix beyond `.reserve()` are explicitly out of scope (see Scope) — issue #22
   itself scoped the benchmark check to the WS hot path only.
 - **Follow-on:** none anticipated. This closes issue #22 in full — both the
   reserve-pattern review and the WS-hot-path benchmark check — bringing all
-  three remaining adapters to the same state Kraken reached after 025/026. If
+  three remaining adapters to the same state Kraken reached after plans
+  kraken-performance-profiling and kraken-reserve-vector-growth. If
   Step 4 surfaces something adapter-specific and materially worse than
   Kraken's 84%/~2.3µs-per-message finding (e.g., a much deeper default
   subscription depth in practice), that's a new issue to file, not scope

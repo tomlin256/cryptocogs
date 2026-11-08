@@ -92,7 +92,8 @@ void ExchangeWsClient::on_raw_message(const std::string& raw) {
     }
 
     // The identifier is supplied by the adapter and runs on this thread like the handlers below, so a throw from it ends the
-    // process the same way and is contained the same way: report the frame, drop it and go on (plan 034).
+    // process the same way and is contained the same way: report the frame, drop it and go on (plan
+    // transport-callback-lifetimes).
     const std::optional<FrameDescriptor> classified = [&]() -> std::optional<FrameDescriptor> {
         try {
             return identifier_(j);

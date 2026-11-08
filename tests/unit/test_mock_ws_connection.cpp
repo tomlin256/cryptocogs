@@ -7,7 +7,8 @@
 // full license information.
 // =============================================================================
 
-// Tests of MockWsConnection's thread-safe outbound log: sent(), wait_for_sent() and release_waiters() (plan 033, #27).
+// Tests of MockWsConnection's thread-safe outbound log: sent(), wait_for_sent() and release_waiters() (plan
+// tsan-races-in-the-tests, #27).
 //
 // The mock is shared by the Kraken, Binance, Coinbase and Crypto.com WebSocket suites, and Execute.BlocksUntilResponse
 // reads it from a second thread, so what it promises about threads is itself tested. Nothing here sleeps: every wait is

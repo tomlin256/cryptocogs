@@ -1,5 +1,5 @@
 # check_standard_requirement.cmake — test_standard_requirement: linking any library built in src/ compiles the
-# consumer as the C++ standard the project requires (plan 029).
+# consumer as the C++ standard the project requires (plan cmake4-cxx23).
 #
 # Run by ctest as
 #   cmake -DTARGET_FEATURES=<name>=<feature>+<feature>|<name>=... -DWANT=cxx_std_23
@@ -8,7 +8,7 @@
 # INTERFACE_COMPILE_FEATURES, which is what the install export hands to a find_package consumer: the
 # top-level CMAKE_CXX_STANDARD is directory-scoped, compiles the project itself and reaches no consumer, so
 # a library that loses its target_compile_features still builds and passes every other test while the
-# export quietly drops the requirement (plan 017 fixed that once, by hand).
+# export quietly drops the requirement (plan cmake-install-nits fixed that once, by hand).
 #
 # The generator expression is transitive: it adds the features of every library a target links, such as
 # nlohmann_json's cxx_std_11, so a target's list is longer than its own. CMake compiles a consumer at the

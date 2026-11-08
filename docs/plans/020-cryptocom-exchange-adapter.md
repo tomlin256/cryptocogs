@@ -1,4 +1,4 @@
-# Plan 020 — Crypto.com Exchange adapter (REST + WebSocket)
+# Crypto.com Exchange adapter (REST + WebSocket)
 
 **Status:** Done (implemented on `feature/cryptocom-adapter`; WS resolved as §2
 Option A — generic `ExchangeWsClient` + a `HeartbeatResponder` decorator).
@@ -12,7 +12,7 @@ Option A — generic `ExchangeWsClient` + a `HeartbeatResponder` decorator).
 > adapter sets `{{"Host", WS_HOST}}` when building its `IxWsConnection`. This is
 > the only common-layer change; the WS dispatch engine itself is untouched.
 
-**Depends on:** the multi-exchange scaffold (plan 001, complete) and the
+**Depends on:** the multi-exchange scaffold (plan multi-exchange-abstraction, complete) and the
 [add-an-exchange playbook](../agent-add-exchange.md), which this plan follows
 row-for-row using **Binance and Coinbase as the worked references**.
 **Source docs:** <https://exchange-docs.crypto.com/exchange/v1/rest-ws/index.html>
@@ -69,7 +69,7 @@ period token (e.g. `1m`/`M5`) and the precise string echoed back in
 ## 2 — Key design decision: the WebSocket model (heartbeat + reuse vs. bespoke)
 
 This is the one place Crypto.com needs a call before Step 6 — the analogue of
-Coinbase plan 018 §2. **Unlike Coinbase, Crypto.com's subscribe carries a
+Coinbase plan coinbase-exchange-adapter §2. **Unlike Coinbase, Crypto.com's subscribe carries a
 per-request `id` that the ack echoes**, so it *fits* the generic id-correlated
 `exchange::ws::ExchangeWsClient` natively (subscribe ack → `MethodResponse` by
 `id`; `method:"push"` → `PushMessage` by `result.subscription`; `public/auth` →
@@ -182,7 +182,7 @@ checkpoint builds and runs.
 
 ### Step 7 — Build-matrix validation (the decoupling proof)
 - `cmake -B build && cmake --build build` (all flags `ON`) clean; `ctest --output-on-failure` fully green.
-- `cmake -B build-off -DCRYPTOCOGS_BUILD_CRYPTOCOM=OFF && cmake --build build-off` — **no `cryptocom` target, header, test, or example** exists (matches plan 007's matrix cell for Binance and plan 018's for Coinbase).
+- `cmake -B build-off -DCRYPTOCOGS_BUILD_CRYPTOCOM=OFF && cmake --build build-off` — **no `cryptocom` target, header, test, or example** exists (matches plan step-9-cmake-build-validation's matrix cell for Binance and plan coinbase-exchange-adapter's for Coinbase).
 - `cmake -B build-cdc -DCRYPTOCOGS_BUILD_KRAKEN=OFF -DCRYPTOCOGS_BUILD_BINANCE=OFF -DCRYPTOCOGS_BUILD_COINBASE=OFF` — a **Crypto.com-only** tree builds and its tests pass.
 - Confirm `cmake --install` ships `include/exchange/cryptocom` only when the flag is `ON`. Commit (validation + any install-gating fix only).
 
@@ -245,7 +245,7 @@ deterministic (no `sleep_for`, no wall-clock polling).
 - **R7 — Scope.** Advanced orders (OCO/OTO/OTOCO), bots, staking, fiat, margin,
   sub-accounts, and deposits/withdrawals are **out of scope** and recorded here.
   A later plan can add `private/advanced/*` if needed (mirrors how Coinbase FIX
-  became plan 019).
+  became plan coinbase-fix-order-entry).
 - **R8 — Namespace slug.** `cryptocom` is pervasive and hard to change; it is
   visually close to the project name `cryptocogs`. Confirm `cryptocom` vs. `cdc`
   / `crypto_com` at approval.

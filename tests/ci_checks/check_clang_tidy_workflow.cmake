@@ -1,5 +1,5 @@
 # check_clang_tidy_workflow.cmake — test_ci_clang_tidy: the clang-tidy workflow runs the whole gate, at the LLVM major that the
-# project holds it to (plan 040, #49).
+# project holds it to (plan clang-tidy-ci-job, #49).
 #
 # Run by ctest as `cmake -DSOURCE_DIR=<repo> -P check_clang_tidy_workflow.cmake`. It reads .github/workflows/clang-tidy.yml,
 # cmake/cryptocogs_clang_tidy.cmake and CMakePresets.json. It needs no clang-tidy and no build, and runs in every tree.
@@ -20,7 +20,7 @@
 #
 # It reads the workflow's code and not its comments (whole-line ones are dropped first), so a rule is not met by a comment,
 # and a comment that mentions a rule does not break it. What it does not hold: the triggers and their paths-ignore lists
-# (test_ci_paths), and the key of a cache (there is none: plan 040, D1).
+# (test_ci_paths), and the key of a cache (there is none: plan clang-tidy-ci-job, D1).
 #
 # SOURCE_DIR is a parameter so that a hand-made change can be made to a scratch copy of the repo and must fail here.
 

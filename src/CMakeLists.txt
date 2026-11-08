@@ -1,6 +1,7 @@
 #-------------------------------------------------------------------------------
-# This project's own warning flags (plan 036): the first act of the directory, so that every library made below gets them. This
-# directory fetches nothing, so no dependency can. The root CMakeLists.txt has the reasons, and the rule for a new directory.
+# This project's own warning flags (plan warnings-as-errors): the first act of the directory, so that every library made below
+# gets them. This directory fetches nothing, so no dependency can. The root CMakeLists.txt has the reasons, and the rule for a new
+# directory.
 #-------------------------------------------------------------------------------
 
 add_compile_options(${_cryptocogs_warning_options})
@@ -35,18 +36,18 @@ target_include_directories(exchange_common PUBLIC
 # copy.
 # toml++ backs the shared credentials_file.cpp loader only — it is header-only,
 # used in no public header, so link it PRIVATE and BUILD-only (same export guard
-# as nlohmann_json) to keep it out of the install export (plan 021).
+# as nlohmann_json) to keep it out of the install export (plan credentials-from-file).
 target_link_libraries(exchange_common
     PUBLIC  $<BUILD_INTERFACE:nlohmann_json::nlohmann_json>
     PRIVATE $<BUILD_INTERFACE:tomlplusplus::tomlplusplus>)
-# Export the C++23 requirement (cryptocogs#32, plan 029) so downstream find_package(cryptocogs)
+# Export the C++23 requirement (cryptocogs#32, plan cmake4-cxx23) so downstream find_package(cryptocogs)
 # consumers inherit it automatically — the top-level CMAKE_CXX_STANDARD is directory-scoped
-# and does not reach the export (plan 017). cxx_std_23 is a floor, not a pin. test_standard_requirement
+# and does not reach the export (plan cmake-install-nits). cxx_std_23 is a floor, not a pin. test_standard_requirement
 # holds every library created in this directory to it.
 target_compile_features(exchange_common PUBLIC cxx_std_23)
 
 #-------------------------------------------------------------------------------
-# Common HTTP transport — generic libcurl-backed CurlHttpClient (plan 010).
+# Common HTTP transport — generic libcurl-backed CurlHttpClient (plan shared-curl-http-transport).
 #
 # Kept separate from exchange_common so the latter stays curl/ssl-free (the WS
 # engine needs no HTTP). Both REST adapters link this; a future exchange reuses
@@ -102,7 +103,7 @@ if(CRYPTOCOGS_BUILD_BINANCE)
         binance/rest_api.cpp
         binance/rest_client.cpp
         # WS streams + trading API: event/request bodies, frame descriptors,
-        # signing, and the conn-based factories live here (plan 016). The
+        # signing, and the conn-based factories live here (plan declarative-headers). The
         # generic ExchangeWsClient impl still comes from exchange_common —
         # BinanceStreamClient / BinanceWsApiClient remain bare aliases for it.
         # None of this links ixwebsocket (the URL factory is in the header-only
@@ -121,7 +122,7 @@ if(CRYPTOCOGS_BUILD_BINANCE)
 endif()
 
 #-------------------------------------------------------------------------------
-# Coinbase exchange adapter (plan 018)
+# Coinbase exchange adapter (plan coinbase-exchange-adapter)
 #-------------------------------------------------------------------------------
 
 if(CRYPTOCOGS_BUILD_COINBASE)
@@ -130,7 +131,7 @@ if(CRYPTOCOGS_BUILD_COINBASE)
         coinbase/types.cpp
         coinbase/rest_api.cpp
         coinbase/rest_client.cpp
-        # WebSocket feed: bespoke CoinbaseStreamClient (plan 018 §2 Option A) over
+        # WebSocket feed: bespoke CoinbaseStreamClient (plan coinbase-exchange-adapter §2 Option A) over
         # the shared IWsConnection. No id-correlated ExchangeWsClient here, and no
         # ixwebsocket link (the example builds the IxWsConnection and passes it in).
         coinbase/ws_streams.cpp
@@ -146,7 +147,7 @@ if(CRYPTOCOGS_BUILD_COINBASE)
 endif()
 
 #-------------------------------------------------------------------------------
-# Crypto.com exchange adapter (plan 020)
+# Crypto.com exchange adapter (plan cryptocom-exchange-adapter)
 #-------------------------------------------------------------------------------
 
 if(CRYPTOCOGS_BUILD_CRYPTOCOM)
@@ -155,7 +156,7 @@ if(CRYPTOCOGS_BUILD_CRYPTOCOM)
         cryptocom/types.cpp
         cryptocom/rest_api.cpp
         cryptocom/rest_client.cpp
-        # WebSocket: heartbeat-responder decorator + market/user feed (plan 020
+        # WebSocket: heartbeat-responder decorator + market/user feed (plan cryptocom-exchange-adapter
         # §2 Option A). Reuses the generic ExchangeWsClient from exchange_common;
         # no ixwebsocket link (the example builds the IxWsConnection and passes
         # it in).
@@ -173,7 +174,7 @@ if(CRYPTOCOGS_BUILD_CRYPTOCOM)
 endif()
 
 #-------------------------------------------------------------------------------
-# Install the library targets into the cryptocogsTargets export set (plan 012).
+# Install the library targets into the cryptocogsTargets export set (plan install-and-package-config).
 # The export itself + headers + package config are installed from the top-level
 # CMakeLists. The two common libs are always present; the adapters only if their
 # flag built them.

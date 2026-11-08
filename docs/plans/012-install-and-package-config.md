@@ -1,4 +1,4 @@
-# Plan 012 — Install rules + CMake package config
+# Install rules + CMake package config
 
 **Status**: Done — implemented in commits `cbbe1a8` + docs wrap-up
 **Branch**: `feature/multi-exchange-abstraction`
@@ -25,7 +25,7 @@ Make the library installable so a downstream project can
 `find_package(cryptocogs)` and `target_link_libraries(app PRIVATE
 cryptocogs::kraken)` (and/or `cryptocogs::binance`) against an installed
 prefix — not only via in-tree `FetchContent`. This was the one piece punted from
-[plan 002](002-step-2b-compat-shim.md); Rob's "punt" was a typo.
+[plan step-2b-compat-shim](002-step-2b-compat-shim.md); Rob's "punt" was a typo.
 
 **Done when**: `cmake --install` into a prefix lays down the four static libs,
 the public headers (component-gated), and a CMake package config; and a **fresh
@@ -117,8 +117,8 @@ and links a small program against that prefix.
 - README: an "Installing" subsection (`cmake --install`, the `find_package` +
   `target_link_libraries` snippet, the `nlohmann_json` note from decision 1).
 - CLAUDE.md: note the install/package-config targets and `CRYPTOCOGS_INSTALL`.
-- Plan 002: flip its punt note — install is now done here (link to plan 012).
-- Flip plan 012 → Done. Final build + `ctest`.
+- Plan step-2b-compat-shim: flip its punt note — install is now done here (link to plan install-and-package-config).
+- Flip plan install-and-package-config → Done. Final build + `ctest`.
 - **Checkpoint**: `docs: mark plan 012 done — install/package config`.
 
 ## Self-review — risks & assumptions

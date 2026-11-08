@@ -67,7 +67,7 @@ BENCHMARK(BM_FrameDescriptor_Ticker);
 // ── BM_BookFromJson — ranged book depth ──────────────────────────────────────
 // BookData::from_json (ws_api.cpp:390-403) push_backs into bids/asks with no
 // .reserve(), despite j["bids"]/j["asks"].size() being known upfront — see
-// docs/plans/025 Design decisions. Depths chosen to match the
+// docs/plans/025-kraken-performance-profiling.md Design decisions. Depths chosen to match the
 // BM_VectorPushBack_* Args below for a direct, same-N comparison in Step 4.
 
 std::string make_book_json(int depth) {

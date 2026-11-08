@@ -8,8 +8,8 @@
 // =============================================================================
 
 // make_curl_header_list: the "Key: value" list that CurlHttpClient::perform hands to libcurl, and what it does when libcurl cannot
-// grow the list (plan 038, #48). The lists are real libcurl lists, read back by walking them. The only double is the function that
-// grows a list, and it is libcurl's own until it is told to fail. No network, no sleeps.
+// grow the list (plan curl-header-list-append-failure, #48). The lists are real libcurl lists, read back by walking them. The
+// only double is the function that grows a list, and it is libcurl's own until it is told to fail. No network, no sleeps.
 
 #include "exchange/common/curl_header_list.hpp"
 

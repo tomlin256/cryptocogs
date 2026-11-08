@@ -1,11 +1,11 @@
-# 013 — Source-compatibility shim for legacy `src/kraken_{ws,rest}_client.cpp` paths
+# Source-compatibility shim for legacy `src/kraken_{ws,rest}_client.cpp` paths
 
 **Status:** Done — `0f047b5`
 
 ## Goal
 
-Complete the deprecation story started in [plan 002](002-step-2b-compat-shim.md).
-Plan 002 shipped the **header** compat shim (`kraken_compat.hpp` + the seven
+Complete the deprecation story started in [plan step-2b-compat-shim](002-step-2b-compat-shim.md).
+Plan step-2b-compat-shim shipped the **header** compat shim (`kraken_compat.hpp` + the seven
 `kraken_*.hpp` / `ws_reconnect_session.hpp` forwarders), so pre-refactor callers
 keep compiling against the `kraken::` namespace. But it deleted/relocated the old
 **source** files (`src/kraken_ws_client.cpp`, `src/kraken_rest_client.cpp`,

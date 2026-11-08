@@ -14,7 +14,7 @@
 //   - Inject inbound server frames (conn->inject_message(...))
 //   - Simulate connection open/close (conn->fire_open() / fire_close())
 //
-// The outbound log is safe to use from a second thread (plan 033, #27): send()
+// The outbound log is safe to use from a second thread (plan tsan-races-in-the-tests, #27): send()
 // appends under a lock and wakes the waiters, and sent() copies under the same
 // lock. The log is private for that reason: the unlocked read from another
 // thread that ThreadSanitizer reported in Execute.BlocksUntilResponse can no

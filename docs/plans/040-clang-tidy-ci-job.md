@@ -1,26 +1,27 @@
-# Plan 040 — A clang-tidy job in CI
+# A clang-tidy job in CI
 
 **Status:** Done (2026-11-06). Approved as written, so D1 to D5 stood at the defaults below. The *Outcome* says what was measured and
 what differed from the plan. #49 is closed.
 
 Closes [#49](https://github.com/tomlin256/cryptocogs/issues/49) — "CI: add a clang-tidy job now that the gate is green (plan 035 left it out until then)".
 
-**Follows:** [plan 035](035-clang-tidy-opt-in-test-step.md) (the gate; its D4 left CI out until the findings were gone),
-[plan 037](037-clear-clang-tidy-findings.md) (cleared them), [plan 031](031-ci-skip-docs-only.md) (the `paths-ignore` lists) and
-[plan 032](032-sanitizer-option-and-presets.md) (a workflow of its own, and no caches).
+**Follows:** [plan clang-tidy-opt-in-test-step](035-clang-tidy-opt-in-test-step.md) (the gate; its D4 left CI out until the findings were gone),
+[plan clear-clang-tidy-findings](037-clear-clang-tidy-findings.md) (cleared them), [plan ci-skip-docs-only](031-ci-skip-docs-only.md) (the
+`paths-ignore` lists) and [plan sanitizer-option-and-presets](032-sanitizer-option-and-presets.md) (a workflow of its own, and no caches).
 **Design source:** the `clang-tidy` job of flywheel-dag's `ci.yml` (flywheel-dag#60), for the install recipe. Its `ubuntu-latest` leg
 is green today (run 42239573531, 2026-11-06). This plan differs from it in the points under *Decisions to confirm*.
 
 **Not here:** a macOS leg (D5); a dependency cache (D1; [#54](https://github.com/tomlin256/cryptocogs/issues/54) is the cheaper way to
-the same end, raised while planning this); a nightly run (D2); wider checks (plan 035, D3); pinning clang-tidy to a point release; a
-rule that makes the job required (`main` has no branch protection); any change under `include/` or `src/`, so no tag and no version.
+the same end, raised while planning this); a nightly run (D2); wider checks (plan clang-tidy-opt-in-test-step, D3); pinning clang-tidy to a
+point release; a rule that makes the job required (`main` has no branch protection); any change under `include/` or `src/`, so no tag and no
+version.
 
 ## Problem
 
 The gate is green: 88 of 88 in a default tree and 95 of 95 with `CRYPTOCOGS_BUILD_BENCHMARKS=ON` (the seven `bench_*.cpp` units), on the
-Mac (clang-tidy 23.1.4); plan 037 showed it green in the `ubuntu-dev` container too (23.1.6). Nothing runs it but a person turning
-`-DCRYPTOCOGS_CLANG_TIDY` on by hand, as plans 038 and 039 each did in their checkpoints. So a new finding lands unseen, and is found by
-whoever next runs the gate.
+Mac (clang-tidy 23.1.4); plan clear-clang-tidy-findings showed it green in the `ubuntu-dev` container too (23.1.6). Nothing runs it but a
+person turning `-DCRYPTOCOGS_CLANG_TIDY` on by hand, as plans curl-header-list-append-failure and kraken-example-ws-frames each did in their
+checkpoints. So a new finding lands unseen, and is found by whoever next runs the gate.
 
 ### What I checked (2026-11-06)
 
@@ -33,7 +34,7 @@ whoever next runs the gate.
   the image (#41: 27 packages, 6.4 MB, the step's variance is the mirror); `libssl-dev` and `zlib1g-dev` are.
 - **What the main workflow costs, for scale.** Run 42249330660 (the last push): job 75 s, apt 10 s, configure 25 s, build 15 s, test
   15 s. That configure was a **dependency-cache miss** (the commit had edited `tests/CMakeLists.txt`, so it saved a new 15 MB entry) and
-  its 25 s is the seven clones. Plan 030 measured a hit at 1.7 s.
+  its 25 s is the seven clones. Plan ci-cache measured a hit at 1.7 s.
 - **What the cache would save the lint job: about 23 s of roughly 2.5 minutes.** And what it would cost, below (D1).
 - **Shallow clones** (raised as #54, not done here): the seven pins are 495 MB cloned in full and 51 MB with `--depth 1`; nlohmann_json
   alone 14.9 s against 0.9 s. A cold configure would drop to a few seconds without any cache.
@@ -154,13 +155,14 @@ Defaults stand if you approve the plan as written.
   - a copy of the key line and of the toolchain-id step, with `test_ci_cache_key` taught to hold two files (it wants exactly one `deps-`
     line today), and restore-only so the lint job never writes the entry.
 
-  `sanitizers.yml` has no caches by design (plan 032, D7). #54 (shallow clones) would shorten the cold configure for both. *Alternative:*
-  the cache, with the four things above; it is a self-contained step to add later if the measured cold configure disappoints.
+  `sanitizers.yml` has no caches by design (plan sanitizer-option-and-presets, D7). #54 (shallow clones) would shorten the cold configure
+  for both. *Alternative:* the cache, with the four things above; it is a self-contained step to add later if the measured cold configure
+  disappoints.
 - **D2 Triggers: every push and pull request to `main` that changes more than documentation (the same lists as the main workflow), and
   on demand. Not nightly.** A nightly finds a finding a day after it landed, and the job is two or three minutes, so the answer can come
   with the push. The price of no nightly is that toolchain drift (a new clang-tidy 23.x, an image roll) shows on the next unrelated push;
   the log prints the versions. *Alternative:* add `schedule` (one line; `test_ci_paths` reads only the push and pull-request lists).
-  It lands in two commits, as plan 036 landed its flags: the workflow first with `workflow_dispatch` only, read, and the push and
+  It lands in two commits, as plan warnings-as-errors landed its flags: the workflow first with `workflow_dispatch` only, read, and the push and
   pull-request triggers second, so the toolchain's opinion is read before it can put a red mark on `main`.
 - **D3 The tree is `debug-linux-x86_64` and the benchmarks are on: 95 tests.** Debug is the kind the gate was proven on and the one the
   editor uses (`.clangd`). The only difference to Release for clang-tidy is `-DNDEBUG`, and no project file uses `assert` today, but a
@@ -264,10 +266,10 @@ the counts.
   line to add if drift bites.
 - **`release-linux-x86_64`** (D3), only to share the cache.
 - **A matrix of kinds** (debug and release). The two compile the same code for a front end that does not optimise.
-- **Pinning the package version** (`clang-tidy-23=23.1.6-…`). The project holds one major (plan 035, D2), not one build; the Mac and the
-  container already differ (23.1.4, 23.1.6).
+- **Pinning the package version** (`clang-tidy-23=23.1.6-…`). The project holds one major (plan clang-tidy-opt-in-test-step, D2), not one
+  build; the Mac and the container already differ (23.1.4, 23.1.6).
 - **LLVM's `llvm.sh` installer.** It installs more than clang-tidy and cannot check the key against a fingerprint first.
-- **A third-party action to install LLVM** (`KyleMayes/install-llvm-action`). It adds a dependency that plan 030 avoided for ccache, for a
+- **A third-party action to install LLVM** (`KyleMayes/install-llvm-action`). It adds a dependency that plan ci-cache avoided for ccache, for a
   recipe that is eight lines.
 - **`Acquire::Retries` or a retry loop** on the apt steps. No failure has been seen, only slowness (#41). Added when one is.
 - **Failing the job on a count** (`Total Tests: 95`). It would need an edit with every new source file; `clang_tidy_units` already holds

@@ -1,19 +1,19 @@
 # Sanitizer builds of the whole suite: AddressSanitizer + UndefinedBehaviorSanitizer ("asan") and ThreadSanitizer
 # ("tsan"). See docs/plans/032-sanitizer-option-and-presets.md (#30).
 #
-# Why it exists. Plan 028 built both trees by hand and found two data races in the tests (#27, #28) that nothing
+# Why it exists. Plan platform-build-dirs built both trees by hand and found two data races in the tests (#27, #28) that nothing
 # had ever looked for. Nothing ran a sanitizer in CI, so a bug of that kind shows itself only when a toolchain
 # change happens to expose it, or when someone builds the tree by hand again.
 #
 # A separate workflow from cmake-single-platform.yml, so a red sanitizer run cannot mask whether the normal gate is
-# green. It has no caches on purpose (plan 032, D7): a run is a few minutes of free time on a public repository, and a
-# dependency tree restored from the wrong mode would be partial instrumentation with no error to say so.
+# green. It has no caches on purpose (plan sanitizer-option-and-presets, D7): a run is a few minutes of free time on a public
+# repository, and a dependency tree restored from the wrong mode would be partial instrumentation with no error to say so.
 #
 # When it runs. Nightly at 03:41 UTC, both modes, and on demand (Actions > Sanitizers > Run workflow; `which` picks one job
-# or both). tsan joined the nightly after #27 and #28 were fixed (plan 033) and five consecutive tsan dispatch runs were
-# green (41903619210, 41904405730, 41905586543, 41906615392, 41907779281), because ThreadSanitizer reports a race only
-# when it sees both accesses and a single green run proves little (plan 032, D7). Before that, the first dispatch of both
-# (run 41895626568) had asan green and tsan red on exactly those two tests, `Execute.BlocksUntilResponse` and
+# or both). tsan joined the nightly after #27 and #28 were fixed (plan tsan-races-in-the-tests) and five consecutive tsan dispatch
+# runs were green (41903619210, 41904405730, 41905586543, 41906615392, 41907779281), because ThreadSanitizer reports a race only
+# when it sees both accesses and a single green run proves little (plan sanitizer-option-and-presets, D7). Before that, the first
+# dispatch of both (run 41895626568) had asan green and tsan red on exactly those two tests, `Execute.BlocksUntilResponse` and
 # `WsReconnectSession.BackoffResetsAfterSuccessfulReconnect`, and nothing else.
 #
 # The same build locally, one tree per kind (the preset names it, build/asan-linux-x86_64, and sets
@@ -107,13 +107,13 @@ jobs:
     # purpose: LeakSanitizer is Linux-only).
     #
     # ASAN: detect_stack_use_after_return and strict_string_checks widen what ASan sees; detect_leaks gates the job, since
-    # plan 028's Linux run was clean.
+    # the Linux run of plan platform-build-dirs was clean.
     #
     # UBSAN: the build is -fno-sanitize-recover=undefined, so the first report aborts the test; print_stacktrace says where.
     #
     # TSAN: halt_on_error stops at the first race. ThreadSanitizer finds a race only when it sees both accesses, so a clean
-    # run proves less than a clean ASan run does. There is no suppression file (plan 032, D6): one would need Rob's OK and
-    # a comment naming its cause.
+    # run proves less than a clean ASan run does. There is no suppression file (plan sanitizer-option-and-presets, D6): one would
+    # need Rob's OK and a comment naming its cause.
     #
     # The test preset carries --output-on-failure and fails a run that finds no tests. The sanitizer canaries run here:
     # sanitizer_canary_* prove the options are live and test_sanitizer_coverage proves every compile unit and executable

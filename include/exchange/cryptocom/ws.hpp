@@ -16,13 +16,13 @@
 //
 // Namespace: exchange::cryptocom::ws
 //
-// Design (plan 020 §2, Option A): Crypto.com's WS is id-correlated like
+// Design (plan cryptocom-exchange-adapter §2, Option A): Crypto.com's WS is id-correlated like
 // Binance/Kraken, so it reuses the generic exchange::ws::ExchangeWsClient
 // unchanged. The one misfit — the mandatory heartbeat — is handled by the
 // HeartbeatResponder IWsConnection decorator (heartbeat_connection.hpp), bound by
 // the factories below; exchange_common is untouched.
 //
-// Wire model (pinned from live captures, plan 020 step 6):
+// Wire model (pinned from live captures, plan cryptocom-exchange-adapter step 6):
 //   - SUBSCRIBE: {"id":N,"method":"subscribe","params":{"channels":[C]}}.
 //   - The ACK / initial frame echoes id N: {"id":N,"method":"subscribe","code":0,
 //     ...} (sometimes with a snapshot in result, sometimes bare). It resolves

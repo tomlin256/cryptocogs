@@ -1,12 +1,12 @@
-# Plan 046 — A kind starts with a letter: the platform guard agrees with flywheel-dag's copy
+# A kind starts with a letter: the platform guard agrees with flywheel-dag's copy
 
 **Status:** Done (2026-11-07). Rob approved the plan as written, so D1 stood at its default (the flywheel-dag issue is opened). Steps 0
 to 2 are recorded in the *Outcome*.
 
 Closes [#64](https://github.com/tomlin256/cryptocogs/issues/64).
 
-**Follows:** [plan 028](028-platform-build-dirs.md) (the module, a copy of flywheel-dag's: D3) and
-[plan 032](032-sanitizer-option-and-presets.md) (rule 2).
+**Follows:** [plan platform-build-dirs](028-platform-build-dirs.md) (the module, a copy of flywheel-dag's: D3) and
+[plan sanitizer-option-and-presets](032-sanitizer-option-and-presets.md) (rule 2).
 **Not here:** any edit of flywheel-dag's checkout (D1).
 
 ## Problem
@@ -73,7 +73,7 @@ Defaults stand if you approve the plan as written.
 - **D1. flywheel-dag gets an issue, not an edit.** Its `tests/check_platform.cmake` has no row for a digit-led kind or for `darwin`
   (its module already passes them: measured above), so a change to its module that undid either would pass its tests. *Default:*
   after the push, open an issue there (label `enhancement`, priority low in the body) that names the rows and links this plan. Plan
-  028 D3 says a table changes in both repos; the rule since is that a sibling gets an issue. *Alternative:* none opened.
+  platform-build-dirs D3 says a table changes in both repos; the rule since is that a sibling gets an issue. *Alternative:* none opened.
 
 ## Steps
 
@@ -135,7 +135,7 @@ The issue of D1, if confirmed; I tell you its number. *Left for later:* a run of
 ## Designs I rejected
 
 - **flywheel-dag adopts `[a-z0-9]+`** (the issue's second way). It edits a sibling checkout, and a kind is "one lower-case word"
-  (the module, `CLAUDE.md`, plan 028 D1); a word starts with a letter.
+  (the module, `CLAUDE.md`, plan platform-build-dirs D1); a word starts with a letter.
 - **The pattern written once, in a variable.** It would end the three sites and the two equivalent mutants, but the module would then
   differ in shape from flywheel-dag's, whose header says the two are changed together. If wanted, it is a change to both.
 

@@ -7,8 +7,9 @@
 // full license information.
 // =============================================================================
 
-// CurlHttpClient::perform against a loopback ix::HttpServer (plan 038, #48; plan 041, #51): what a request carries over a real libcurl
-// transfer, and that nothing of an earlier request on the same client comes with it.
+// CurlHttpClient::perform against a loopback ix::HttpServer (plan curl-header-list-append-failure, #48; plan curl-handle-reset,
+// #51): what a request carries over a real libcurl transfer, and that nothing of an earlier request on the same client comes with
+// it.
 //
 // perform builds the header list from HttpRequest::headers and hands it to libcurl, and nothing else in the suite runs the transport
 // (the adapter tests inject a performer). Real sockets on 127.0.0.1, no network. No sleeps: perform() returns once the server has
@@ -19,20 +20,20 @@
 // nothing of the one before it, a call that threw included. The server's reply says "Connection: close", so libcurl never tries a
 // connection that the server is closing: there is no timing in them.
 //
-// Timeouts (plan 042, #56). A SilentListener, a TCP listener that never accepts, stands for a server that has stopped answering. The two
-// live tests give one limit a value that cannot end the call within the test's life (an hour) and the other 1 ms, so only the option
-// under test can end it: an option that is missing, misplaced or set on the first call only leaves the call blocked until the preset's
-// 120 s timeout. At 1 ms the outcome is certain, because libcurl's own timer ends the call (1,200 of 1,200 runs on macOS and on Linux),
-// but the phase is not: whether a plain-HTTP request had begun varied from 99 of 300 runs on macOS to 300 of 300 on Linux. So no live
-// test asserts it. The text for each phase is tested as a pure function, and the live phase test is the TLS handshake that is never
-// answered, where nothing is ever sent.
+// Timeouts (plan curl-timeouts, #56). A SilentListener, a TCP listener that never accepts, stands for a server that has stopped
+// answering. The two live tests give one limit a value that cannot end the call within the test's life (an hour) and the other
+// 1 ms, so only the option under test can end it: an option that is missing, misplaced or set on the first call only leaves the
+// call blocked until the preset's 120 s timeout. At 1 ms the outcome is certain, because libcurl's own timer ends the call (1,200
+// of 1,200 runs on macOS and on Linux), but the phase is not: whether a plain-HTTP request had begun varied from 99 of 300 runs
+// on macOS to 300 of 300 on Linux. So no live test asserts it. The text for each phase is tested as a pure function, and the live
+// phase test is the TLS handshake that is never answered, where nothing is ever sent.
 //
-// Connections (plan 043, #58). libcurl keeps connections between calls, and when a reused one ends before a byte of reply it writes the
-// request again on a new connection, so a POST that places an order could reach the server twice and perform() could not tell. The
-// ix::HttpServer above cannot show it: it closes every connection after its reply. A KeepAliveServer (keepalive_server.hpp) keeps them
-// open, records every request with the connection it came on, and closes a connection with no reply when its rule says so. The tests count
-// what the server read, after perform() has returned: no timer. A POST or DELETE must be read once, on a connection made for it, and a GET
-// keeps sharing a connection.
+// Connections (plan curl-post-sent-once, #58). libcurl keeps connections between calls, and when a reused one ends before a byte
+// of reply it writes the request again on a new connection, so a POST that places an order could reach the server twice and
+// perform() could not tell. The ix::HttpServer above cannot show it: it closes every connection after its reply. A
+// KeepAliveServer (keepalive_server.hpp) keeps them open, records every request with the connection it came on, and closes a
+// connection with no reply when its rule says so. The tests count what the server read, after perform() has returned: no timer. A
+// POST or DELETE must be read once, on a connection made for it, and a GET keeps sharing a connection.
 
 #include "exchange/common/http_client.hpp"
 
@@ -505,7 +506,7 @@ TEST(CurlHttpClientTimeouts, ATimeoutBeforeTheRequestWentOutSaysItWasNotSent) {
     EXPECT_FALSE(has(text, "sending it again")) << text;
 }
 
-// ---- Connections (plan 043, #58) ----------------------------------------------------------------------------------------------------
+// ---- Connections (plan curl-post-sent-once, #58) ------------------------------------------------------------------------------
 
 namespace {
 
@@ -595,7 +596,8 @@ TEST_F(CurlHttpClientPerform, APostOrADeleteNeverRidesAConnectionAnEarlierReques
     expect_an_order_has_a_connection_of_its_own("a DELETE after a GET", get_first, delete_order);
 }
 
-// Plan 041 kept connections across the reset so that a GET can reuse one; the fix for #58 must not give that up. Passes before the fix too.
+// Plan curl-handle-reset kept connections across the reset so that a GET can reuse one; the fix for #58 must not give that up.
+// Passes before the fix too.
 TEST_F(CurlHttpClientPerform, GetsKeepSharingOneConnection) {
     KeepAliveServer server(never_drop);
     ASSERT_TRUE(server.listening());

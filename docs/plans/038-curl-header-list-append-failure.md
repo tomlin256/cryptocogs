@@ -1,8 +1,8 @@
-# Plan 038 — `CurlHttpClient` stops when `curl_slist_append` fails
+# `CurlHttpClient` stops when `curl_slist_append` fails
 
 **Status:** Done (2026-11-06). Rob approved the plan as written, so D1 to D5 stood at the defaults below. #48 is closed; the *Outcome* at
 the end has the record, the sanitizer evidence of Step 4 included. Released in
-[v2.1.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.1.0) (2026-11-06) with plans 041, 042 and 043; the record is in plan 043, Step 4.
+[v2.1.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.1.0) (2026-11-06) with plans curl-handle-reset, curl-timeouts and curl-post-sent-once; the record is in plan curl-post-sent-once, Step 4.
 
 Closes [#48](https://github.com/tomlin256/cryptocogs/issues/48).
 
@@ -104,8 +104,8 @@ Defaults stand if you approve the plan as written.
   Step 1. *Alternative:* the function's unit tests only; `perform` is tested with #51.
 - **D4 No tag.** An allocation-failure path; a patch release (v2.0.1) is outward-facing, so say so if you want one.
 - **D5 Evidence order.** The checkpoint is the full build and ctest of `debug-macos-arm64` with the clang-tidy gate on. The sanitizer
-  trees and the Linux evidence come after the push (Step 4), as you asked on plan 029. *Alternative:* the sanitizer trees in every
-  checkpoint (plan 033).
+  trees and the Linux evidence come after the push (Step 4), as you asked on plan cmake4-cxx23. *Alternative:* the sanitizer trees in every
+  checkpoint (plan tsan-races-in-the-tests).
 
 ## Steps
 
@@ -178,7 +178,7 @@ the new one, the two changes red, pushed.
 ### Step 3 — Docs, push, CI, close
 
 `CLAUDE.md`: the structure tree (the header, the source, the two tests), *Running tests* (the executable count, the test count, the
-ctest count and the table rows of the two binaries, the Crypto.com-only count recomputed from a tree as in plan 033, the
+ctest count and the table rows of the two binaries, the Crypto.com-only count recomputed from a tree as in plan tsan-races-in-the-tests, the
 `clang_tidy_*` counts), the *Test suite breakdown* rows, and the coding-conventions line that lists what `exchange_http` compiles. All
 numbers are measured. This file's *Outcome*. Turn the gate off again in the tree (`-DCRYPTOCOGS_CLANG_TIDY=`). *Done when:* pushed, the
 `release-linux-x86_64` run of the last commit is green (it is the GCC 15.2 build and test), and #48 is closed by hand with a comment
@@ -188,7 +188,7 @@ that lists the commits, the red-then-green record and the counts.
 
 Not blocking the push (push, then measure).
 1. **Sanitizer trees.** `asan-macos-arm64` and `tsan-macos-arm64`, full suites, with the options in `CLAUDE.md` (*Sanitizers*). TSan is
-   the one that matters for Step 2's server thread; a report inside ixwebsocket is a finding for its own issue (plan 034).
+   the one that matters for Step 2's server thread; a report inside ixwebsocket is a finding for its own issue (plan transport-callback-lifetimes).
 2. **The Linux ASan job.** `gh workflow run sanitizers.yml --ref main -f which=asan`, one dispatch at a time: LeakSanitizer runs only
    there, so it is the oracle of the leak half of #48. *Done when* green. If Docker is up, also build the scratch copy with the old logic
    in the Linux asan tree and see LeakSanitizer report the leak from `AFailureAtAnyPositionThrowsAndStops` (the proof the oracle sees

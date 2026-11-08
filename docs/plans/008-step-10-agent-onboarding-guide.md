@@ -1,7 +1,7 @@
-# Plan 008 — Step 10: Agent onboarding guide for new exchanges
+# Step 10: Agent onboarding guide for new exchanges
 
 **Status**: Done — implemented in commits `3dcccee` (10.1) + the 10.2 verify/link/wrap-up
-**Parent**: [Plan 001, Step 10](001-multi-exchange-abstraction.md#step-10--write-the-agent-onboarding-guide-for-new-exchanges)
+**Parent**: [Plan multi-exchange-abstraction, Step 10](001-multi-exchange-abstraction.md#step-10--write-the-agent-onboarding-guide-for-new-exchanges)
 **Branch**: `feature/multi-exchange-abstraction`
 
 ---
@@ -95,9 +95,9 @@ plan marked done; full `ctest` green (unchanged 300).
   every 7-hex commit token from the guide; assert each path exists and each
   `git cat-file -e <hash>`. Fix any miss.
 - **Wire links**: add a pointer to the guide from `CLAUDE.md` and from
-  `docs/plans.md` context (plan 008 row already lands it in the index).
-- **Wrap-up**: append the Step 10 "**Done**:" paragraph to plan 001; flip
-  plan 008 → Done in `docs/plans.md` + this header. Final `cmake --build build`
+  `docs/plans.md` context (plan step-10-agent-onboarding-guide row already lands it in the index).
+- **Wrap-up**: append the Step 10 "**Done**:" paragraph to plan multi-exchange-abstraction; flip
+  plan step-10-agent-onboarding-guide → Done in `docs/plans.md` + this header. Final `cmake --build build`
   + `ctest` sanity (300, unchanged).
 
 ### Checkpoint commit(s)

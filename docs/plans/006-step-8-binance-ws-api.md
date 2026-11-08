@@ -1,22 +1,22 @@
-# Plan 006 — Step 8: Binance WebSocket API (bidirectional trading)
+# Step 8: Binance WebSocket API (bidirectional trading)
 
 **Status**: Done — implemented in commits `398d2a8`, `0201b3f`, `d9592c7`, `b3504b0`, `480eba6`
-**Parent**: [Plan 001, Step 8](001-multi-exchange-abstraction.md#step-8--binance-websocket-api-bidirectional-trading)
+**Parent**: [Plan multi-exchange-abstraction, Step 8](001-multi-exchange-abstraction.md#step-8--binance-websocket-api-bidirectional-trading)
 **Branch**: `feature/multi-exchange-abstraction`
 **Message formats**: [001-appendix-binance-message-formats.md §4 + §5](001-appendix-binance-message-formats.md)
-**Predecessor**: [Plan 005](005-step-7-binance-ws-streams.md) (streams — same client, same test binary)
+**Predecessor**: [Plan step-7-binance-ws-streams](005-step-7-binance-ws-streams.md) (streams — same client, same test binary)
 
-Implements plan 001 Step 8: request/response trading over Binance's WebSocket
+Implements plan multi-exchange-abstraction Step 8: request/response trading over Binance's WebSocket
 API endpoint (`wss://ws-api.binance.com/ws-api/v3`), built entirely on the
 existing `exchange::ws::ExchangeWsClient`. There is **no push/channel concept**
 on this endpoint — every frame is a method call correlated by `id` — so this
 step exercises only the `execute`/`execute_async` half of the generic client
-(plan 005 proved the `subscribe` half). Zero changes to the generic client,
+(plan step-7-binance-ws-streams proved the `subscribe` half). Zero changes to the generic client,
 transport, or reconnect machinery.
 
-In scope (per plan 001): `ping`, `order.place`, `order.cancel`, per-request
+In scope (per plan multi-exchange-abstraction): `ping`, `order.place`, `order.cancel`, per-request
 HMAC-SHA256 signing. The logon-session flow (`session.logon`, Ed25519) is
-explicitly deferred by plan 001.
+explicitly deferred by plan multi-exchange-abstraction.
 
 ---
 
@@ -29,7 +29,7 @@ explicitly deferred by plan 001.
    legal identical redeclarations; the unit binary includes both and proves
    it). No new `.cpp` enters `binance`; no ixwebsocket include.
 
-2. **Factory mirrors plan 005 decision 2 exactly** — conn-based in the header:
+2. **Factory mirrors plan step-7-binance-ws-streams decision 2 exactly** — conn-based in the header:
 
    ```cpp
    using BinanceWsApiClient = exchange::ws::ExchangeWsClient;
@@ -43,7 +43,7 @@ explicitly deferred by plan 001.
    URL-based construction is spelled via the existing common overload
    (`exchange::ws::make_exchange_ws_client(url, binance_ws_api_frame_descriptor, eh)`
    from `ix_ws_connection.hpp`) so the header never leaks ixwebsocket —
-   plan 001's "`make_binance_ws_api_client(url)`" line is satisfied by this
+   plan multi-exchange-abstraction's "`make_binance_ws_api_client(url)`" line is satisfied by this
    pair, same as 005.
 
 3. **One envelope base, `BinanceWsApiResponse : exchange::ws::BaseWsResponse`.**
@@ -54,10 +54,10 @@ explicitly deferred by plan 001.
    `detail::parse_ws_api_envelope(BinanceWsApiResponse&, const json&)` sets
    `success = (status < 400)` and `error = error.msg` — so the generic
    `detail::make_ws_response` derives `ok` with no client change (the same
-   `BaseWsResponse` type-dispatch plan 005 used). This is Kraken's
+   `BaseWsResponse` type-dispatch plan step-7-binance-ws-streams used). This is Kraken's
    `BaseResponse` pattern with Binance's shell.
 
-4. **`rateLimits` is parsed, minimally.** Unlike plan 005's dropped ignore
+4. **`rateLimits` is parsed, minimally.** Unlike plan step-7-binance-ws-streams's dropped ignore
    fields, `rateLimits` is the API's flow-control feedback for *trading*
    (ORDERS budget consumed per reply) — operationally useful and cheap: one
    5-field `BinanceWsRateLimit` struct + a loop in the envelope parser.
@@ -84,7 +84,7 @@ explicitly deferred by plan 001.
    hex), and `recvWindow` semantics as REST — only the payload framing differs.
    A distinct struct would duplicate fields for no semantic gain (Kraken needed
    a distinct `WsCredentials` because its WS auth model genuinely differs —
-   token vs key/secret; Binance's does not). Plan 001's name survives as the
+   token vs key/secret; Binance's does not). Plan multi-exchange-abstraction's name survives as the
    alias, re-exported in `exchange::binance::ws`.
 
 7. **Signing is one free helper, `detail::ws_sign_params`, reusing the
@@ -124,7 +124,7 @@ explicitly deferred by plan 001.
    `type`, optional `timeInForce`/`quantity`/`price`/`newClientOrderId`/
    `stopPrice`/`icebergQty`/`quoteOrderQty`/`newOrderRespType`; cancel:
    `symbol` + `orderId` | `origClientOrderId` + optional `newClientOrderId`),
-   with the same caller-formatted-decimal-string convention (plan 004
+   with the same caller-formatted-decimal-string convention (plan step-6-binance-rest-private
    decision 6) and the same `exchange::binance::` enum converters. The structs
    are *not* shared with REST — build mechanics differ (query/body string +
    `IRestAuth` vs sorted-JSON params signed inline) — only the field sets and
@@ -134,8 +134,8 @@ explicitly deferred by plan 001.
     non-null `"id"` is a `MethodResponse` with
     `correlation_id = stringify(id)` (tolerating string ids; we emit int64,
     matching the client's `std::to_string(req_id)` pending key — same
-    verified contract as 005); everything else is `Unknown`. No `route_key`,
-    no push branch, no Binance `identify_message`/`MessageKind` (005
+    verified contract as plan step-7-binance-ws-streams); everything else is `Unknown`. No `route_key`,
+    no push branch, no Binance `identify_message`/`MessageKind` (plan step-7-binance-ws-streams
     decision 5 carries over).
 
 11. **8.5 adds a `ping`-only live example — a deliberate, flagged deviation
@@ -145,11 +145,11 @@ explicitly deferred by plan 001.
     the real handshake, frame correlation, and envelope parsing against
     `ws-api.binance.com` — the part mocks deliberately avoid, and this step's
     only credential-free probe. Signed methods stay example-less, exactly per
-    the policy. *Strikeable: drop 8.5 and the plan still satisfies plan 001
+    the policy. *Strikeable: drop 8.5 and the plan still satisfies plan multi-exchange-abstraction
     Step 8, whose tests are fully mocked.*
 
 12. **Out of scope**: `session.logon`/Ed25519 session auth (deferred by
-    plan 001), `order.test`, `sor.order.place`, OCO/`orderList.*` methods,
+    plan multi-exchange-abstraction), `order.test`, `sor.order.place`, OCO/`orderList.*` methods,
     `account.status`/`myTrades` over WS API, `userDataStream.*`, the
     `returnRateLimits` request option, testnet wiring, and a
     reconnect/resubscribe demo (machinery exists; composing it is caller
@@ -213,7 +213,7 @@ re-export (decision 6); `detail::ws_sign_params` + the value-rendering helper
 ### Tests
 - `WsSignParams_DeterministicSignature`: fixed creds/timestamp/params →
   recompute the expected hex HMAC-SHA256 in the test over the hand-written
-  sorted payload string (the plan-004 `test_binance_client` precedent) →
+  sorted payload string (the `test_binance_client` precedent of plan step-6-binance-rest-private) →
   `params["signature"]` matches; `apiKey`/`timestamp` injected.
 - `WsSignParams_SortedPayload`: keys inserted in non-alphabetical order →
   signature equals the one computed over the alphabetically sorted payload
@@ -329,7 +329,7 @@ Full build + full ctest green, then the live `ping` run.
 `feat: step 8.5 — Binance WS API ping example (live-verified)`
 
 ### Wrap-up (after 8.5)
-"**Done**:" paragraph at the end of plan 001 Step 8 (commit trail, decisions,
+"**Done**:" paragraph at the end of plan multi-exchange-abstraction Step 8 (commit trail, decisions,
 test count); flip this plan to Done in `docs/plans.md` and the Status header —
 separate `docs: mark plan 006 done` commit, per precedent.
 
@@ -356,7 +356,7 @@ separate `docs: mark plan 006 done` commit, per precedent.
   diverges, the fix is splitting the struct then — not pre-duplicating now.
 - **`id:null` error frames are unroutable** (descriptor → `Unknown`; pending
   times out). Binance omits the id only for malformed JSON, which our
-  `to_json()` cannot produce. Same accepted note as plan 005.
+  `to_json()` cannot produce. Same accepted note as plan step-7-binance-ws-streams.
 - **`ws_api.hpp` pulls OpenSSL headers** (via `auth.hpp`) into its includers.
   `binance` already links OpenSSL; `ws_streams.hpp` users are unaffected.
   Cosmetic, noted.
@@ -364,7 +364,7 @@ separate `docs: mark plan 006 done` commit, per precedent.
   common names into `exchange::binance::ws` — identical using-declarations
   are legal redeclarations; the unit binary includes both headers and is the
   compile-time proof.
-- **Zero generic-client changes** is the same claim 005 proved for
+- **Zero generic-client changes** is the same claim plan step-7-binance-ws-streams proved for
   subscriptions, now for the execute path — which Kraken already drives in
   production shape; the only novelty is the descriptor and payload signing.
 - If anything fails unexpectedly at a checkpoint, stop and re-plan per the
@@ -373,5 +373,5 @@ separate `docs: mark plan 006 done` commit, per precedent.
 ### What "done" looks like
 
 All five checkpoints committed, suite ~299 green (exact counts recorded per
-checkpoint), live `ping` exit 0, plan 001 Step 8 marked Done, this plan
+checkpoint), live `ping` exit 0, plan multi-exchange-abstraction Step 8 marked Done, this plan
 flipped to Done in `docs/plans.md`.

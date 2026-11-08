@@ -6,7 +6,7 @@ The Linux half of the work runs in the `ubuntu-dev` container. `~/src` is bind-m
 
 ## CI's compiler (GCC 15.2) locally, in a throwaway container
 
-Apple clang and GCC 13 accept code that GCC 15 rejects, and the workflows that build do so with `-Werror` (the default). Build every configuration the workflows build, not Release alone: `release-`, `asan-` and `tsan-linux-…` (a Release tree missed a failure that only the tsan job showed, plan 036).
+Apple clang and GCC 13 accept code that GCC 15 rejects, and the workflows that build do so with `-Werror` (the default). Build every configuration the workflows build, not Release alone: `release-`, `asan-` and `tsan-linux-…` (a Release tree missed a failure that only the tsan job showed, plan warnings-as-errors).
 
 ```bash
 docker run -d -v ~/src:/work:ro ubuntu:26.04 sleep infinity      # a container of its own, with the sources read-only

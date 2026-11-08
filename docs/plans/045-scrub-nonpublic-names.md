@@ -1,4 +1,4 @@
-# Plan 045 — No names or text of non-public projects in this repository, and an audit of every push
+# No names or text of non-public projects in this repository, and an audit of every push
 
 **Status:** Done (2026-11-07). Rob approved the plan as written, so D1 stood as recommended.
 

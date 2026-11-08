@@ -1,13 +1,13 @@
-# Plan 011 — Fully generic `RestClient` (unify the typed execute path)
+# Fully generic `RestClient` (unify the typed execute path)
 
-**Status**: Proposed — **deferred**; do [plan 010](010-shared-curl-http-transport.md) first
+**Status**: Proposed — **deferred**; do [plan shared-curl-http-transport](010-shared-curl-http-transport.md) first
 **Branch**: `feature/multi-exchange-abstraction`
 
 ---
 
 ## Goal
 
-After [plan 010](010-shared-curl-http-transport.md) shares the cURL *transport*,
+After [plan shared-curl-http-transport](010-shared-curl-http-transport.md) shares the cURL *transport*,
 the only remaining per-adapter REST code is each client's typed `execute()`
 methods. This plan (approach **B**) collapses those too, into a **single generic
 `RestClient`** in the common layer, parameterised by a small per-exchange policy
@@ -16,7 +16,7 @@ that supplies the envelope/parse and the auth model. Adapters would then ship
 response types.
 
 This is the "almost all of it can be shared generically" end state. It is
-**deferred** because the payoff over plan 010 is modest and the prerequisite
+**deferred** because the payoff over plan shared-curl-http-transport is modest and the prerequisite
 touches security-critical signing.
 
 ## Why it isn't free — the auth-model divergence
@@ -50,7 +50,7 @@ risky, security-touching part, and the whole reason B is its own plan.
 // exchange/common/rest_client.hpp  (illustrative)
 template <typename Policy>          // Policy = BinancePolicy | KrakenPolicy
 class RestClient {
-    CurlHttpClient http_;           // from plan 010
+    CurlHttpClient http_;           // from plan shared-curl-http-transport
 public:
     template <typename Req>
     auto execute(const Req& req, const IRestAuth* auth = nullptr) {
@@ -73,7 +73,7 @@ public:
 
 ## Prerequisites
 
-1. **Plan 010 done** (shared `CurlHttpClient` + `HttpResponse`).
+1. **Plan shared-curl-http-transport done** (shared `CurlHttpClient` + `HttpResponse`).
 2. **Kraken auth unified onto `IRestAuth`**: private requests `build()` unsigned
    with the nonce embedded; `KrakenRestClient` routes through `KrakenAuth::sign`;
    `test_signature.cpp` still proves byte-identical signatures. This is a
@@ -81,7 +81,7 @@ public:
 
 ## Why deferred (cost/benefit)
 
-- The remaining duplication after plan 010 is **~4 lines of `execute()` per
+- The remaining duplication after plan shared-curl-http-transport is **~4 lines of `execute()` per
   adapter** — small. The generic client trades that for a `Policy` indirection
   and a template, which is not obviously a net readability win at **two**
   exchanges.
@@ -100,6 +100,6 @@ public:
 | Source compatibility for existing `KrakenRestClient`/`BinanceRestClient` callers | Low | Keep them as `using` aliases over `RestClient<Policy>` |
 | Public/private SFINAE interacts badly with a single `execute()` | Low | Keep the two-overload shape; only the body is shared |
 
-**Bottom line**: plan 010 captures ~95% of the duplication at low risk. Plan 011
+**Bottom line**: plan shared-curl-http-transport captures ~95% of the duplication at low risk. Plan generic-rest-client
 captures the last sliver at real risk to the signing path — worth it only with a
 third adapter or a concrete pain point, not speculatively.

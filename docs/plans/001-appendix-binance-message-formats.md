@@ -1,4 +1,4 @@
-# 001 Appendix — Binance Message Formats
+# Appendix to multi-exchange-abstraction — Binance Message Formats
 
 Companion to [001-multi-exchange-abstraction.md](001-multi-exchange-abstraction.md).
 

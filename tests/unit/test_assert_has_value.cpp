@@ -7,7 +7,7 @@
 // full license information.
 // =============================================================================
 
-// Tests of ASSERT_HAS_VALUE (assert_has_value.hpp; plan 037, #46).
+// Tests of ASSERT_HAS_VALUE (assert_has_value.hpp; plan clear-clang-tidy-findings, #46).
 //
 // Pinned here: an engaged optional passes and can be used afterwards; an empty one fails the test fatally, once, names the
 // expression, and returns from the function; text streamed after the macro follows on its own line, as it does for gtest's own

@@ -8,7 +8,7 @@
 // =============================================================================
 //
 // Demonstrates the Coinbase Exchange WebSocket feed via the bespoke
-// CoinbaseStreamClient (plan 018 §2 Option A) over the real IxWsConnection
+// CoinbaseStreamClient (plan coinbase-exchange-adapter §2 Option A) over the real IxWsConnection
 // transport. All channels here are public — no credentials required.
 //
 // Usage:

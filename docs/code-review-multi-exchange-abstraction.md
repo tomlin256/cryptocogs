@@ -2,8 +2,8 @@
 
 **Date**: 2026-06-13
 **Reviewer**: Claude (Claude Code)
-**Scope**: branch vs `main` — commit range `main...2f236c9` (plans 001–009,
-≈ +14.7k / −4.4k lines).
+**Scope**: branch vs `main` — commit range `main...2f236c9` (plan multi-exchange-abstraction and the eight plans that followed it,
+step-2b-compat-shim to relocate-tickprice-to-common, ≈ +14.7k / −4.4k lines).
 
 Focus was the net-new, load-bearing, security/correctness-sensitive code: the
 Binance adapter (signing, REST, WS), the generic `ExchangeWsClient` engine, and
@@ -167,7 +167,7 @@ Copies are correctly `=delete`d, so there is **no** double-free; a
 construction.
 
 ### N2 — WS signing still lacks an official vector
-The sorted-params WS API signing (plan 006) has no published Binance worked
+The sorted-params WS API signing (plan step-8-binance-ws-api) has no published Binance worked
 example; the tests recompute the expectation with the same primitives, pinning
 *construction* not the *rule*. The first live signed `order.place` is the real
 validation — a testnet smoke run is the natural follow-up.

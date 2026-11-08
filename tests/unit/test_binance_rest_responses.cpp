@@ -214,7 +214,7 @@ TEST(BinanceRestResponses, OpenOrders_FromJson) {
     EXPECT_DOUBLE_EQ(o.orig_quote_order_qty, 0.0);
     EXPECT_EQ(o.status, exchange::OrderStatus::New);
     EXPECT_EQ(o.time_in_force, exchange::TimeInForce::GTC);
-    EXPECT_EQ(o.type, "LIMIT");  // raw wire string — see plan 004 decision 3
+    EXPECT_EQ(o.type, "LIMIT");  // raw wire string — see plan step-6-binance-rest-private decision 3
     EXPECT_EQ(o.side, exchange::Side::Buy);
     EXPECT_DOUBLE_EQ(o.stop_price, 0.0);
     EXPECT_DOUBLE_EQ(o.iceberg_qty, 0.0);
@@ -305,7 +305,7 @@ TEST(BinanceRestResponses, NewOrder_ResultShape) {
     EXPECT_DOUBLE_EQ(*r.cummulative_quote_qty, 10.0);
     EXPECT_EQ(r.status, exchange::OrderStatus::Filled);
     EXPECT_EQ(r.time_in_force, exchange::TimeInForce::GTC);
-    EXPECT_EQ(r.type, "MARKET");  // raw wire string — see plan 004 decision 3
+    EXPECT_EQ(r.type, "MARKET");  // raw wire string — see plan step-6-binance-rest-private decision 3
     EXPECT_EQ(r.side, exchange::Side::Sell);
     EXPECT_EQ(r.working_time, 1507725176595LL);
     EXPECT_EQ(r.self_trade_prevention_mode, "NONE");

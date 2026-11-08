@@ -7,7 +7,7 @@
 // full license information.
 // =============================================================================
 
-// canary_asan.cpp — a deliberate heap-use-after-free (plan 032, #30).
+// canary_asan.cpp — a deliberate heap-use-after-free (plan sanitizer-option-and-presets, #30).
 //
 // Built and run only in a -DCRYPTOCOGS_SANITIZE=asan tree, through tests/sanitize_checks/run_canary.cmake, which
 // requires AddressSanitizer to kill it and say so. The program itself returns 0: if the sanitizer's options never

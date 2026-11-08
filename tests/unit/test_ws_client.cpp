@@ -959,7 +959,8 @@ TEST(WsErrorIsolation, MethodFromJsonThrowResolvesErrorNoCrash) {
 }
 
 // The MessageIdentifier is supplied by the adapter and runs on the transport's receive thread like everything else on this
-// path, so a throw from it must be contained too (plan 034): report the frame like any other malformed one, drop it, and go on.
+// path, so a throw from it must be contained too (plan transport-callback-lifetimes): report the frame like any other malformed
+// one, drop it, and go on.
 TEST(WsErrorIsolation, ThrowingIdentifierIsContained) {
     auto conn = std::make_shared<MockWsConnection>();
     auto eh   = std::make_shared<RecordingErrorHandler>();

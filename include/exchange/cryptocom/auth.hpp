@@ -81,12 +81,12 @@ int64_t make_nonce();
 // ── Credential bundle ────────────────────────────────────────────────────────
 //
 // A plain struct — set both fields directly, or load them from a TOML file with
-// from_file (plan 021). Note there is NO passphrase (unlike Coinbase).
+// from_file (plan credentials-from-file). Note there is NO passphrase (unlike Coinbase).
 struct CryptoComCredentials {
     std::string api_key;
     std::string api_secret;  // used as the HMAC key verbatim (not base64-decoded)
 
-    // Load api_key + api_secret from a TOML file (plan 021) with top-level
+    // Load api_key + api_secret from a TOML file (plan credentials-from-file) with top-level
     // string keys:
     //   api_key    = "..."
     //   api_secret = "..."

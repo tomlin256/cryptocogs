@@ -1,24 +1,24 @@
-# Plan 017 — Fix two CMake install nits
+# Fix two CMake install nits
 
 **Status:** Done
 **Branch:** `feature/cmake-install-nits`
 
 ## 1. Motivation
 
-Two pre-existing install-quality defects surfaced during plan 016's install
+Two pre-existing install-quality defects surfaced during plan declarative-headers's install
 validation. Both are CMake-only; no library code changes.
 
 - **N1 — ixwebsocket pollutes the install.** `cmake --install` lays down
   `libixwebsocket.a`, ~30 `IX*.h` headers, `lib/cmake/ixwebsocket/`, and
   `lib/pkgconfig/ixwebsocket.pc` into the prefix — directly contradicting the
   top-level CMakeLists comment ("ixwebsocket … never installed by cryptocogs")
-  and plan 012's "ixwebsocket is deliberately not installed". The core libs
+  and plan install-and-package-config's "ixwebsocket is deliberately not installed". The core libs
   don't link ixwebsocket (only examples/tests do, in-tree), and the cryptocogs
   export set does not reference it, so a consumer never needs it.
 - **N2 — the package doesn't carry its C++ standard.** The project sets
   `CMAKE_CXX_STANDARD 17` directory-wide, which is **not** exported. A downstream
   `find_package(cryptocogs)` consumer that doesn't set the standard itself fails
-  to compile (`std::optional` etc. unavailable) — observed in plan 016 Step 8.
+  to compile (`std::optional` etc. unavailable) — observed in plan declarative-headers Step 8.
 
 ## 2. Root cause (verified)
 
@@ -84,7 +84,7 @@ cmake --build build -j && ( cd build && ctest --output-on-failure )
   `target_compile_features(... PUBLIC cxx_std_17)` lines. Reconfigure, build,
   `ctest` (312), re-install.
   *Done when:* the generated `cryptocogsTargets.cmake` carries
-  `INTERFACE_COMPILE_FEATURES … cxx_std_17`; the plan-016 consumer
+  `INTERFACE_COMPILE_FEATURES … cxx_std_17`; the plan declarative-headers consumer
   (`main.cpp` + `find_package(cryptocogs)`) **configures and builds with no
   `CMAKE_CXX_STANDARD` set** and runs.
 
@@ -114,7 +114,7 @@ install assertions that become the plan's acceptance gate:
 
 - **N1 safety.** Disabling ixwebsocket's install is safe *only because* nothing
   cryptocogs installs depends on it: the export set doesn't reference ixwebsocket
-  (verified), the four core libs carry no ixwebsocket symbols (plan 016 `nm`
+  (verified), the four core libs carry no ixwebsocket symbols (plan declarative-headers `nm`
   check), and examples/tests link the in-tree target, not the installed one. If a
   future change made a *core* lib link ixwebsocket, this would need revisiting —
   but that would also break the deliberate "libs are ixwebsocket-free" invariant
@@ -138,5 +138,5 @@ install assertions that become the plan's acceptance gate:
 ## 7. Out of scope
 
 No library/behaviour changes; no change to which deps are fetched or to the
-ixwebsocket version; no change to the public headers. Plan 016 (declarative
+ixwebsocket version; no change to the public headers. Plan declarative-headers (declarative
 headers) is already merged and independent.

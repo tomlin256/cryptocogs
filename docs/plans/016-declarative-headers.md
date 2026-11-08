@@ -1,4 +1,4 @@
-# Plan 016 — Make all headers purely declarative (project-wide hpp/inl/cpp split)
+# Make all headers purely declarative (project-wide hpp/inl/cpp split)
 
 **Status:** Done
 **Branch:** `feature/declarative-headers`
@@ -86,12 +86,12 @@ must return **only** the documented `ix_ws_connection.hpp` carve-out lines.
   `#include <ixwebsocket/IXWebSocket.h>`. Moving `IxWsConnection` to a `.cpp`
   would force a library that links ixwebsocket, but ixwebsocket is (a) fetched
   **only** under `CRYPTOCOGS_BUILD_TESTS` and (b) deliberately **not installed**
-  (plan 012). A downstream consumer that uses `IxWsConnection` relies on it being
+  (plan install-and-package-config). A downstream consumer that uses `IxWsConnection` relies on it being
   header-only (they link their own ixwebsocket). Keeping it header-only preserves
   the "core static libs are ixwebsocket-free" invariant and the install contract.
   The header gets an explicit comment marking it the documented exception.
   *(Alternative considered and rejected: a test-gated `libexchange_ix.a` — adds a
-  5th lib, breaks downstream header-only use, contradicts plan 012's "ix not
+  5th lib, breaks downstream header-only use, contradicts plan install-and-package-config's "ix not
   installed". Available if the user prefers it.)*
 - **D2 — Binance WS becomes compiled.** `make_*_client(conn)` factories,
   `*_frame_descriptor`, signing, and event `from_json` do **not** touch
@@ -191,5 +191,5 @@ cmake --build build -j
 ## 7. Out of scope
 
 No behavioural changes, no API/signature changes, no new endpoints/channels, no
-move of `ix_ws_connection.hpp` to a `.cpp` (D1). Plan 011 (generic `RestClient`)
+move of `ix_ws_connection.hpp` to a `.cpp` (D1). Plan generic-rest-client (generic `RestClient`)
 is independent and unaffected.

@@ -1,6 +1,6 @@
-# 004 — Step 6: Binance REST Private (Account + Trading) Endpoints
+# Step 6: Binance REST Private (Account + Trading) Endpoints
 
-> **MANDATORY — Branch and commit discipline** (inherited from plan 001)
+> **MANDATORY — Branch and commit discipline** (inherited from plan multi-exchange-abstraction)
 >
 > All work continues on `feature/multi-exchange-abstraction`. Commit at the
 > completion of every sub-step below. Every checkpoint must include a full
@@ -8,7 +8,7 @@
 > on.
 
 **Goal**: Implement [Step 6](001-multi-exchange-abstraction.md#step-6--binance-rest-private-account--trading-endpoints)
-of plan 001 — the 7 Binance Spot signed (private) endpoints, with mock-based
+of plan multi-exchange-abstraction — the 7 Binance Spot signed (private) endpoints, with mock-based
 unit tests including end-to-end signed `execute()` round-trips. Step 6's
 "done when": *"Account and order endpoints implemented and unit-tested."*
 
@@ -22,13 +22,13 @@ orders. All verification is mock-based.
 ## Design decisions confirmed before writing code
 
 Verified against the as-built Step 4/5 code; these resolve drift between plan
-001's prose and the actual scaffold:
+multi-exchange-abstraction's prose and the actual scaffold:
 
 1. **Base class**: every new request type inherits the **local**
    `exchange::binance::rest::TypedPrivateRequest<R>` from
-   `include/exchange/binance/rest_api.hpp` (plan 001 names the common-scaffold
+   `include/exchange/binance/rest_api.hpp` (plan multi-exchange-abstraction names the common-scaffold
    one, but `BinanceRestClient::execute`'s SFINAE gates on the local
-   `PrivateRequest` — same resolution as plan 003 decision 1). Note the local
+   `PrivateRequest` — same resolution as plan step-5-binance-rest-public decision 1). Note the local
    `PrivateRequest::build()` takes **no credentials** (unlike Kraken's
    `build(const Credentials&)`): `execute(req, auth)` calls `req.build()`
    then `auth.sign(http)`.
@@ -76,7 +76,7 @@ Verified against the as-built Step 4/5 code; these resolve drift between plan
      **out of scope** (no canonical value; revisit if/when canonical gains a
      post-only concept).
 
-3a. **Plan-001 drift note**: plan 001's line *"Binance-only types like
+3a. **Drift note**: plan multi-exchange-abstraction's line *"Binance-only types like
    `STOP_LOSS_LIMIT` live in `exchange::binance::`"* is stale —
    `StopLossLimit` (and `StopLoss`/`TakeProfit`/`TakeProfitLimit`) are
    canonical values; only `LIMIT_MAKER` is genuinely unmappable. No
@@ -122,7 +122,7 @@ Verified against the as-built Step 4/5 code; these resolve drift between plan
    - `GET openOrders` and `GET allOrders` share one row shape (per the
      message-format appendix) → one row struct `BinanceOrderInfo`, one
      wrapper `BinanceOpenOrdersResult`, and
-     `using BinanceAllOrdersResult = BinanceOpenOrdersResult;` — plan 001's
+     `using BinanceAllOrdersResult = BinanceOpenOrdersResult;` — plan multi-exchange-abstraction's
      two names, zero duplication.
    - `DELETE /api/v3/order`'s object and `DELETE /api/v3/openOrders`'s array
      rows are the same shape → `BinanceCancelOrderResponse` doubles as the
@@ -133,9 +133,9 @@ Verified against the as-built Step 4/5 code; these resolve drift between plan
      self-evident and grep-able; noted in a comment).
 
 8. **Two new standalone test binaries** — `test_binance_types` (6.1) and
-   `test_binance_client` (6.5) — extending the per-file pattern. Plan 001
+   `test_binance_client` (6.5) — extending the per-file pattern. Plan multi-exchange-abstraction
    Step 9 owns consolidating all `test_binance_*` into one
-   `binance_unit_tests` binary; not done here (same as plan 003 decision 5).
+   `binance_unit_tests` binary; not done here (same as plan step-5-binance-rest-public decision 5).
 
 9. **Out of scope** (documented, not silently dropped):
    - Optional request params: `omitZeroBalances` (account),
@@ -146,7 +146,7 @@ Verified against the as-built Step 4/5 code; these resolve drift between plan
      rows; first cut parses every row as `BinanceCancelOrderResponse`
      (`j.value` defaults mean OCO rows part-populate rather than throw).
    - The order-list endpoints (`/api/v3/orderList`, OCO placement) — not in
-     plan 001's Step 6 table at all.
+     plan multi-exchange-abstraction's Step 6 table at all.
 
 ---
 
@@ -186,7 +186,7 @@ Side        binance_side_from_string(const std::string& s);
 // STOP_LOSS_LIMIT, TAKE_PROFIT, TAKE_PROFIT_LIMIT); throws std::invalid_argument
 // for Iceberg/TrailingStop/TrailingStopLimit/SettlePosition and, in
 // from_string, for "LIMIT_MAKER"/unknown input. Response structs therefore
-// keep `type` as a raw string (see plan 004 decision 3).
+// keep `type` as a raw string (see plan step-6-binance-rest-private decision 3).
 std::string binance_order_type_to_string(OrderType v);
 OrderType   binance_order_type_from_string(const std::string& s);
 
@@ -632,9 +632,9 @@ gtest_discover_tests(test_binance_client)
 Full build + `ctest --output-on-failure` green.
 
 ### Wrap-up (after 6.5 is green)
-Mark plan 001 Step 6 with a "**Done**:" paragraph (commit-trail, decisions,
+Mark plan multi-exchange-abstraction Step 6 with a "**Done**:" paragraph (commit-trail, decisions,
 test count) and flip this plan to Done in `docs/plans.md` — separate
-`docs: mark plan 004 done` commit, per the plan-003 precedent.
+`docs: mark plan 004 done` commit, per the precedent of plan step-5-binance-rest-public.
 
 ---
 

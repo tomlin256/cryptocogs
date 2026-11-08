@@ -1,7 +1,7 @@
-# Plan 007 — Step 9: CMake target split, build toggles, and full-matrix validation
+# Step 9: CMake target split, build toggles, and full-matrix validation
 
 **Status**: Done — implemented in commits `9e73dc1`, `28179fd`, `edf4081`
-**Parent**: [Plan 001, Step 9](001-multi-exchange-abstraction.md#step-9--cmake-build-validation-final-cleanup)
+**Parent**: [Plan multi-exchange-abstraction, Step 9](001-multi-exchange-abstraction.md#step-9--cmake-build-validation-final-cleanup)
 **Branch**: `feature/multi-exchange-abstraction`
 
 ---
@@ -15,7 +15,7 @@ client must link `binance cryptocogs` purely to borrow that one object file —
 a false dependency the Step 7/8 plans flagged and deferred to here. Step 9
 extracts that file into a standalone `exchange_common` static library that both
 exchange adapters depend on as peers, adds the per-exchange `option()` toggles
-and their configure-time dependency guards (§F of plan 001), guards every test
+and their configure-time dependency guards (§F of plan multi-exchange-abstraction), guards every test
 and example behind its exchange flag, and proves the decoupling with a
 configure/build/`ctest` flag matrix.
 
@@ -41,7 +41,7 @@ regression net; the flag matrix is the build-graph test.
 
 Top-level `CMakeLists.txt` declares only `CRYPTOCOGS_BUILD_TESTS` and
 `CRYPTOCOGS_BUILD_COMPAT_SHIM` (the latter currently **gates nothing** — it is a
-declared no-op; the shim's install/test wiring is plan 002's job and is not yet
+declared no-op; the shim's install/test wiring is plan step-2b-compat-shim's job and is not yet
 done). No `CRYPTOCOGS_BUILD_KRAKEN` / `_BINANCE`. No `install()` rules anywhere.
 
 Three targets carry the false `cryptocogs` link (the coupling to remove):
@@ -103,8 +103,8 @@ The source tree has exactly four `.cpp` under `src/`; there is **no**
 6. **`CRYPTOCOGS_BUILD_COMPAT_SHIM` stays a declared option with only its
    dependency-rule guard** (`COMPAT_SHIM requires KRAKEN → warn + force OFF`).
    There are no compat targets to nest (no `test_compat_shim`, no `tests/compat/`
-   — that is plan 002, still Draft). Step 9 does not invent them; it just makes
-   the option's guard correct for when plan 002 lands.
+   — that is plan step-2b-compat-shim, still Draft). Step 9 does not invent them; it just makes
+   the option's guard correct for when plan step-2b-compat-shim lands.
 
 7. **No `install()`/export work.** None exists today; the `$<INSTALL_INTERFACE>`
    generator expressions and `cryptocogs::*` aliases are kept as-is
@@ -205,7 +205,7 @@ ctest` (sanity re-run) stays green.
 ### `CLAUDE.md`
 - Build-options table: add `CRYPTOCOGS_BUILD_KRAKEN` / `CRYPTOCOGS_BUILD_BINANCE`
   rows; correct the `CRYPTOCOGS_BUILD_COMPAT_SHIM` description to "declared;
-  gating lands with plan 002."
+  gating lands with plan step-2b-compat-shim."
 - Build-outputs table: add `libexchange_common.a` and `libbinance.a`; note
   `libkraken.a` no longer contains the WS-client impl.
 - The coding-conventions paragraph that says `libkraken.a` "compiles both
@@ -230,12 +230,12 @@ Full build + full `ctest` green (300).
 
 ## Wrap-up (after 9.3)
 
-- Append a "**Done**:" paragraph to plan 001 Step 9 (commit trail
+- Append a "**Done**:" paragraph to plan multi-exchange-abstraction Step 9 (commit trail
   `9.1`/`9.2`/`9.3` hashes; the extraction; the four options + two guards; the
   decoupling of the three Binance WS targets; PRIVATE ssl/curl; flag-matrix
-  evidence; what stayed out of scope — compat-shim wiring → plan 002,
+  evidence; what stayed out of scope — compat-shim wiring → plan step-2b-compat-shim,
   `install()` → later).
-- Flip plan 007 to **Done** in `docs/plans.md` and this file's Status header.
+- Flip plan step-9-cmake-build-validation to **Done** in `docs/plans.md` and this file's Status header.
 - Commit: `docs: mark plan 007 done`.
 
 ---
@@ -291,10 +291,10 @@ redundant with cell 3, but will add it if you want the guarantee version-pinned.
 | `OpenSSL::Crypto` target name unavailable on the host's CMake/OpenSSL module | Low (standard since CMake 3.x FindOpenSSL) | Cell-1 configure fails loudly; fall back to `OpenSSL::SSL` only (it transitively pulls crypto) if so |
 | `example_backward` / spdlog / CLI11 fetched at top but only used inside guards → wasted fetch when an exchange is OFF | Cosmetic | Acceptable; fetches are cached and harmless. Not worth conditionalising |
 | Reviewer expects §F's literal `binance_unit_tests` / `tests/examples/kraken/` reorg | Med | Decision 1 documents the deliberate divergence and its rationale up front |
-| Compat-shim guard implies shim targets exist | Low | Decision 6 scopes it: option + dependency guard only; targets are plan 002 |
+| Compat-shim guard implies shim targets exist | Low | Decision 6 scopes it: option + dependency guard only; targets are plan step-2b-compat-shim |
 | Pre-existing test failures surface mid-refactor | Low (300 green now) | Per the standing rule, stop and fix or escalate — do not proceed past a red suite |
 
 **Assumptions**: no consumer outside this repo currently links the targets (so
 renaming link edges is safe); `install()`/packaging remains out of scope;
-plan 002 (compat-shim wiring) and Step 10 (agent onboarding guide) are tracked
+plan step-2b-compat-shim (compat-shim wiring) and Step 10 (agent onboarding guide) are tracked
 separately and not pulled into this step.

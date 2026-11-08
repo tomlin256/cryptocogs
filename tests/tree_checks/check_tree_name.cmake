@@ -1,4 +1,5 @@
-# check_tree_name.cmake — test_tree_name: the build-tree guard in the root CMakeLists.txt (plans 028 and 032).
+# check_tree_name.cmake — test_tree_name: the build-tree guard in the root CMakeLists.txt (plans platform-build-dirs and
+# sanitizer-option-and-presets).
 #
 # Run by ctest as
 #   cmake -DSOURCE_DIR=<repo> -DSCRATCH_ROOT=<dir> -DNLOHMANN_JSON_SRC=<dir> -DTOMLPLUSPLUS_SRC=<dir> -P
@@ -121,7 +122,7 @@ expect_cache_platform("build" b "${host}")
 configure_tree(c "${SOURCE_DIR}" "${host}")
 expect_configures("${host} (no kind)" c)
 
-# ── a sanitizer tree configured for the mode in its name (plan 032) ────────────
+# ── a sanitizer tree configured for the mode in its name (plan sanitizer-option-and-presets) ───
 # (Each case has a tree of its own: a tree keeps the -D it was configured with.)
 configure_tree(s1 "${SOURCE_DIR}" "asan-${host}-gcc13" -DCRYPTOCOGS_SANITIZE=asan)
 expect_configures("asan-${host}-gcc13 with asan" s1)

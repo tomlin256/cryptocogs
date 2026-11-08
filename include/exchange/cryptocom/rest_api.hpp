@@ -20,7 +20,7 @@
 // hands the inner `result` value to each T::from_json (parse_cryptocom_response
 // unwraps it). Most list endpoints nest their rows under result.data.
 //
-// Wire-format notes (pinned from live captures, plan 020 step 3):
+// Wire-format notes (pinned from live captures, plan cryptocom-exchange-adapter step 3):
 //   - Monetary / size / price fields arrive as JSON *strings* → std::stod.
 //   - Millisecond timestamps arrive as JSON *numbers* → int64.
 //   - Order-book rows are positional ["price","size","num_orders"] string arrays.
@@ -32,7 +32,7 @@
 // the body and depends on the params. Every signed param value is a JSON
 // *string* (the API requires it; see auth.hpp), so the params stay flat
 // scalars — except CryptoComCreateOrderRequest::exec_inst, a JSON array of
-// strings; see plan 024 for why params_to_str's array-recursion path
+// strings; see plan cryptocom-create-order-exec-inst for why params_to_str's array-recursion path
 // serialises it unambiguously.
 
 #include "exchange/cryptocom/auth.hpp"

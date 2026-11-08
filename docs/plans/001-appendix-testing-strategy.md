@@ -1,4 +1,4 @@
-# 001 Appendix — Testing Strategy
+# Appendix to multi-exchange-abstraction — Testing Strategy
 
 Companion to [001-multi-exchange-abstraction.md](001-multi-exchange-abstraction.md).
 

@@ -49,7 +49,7 @@ struct BinanceCredentials {
     // Included in every signed request.  Binance default is 5000 ms; max 60000.
     int                  recv_window_ms{5000};
 
-    // Load api_key + secret_key from a TOML file (plan 021) with top-level
+    // Load api_key + secret_key from a TOML file (plan credentials-from-file) with top-level
     // string keys (api_secret maps to secret_key):
     //   api_key    = "..."
     //   api_secret = "..."

@@ -1,4 +1,4 @@
-# Plan 031 — CI: do not build on documentation-only changes
+# CI: do not build on documentation-only changes
 
 **Status:** Done (2026-11-04). Rob approved the plan as written, so D1 to D4 stood at the defaults below, and approved pushing
 its commits to `main` and linking it from #40.
@@ -6,7 +6,7 @@ its commits to `main` and linking it from #40.
 **Closes:** [GitHub issue #40](https://github.com/tomlin256/cryptocogs/issues/40) — "Build will trigger on doc updates
 pointlessly". The issue reads: *"You can see that in the recent CI runs for example
 https://github.com/tomlin256/cryptocogs/actions/runs/41875368976"*.
-**Follows:** [plan 030](030-ci-cache.md), which left `paths:` filters out (its D1: "Say if you want any folded in") and
+**Follows:** [plan ci-cache](030-ci-cache.md), which left `paths:` filters out (its D1: "Say if you want any folded in") and
 edits the same workflow file, in other hunks.
 
 ## Problem
@@ -64,7 +64,7 @@ Defaults stand if you approve the plan as written.
   `test_cmake_floor` reads.
 - **D2 The list is `docs/**` and `CLAUDE.md`.** README.md keeps running CI (above). Not listed, since the issue is about
   documentation: `LICENSE`, `.gitignore`, `.clangd`, `.vscode/**`. Nothing reads them either; say if you want them.
-- **D3 One new test**, `test_ci_paths` (Step 1), as plan 030 has `test_ci_cache_key`. It fails when the list drifts onto
+- **D3 One new test**, `test_ci_paths` (Step 1), as plan ci-cache has `test_ci_cache_key`. It fails when the list drifts onto
   something that a build or a check reads.
 - **D4 Pushes.** The filter is one commit on `main`, pushed to be seen working. Approving the plan approves that push, the
   push of this plan, and a comment linking it from #40 (public, since the repository is).
@@ -113,12 +113,12 @@ Step 1. Comment the results on #40. The last commit says `Closes #40`.
 - **`paths-ignore: ['**/*.md']`** — it includes README.md.
 - **`[skip ci]` in commit messages** — every documentation commit would have to remember it, and this plan's own would not.
 - **Dropping the README clause from `test_cmake_floor`**, so that README.md can be ignored — then the README can claim a floor
-  the project does not have, which is what plan 029 added the clause to stop.
+  the project does not have, which is what plan cmake4-cxx23 added the clause to stop.
 - **A first job that diffs, with the others `needs:` it** — it still starts a runner to find out. The filter starts nothing.
 
 ## Not in this plan
 
-`concurrency` with `cancel-in-progress` (a newer push cancels the run in flight) and `timeout-minutes`, as in plan 030. The files of D2 that are not documentation.
+`concurrency` with `cancel-in-progress` (a newer push cancels the run in flight) and `timeout-minutes`, as in plan ci-cache. The files of D2 that are not documentation.
 
 ## Self-review — risks and assumptions
 
@@ -131,12 +131,12 @@ Step 1. Comment the results on #40. The last commit says `Closes #40`.
 - **A branch protection added later** that requires this check would leave a documentation-only pull request waiting for a
   run that GitHub never starts. Then the answer is the job-level skip, rejected above only for today.
 - **It can only be seen working on GitHub.** The Done-when is read from `gh run list`, after a real documentation-only push.
-- **I read the unit-test rule as covering code**, as in plan 030: the workflow is configuration, and `test_ci_paths` holds the
+- **I read the unit-test rule as covering code**, as in plan ci-cache: the workflow is configuration, and `test_ci_paths` holds the
   one invariant of it that can be tested offline. Say if you want something else.
 
 ## Outcome
 
-**Step 1.** `test_ci_paths` was red against the workflow of plan 030 ("found no paths-ignore list under the push trigger") and
+**Step 1.** `test_ci_paths` was red against the workflow of plan ci-cache ("found no paths-ignore list under the push trigger") and
 green once `paths-ignore` was added. It reports two entries, `docs/**` and `CLAUDE.md`, covering 42 files, none of which a
 check reads or the build compiles, and 8 files that the checks read. Hand-made changes in a scratch copy of the working tree
 each failed naming the culprit:
@@ -157,7 +157,7 @@ second attempt, with an `awk` helper, and each of its cases was checked to have 
 
 **The pushes.** Push `8860993` changed the workflow and the tests, so it was not ignored: run 41883029251 was created 148 s
 after the commit (committed 17:59:54Z, created 18:02:22Z) and was green, with ctest at 505 of 505 in CI, the two new checks
-included. Push `c334d88`, plan 030's results, changed only `CLAUDE.md` and a plan, and **started no run**:
+included. Push `c334d88`, plan ci-cache's results, changed only `CLAUDE.md` and a plan, and **started no run**:
 `gh api …/actions/runs?head_sha=c334d88…` found none for 300 s after the push, and the newest run overall stayed run
 41883029251 of `8860993`. A window of 300 s is about twice the worst creation lag measured that afternoon, which was 148 s
 (105 s for `8b629bd`, and 4 s for `b3af7d9` before the lag began), because Actions was still catching up after its incident.
@@ -167,6 +167,6 @@ Done-when, in both directions.
 **Not exercised:** `pull_request`. No pull request was opened, because commits go straight to `main`. It carries the same list
 and `test_ci_paths` holds the two lists equal, and GitHub's rule for it is the one quoted under "What I measured".
 
-**The words** landed with plan 030's Step 4, which created the CI notes in CLAUDE.md: its CI subsection ends with a bullet on
+**The words** landed with plan ci-cache's Step 4, which created the CI notes in CLAUDE.md: its CI subsection ends with a bullet on
 what is skipped and why `README.md` is not. CLAUDE.md's count of `cmake -P` checks and tests moved with Step 1 (nine, and 505
 in ctest) and has the `test_ci_paths` row.

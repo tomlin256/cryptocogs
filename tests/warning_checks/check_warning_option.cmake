@@ -1,4 +1,5 @@
-# check_warning_option.cmake — test_warning_option: the warning flags reach the project's own targets, and nothing else (plan 036, #47).
+# check_warning_option.cmake — test_warning_option: the warning flags reach the project's own targets, and nothing else (plan
+# warnings-as-errors, #47).
 #
 # Run by ctest as
 #   cmake -DSOURCE_DIR=<repo> -DSCRATCH_ROOT=<dir> -DCXX=<compiler> -DCXX_ID=<its CMake id> -DGENERATOR=<generator>
@@ -50,9 +51,9 @@ if(NOT want_flags)
     return()
 endif()
 
-# The default of CRYPTOCOGS_WARNINGS_AS_ERRORS in the root, which this test holds: on (plan 036, D2), so that every build is
-# strict, CI's and the sanitizer jobs' included, and no workflow has to ask for it. Changing the root's default without this
-# line fails the test, and so does the other way round.
+# The default of CRYPTOCOGS_WARNINGS_AS_ERRORS in the root, which this test holds: on (plan warnings-as-errors, D2), so that every
+# build is strict, CI's and the sanitizer jobs' included, and no workflow has to ask for it. Changing the root's default without
+# this line fails the test, and so does the other way round.
 set(DEFAULT_WERROR ON)
 if(DEFAULT_WERROR)
     set(OTHER_WERROR OFF)
