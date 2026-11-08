@@ -1,5 +1,5 @@
 # Sanitizer builds of the whole suite: AddressSanitizer + UndefinedBehaviorSanitizer ("asan") and ThreadSanitizer
-# ("tsan"). See docs/plans/032-sanitizer-option-and-presets.md (#30).
+# ("tsan"). See docs/plans/sanitizer-option-and-presets.md (#30).
 #
 # Why it exists. Plan platform-build-dirs built both trees by hand and found two data races in the tests (#27, #28) that nothing
 # had ever looked for. Nothing ran a sanitizer in CI, so a bug of that kind shows itself only when a toolchain

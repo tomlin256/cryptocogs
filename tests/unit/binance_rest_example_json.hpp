@@ -8,7 +8,7 @@
 // =============================================================================
 //
 // Sample JSON messages captured from the Binance Spot REST API docs (see
-// docs/plans/001-appendix-binance-message-formats.md, fetched 2026-06-06).
+// docs/plans/appendix-binance-message-formats.md, fetched 2026-06-06).
 // Used as test fixtures in test_binance_rest_responses.cpp.
 //
 // Fixtures are verbatim from the appendix unless marked synthetic.

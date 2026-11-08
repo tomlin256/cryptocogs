@@ -56,7 +56,7 @@ BENCHMARK(BM_AggTradeFromJson);
 // ── BM_DepthUpdateFromJson — ranged book depth ──────────────────────────────
 // BinanceDepthUpdateEvent::from_json (ws_streams.cpp) push_backs into
 // bids/asks with no .reserve(), despite j["b"]/j["a"].size() being known
-// upfront — see docs/plans/027-remaining-adapters-reserve-vector-growth.md Design decisions. Depths match the
+// upfront — see docs/plans/remaining-adapters-reserve-vector-growth.md Design decisions. Depths match the
 // BM_VectorPushBack_* Args below for a direct, same-N comparison in Step 4.
 
 std::string make_binance_depth_json(int depth) {

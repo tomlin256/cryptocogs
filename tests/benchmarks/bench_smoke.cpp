@@ -12,7 +12,7 @@
 // Canary benchmark proving the harness (CMake wiring, FetchContent'd
 // google/benchmark, benchmark_main) works end to end. Kept permanently as a
 // cheap sanity check alongside the real Kraken benchmarks added in later
-// steps of docs/plans/025-kraken-performance-profiling.md.
+// steps of docs/plans/kraken-performance-profiling.md.
 namespace {
 
 // BENCHMARK(...) is google benchmark's registration macro: it declares a static whose initialiser registers the benchmark, which

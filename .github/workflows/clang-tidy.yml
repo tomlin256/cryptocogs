@@ -1,5 +1,5 @@
 # clang-tidy over this project's own sources, as a CI job: the clang_tidy_ tests of plan clang-tidy-opt-in-test-step (#34). See
-# docs/plans/040-clang-tidy-ci-job.md (#49).
+# docs/plans/clang-tidy-ci-job.md (#49).
 #
 # Why it exists. Plan clang-tidy-opt-in-test-step added the gate off by default and left CI out, because 72 of its 77 units were
 # red and a job that is red gates nothing. Plan clear-clang-tidy-findings cleared the findings (#46), and since then nothing has

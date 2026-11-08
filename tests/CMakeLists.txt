@@ -317,6 +317,28 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 endif()
 
 #-------------------------------------------------------------------------------
+# Plan docs carry no sequence number (plan unnumbered-plan-docs, cryptocogs#65): plain cmake -P scripts
+#-------------------------------------------------------------------------------
+
+# A plan doc is docs/plans/<name>.md, named for what it does: a number in front of the name reads as an issue number and is not
+# one. This holds the names of the files there, every path in the checkout that points at one, and every relative link between
+# them, so that a numbered plan cannot return and a rename cannot leave a dead path. A plain script, so it runs in every tree. Top
+# level only, where the checkout it reads is this project's own.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_test(NAME test_plan_docs
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/doc_checks/check_plan_docs.cmake)
+
+    # The check itself: small checkouts that follow the rule and that break it in each way are made at run time and the check is
+    # run over each. A check that accepted everything would pass the test above.
+    add_test(NAME test_plan_docs_fixtures
+             COMMAND ${CMAKE_COMMAND}
+                     -DSCRATCH_ROOT=${CMAKE_CURRENT_BINARY_DIR}/doc_checks
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/doc_checks/check_plan_docs_fixtures.cmake)
+endif()
+
+#-------------------------------------------------------------------------------
 # Sanitizers (plan sanitizer-option-and-presets): plain cmake -P scripts
 #-------------------------------------------------------------------------------
 

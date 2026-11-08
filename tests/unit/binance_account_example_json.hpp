@@ -8,7 +8,7 @@
 // =============================================================================
 //
 // Sample JSON messages for the Binance Spot signed (private) REST endpoints
-// (see docs/plans/001-appendix-binance-message-formats.md §2, fetched
+// (see docs/plans/appendix-binance-message-formats.md §2, fetched
 // 2026-06-06). Used as test fixtures in test_binance_rest_responses.cpp and
 // test_binance_client.cpp.
 //

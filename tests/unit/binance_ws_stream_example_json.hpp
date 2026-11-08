@@ -8,7 +8,7 @@
 // =============================================================================
 //
 // Sample JSON frames from the Binance WebSocket market-stream docs (see
-// docs/plans/001-appendix-binance-message-formats.md §3, fetched 2026-06-06).
+// docs/plans/appendix-binance-message-formats.md §3, fetched 2026-06-06).
 // Used as test fixtures in test_binance_ws_client.cpp.
 //
 // Fixtures are verbatim from the appendix unless marked synthetic.

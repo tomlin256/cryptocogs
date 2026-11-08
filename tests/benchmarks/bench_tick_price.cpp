@@ -21,7 +21,7 @@ namespace {
 // NOLINTBEGIN(bugprone-throwing-static-initialization)
 
 // Candidate #6: small, but called once per price field on every hot message
-// if a caller re-derives it (docs/plans/025-kraken-performance-profiling.md Design decisions).
+// if a caller re-derives it (docs/plans/kraken-performance-profiling.md Design decisions).
 
 void BM_TickPrice_From(benchmark::State& state) {
     for (auto _ : state) {

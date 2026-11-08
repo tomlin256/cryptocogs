@@ -54,7 +54,7 @@ BENCHMARK(BM_TickerEventFromJson);
 // ── BM_BookEventFromJson — ranged book depth ────────────────────────────────
 // CryptoComBookEvent::from_json (ws.cpp) push_backs into bids/asks with no
 // .reserve(), despite d.at("bids")/d.at("asks").size() being known upfront —
-// see docs/plans/027-remaining-adapters-reserve-vector-growth.md Design decisions. Depths match the BM_VectorPushBack_*
+// see docs/plans/remaining-adapters-reserve-vector-growth.md Design decisions. Depths match the BM_VectorPushBack_*
 // Args below for a direct, same-N comparison in Step 4. Wire shape mirrors
 // the nested result.data[0].bids/asks CryptoComBookEvent::from_json actually
 // reads (result_obj/result_data helpers), each row a 3-element

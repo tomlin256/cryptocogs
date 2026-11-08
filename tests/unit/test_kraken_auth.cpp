@@ -12,7 +12,7 @@
 // for the same path/body inputs — both form-encoded and JSON bodies.
 //
 // This is the "new path matches the trusted reference" regression net described
-// in Step 3 of docs/plans/001-multi-exchange-abstraction.md.
+// in Step 3 of docs/plans/multi-exchange-abstraction.md.
 
 #include "exchange/kraken/auth.hpp"
 #include "exchange/common/rest.hpp"
