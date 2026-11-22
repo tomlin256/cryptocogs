@@ -203,6 +203,23 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake_checks/check_cmake_floor.cmake)
 endif()
 
+# One libcurl floor. The root CMakeLists.txt states it where it looks libcurl up, and the package config and the
+# README say the same: the library does not compile against an older one. Top level only, where the checkout it
+# reads is this project's own.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_test(NAME test_curl_floor
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake_checks/check_curl_floor.cmake)
+
+    # The check itself: small checkouts whose three files agree, and ones where each disagrees, are made at run time
+    # and the check is run over each. A check that accepted everything would pass the test above.
+    add_test(NAME test_curl_floor_fixtures
+             COMMAND ${CMAKE_COMMAND}
+                     -DSCRATCH_ROOT=${CMAKE_CURRENT_BINARY_DIR}/cmake_checks
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake_checks/check_curl_floor_fixtures.cmake)
+endif()
+
 # Linking any library built in src/ compiles the consumer as C++23. The export copies a target's
 # INTERFACE_COMPILE_FEATURES to a find_package consumer, and nothing else in the suite notices a library that
 # loses its target_compile_features: the top-level CMAKE_CXX_STANDARD still compiles it. The features are read

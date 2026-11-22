@@ -681,7 +681,7 @@ the 176 Kraken/common tests.
 | [spdlog](https://github.com/gabime/spdlog) | v1.17.0 | Yes |
 | [Google Test](https://github.com/google/googletest) | v1.18.0 | Yes |
 | OpenSSL | system | No — `sudo apt install libssl-dev` |
-| libcurl | system | No — `sudo apt install libcurl4-openssl-dev` |
+| libcurl | system (libcurl 7.80.0 or later) | No — `sudo apt install libcurl4-openssl-dev` |
 
 ---
 

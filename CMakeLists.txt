@@ -172,9 +172,15 @@ find_package(OpenSSL REQUIRED)
 
 #-------------------------------------------------------------------------------
 # Find CURL
+#
+# 7.80.0 is the first libcurl that has CURLOPT_PREREQFUNCTION, which
+# src/exchange/common/http_client.cpp sets so that a POST is written at most
+# once. Against an older libcurl that file does not compile, and the version
+# here says so at configure time. The package config and the README name the
+# same version (test_curl_floor).
 #-------------------------------------------------------------------------------
 
-find_package(CURL REQUIRED)
+find_package(CURL 7.80.0 REQUIRED)
 
 #-------------------------------------------------------------------------------
 # A sensible json library

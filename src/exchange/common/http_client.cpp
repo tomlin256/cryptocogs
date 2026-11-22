@@ -36,6 +36,25 @@ HttpTimeouts checked(const HttpTimeouts& timeouts) {
     return timeouts;
 }
 
+// What a caller is told when a request may have reached the server and no reply says what became of it.
+constexpr std::string_view OUTCOME_UNKNOWN =
+    "The request may have been received and acted on: its outcome is unknown, so check the exchange before sending it again.";
+
+// How many times libcurl has been about to write the request of one call to perform.
+struct SendOnce {
+    int writes{0};
+};
+
+// libcurl's pre-request callback (CURLOPT_PREREQFUNCTION). libcurl calls it each time it is about to write the request, when the
+// connection is ready and nothing of the request has gone out, on a new connection and on a reused one alike. `clientp` is the SendOnce
+// of the call. The first write goes ahead; a second ends the call with CURLE_ABORTED_BY_CALLBACK.
+int allow_one_send(void* clientp, char* /*conn_primary_ip*/, char* /*conn_local_ip*/, int /*conn_primary_port*/,
+                   int /*conn_local_port*/) {
+    auto* once = static_cast<SendOnce*>(clientp);
+    ++once->writes;
+    return once->writes > 1 ? CURL_PREREQFUNC_ABORT : CURL_PREREQFUNC_OK;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -64,10 +83,20 @@ std::string timeout_message(const bool request_may_have_been_sent, const HttpTim
     text.append(" (connect limit ").append(std::to_string(limits.connect.count()));
     text.append(" ms, total limit ").append(std::to_string(limits.total.count())).append(" ms). ");
     if (request_may_have_been_sent)
-        text.append("The request may have been received and acted on: its outcome is unknown, so check the exchange before sending it again.");
+        text.append(OUTCOME_UNKNOWN);
     else
         text.append("The request was not sent.");
     return text;
+}
+
+void require_option(const CURLcode result, const std::string_view option) {
+    if (result == CURLE_OK)
+        return;
+    std::string text("CurlHttpClient: libcurl refused ");
+    text.append(option).append(" (").append(curl_easy_strerror(result)).append("). The libcurl in use is ");
+    text.append(curl_version_info(CURLVERSION_NOW)->version).append(", and this library was built with ").append(LIBCURL_VERSION);
+    text.append(". Without that option a POST or a DELETE cannot be held to one write, so the request was not sent.");
+    throw std::runtime_error(text);
 }
 
 } // namespace detail
@@ -118,14 +147,19 @@ HttpResponse CurlHttpClient::perform(const HttpRequest& http) {
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(http.body.size()));
     }
 
-    // A POST or a DELETE is never sent on a connection that an earlier request used (#58). When a reused connection is closed by the server
-    // without a reply, libcurl cannot tell a request that the server never read from one that it read and acted on, so it writes the
-    // request again on a new connection: an order would reach the exchange twice, and the caller would see only the second attempt's
-    // outcome. libcurl has no option that turns this retry off, and it happens only on a reused connection, so such a request gets a
-    // connection of its own. A GET is safe to repeat and keeps reusing connections (#51). The reset above clears this option, so it is set
-    // on every call.
-    if (http.method != M::GET)
-        curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 1L);
+    // A POST or a DELETE is written at most once. libcurl writes a request again, on another connection, when the first attempt gets no
+    // reply: a reused connection that closes or is reset under it, an HTTP/2 stream that the server refuses. It cannot tell a request that
+    // the server never read from one that it read and acted on, so an order would reach the exchange twice, and no option turns that off.
+    // libcurl does call this callback each time it is about to write the request, on a new connection or a reused one: the callback lets
+    // the first write through and ends the call at a second. A GET is safe to repeat and gets no callback. The reset above clears both
+    // options, so they are set on every call; `once` lives until curl_easy_perform returns, and the next call resets the handle first.
+    // A libcurl that refuses either option would leave the request with nothing to hold it to one write, so the call throws here,
+    // before anything is sent.
+    SendOnce once;
+    if (http.method != M::GET) {
+        detail::require_option(curl_easy_setopt(curl, CURLOPT_PREREQFUNCTION, &allow_one_send), "CURLOPT_PREREQFUNCTION");
+        detail::require_option(curl_easy_setopt(curl, CURLOPT_PREREQDATA, static_cast<void*>(&once)), "CURLOPT_PREREQDATA");
+    }
 
     // Response buffer.
     std::string response;
@@ -133,6 +167,14 @@ HttpResponse CurlHttpClient::perform(const HttpRequest& http) {
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, static_cast<void*>(&response));
 
     const CURLcode rc = curl_easy_perform(curl);
+    if (rc == CURLE_ABORTED_BY_CALLBACK) {
+        // allow_one_send stopped a second write: the first attempt was let through, and no reply came to it. It is the only callback of
+        // this call that can end it, since write_cb takes everything it is given. One added to perform that can end the call has to be
+        // told apart from it here, or its failure would be reported in these words.
+        std::string text("curl_easy_perform failed: no reply came to the first attempt, and the request was not sent a second time. ");
+        text.append(OUTCOME_UNKNOWN);
+        throw std::runtime_error(text);
+    }
     if (rc == CURLE_OPERATION_TIMEDOUT) {
         // How far did the call get? The pre-transfer time is 0 until libcurl is about to send the request, so 0 proves that nothing was sent,
         // and anything above 0 means that it may have been. If libcurl cannot say, assume that it went out: the other claim is the dangerous

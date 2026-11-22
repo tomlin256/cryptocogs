@@ -3,9 +3,11 @@
 # cryptocogs package config. The exported targets PUBLIC-link OpenSSL and libcurl
 # (standard CMake find-modules — resolved here). nlohmann_json is header-only and
 # vendored into this prefix's include dir, so it is NOT a consumer dependency.
+# The libcurl version is the one the root CMakeLists.txt asks for: the library
+# sets an option that an older libcurl does not have (test_curl_floor).
 include(CMakeFindDependencyMacro)
 find_dependency(OpenSSL)
-find_dependency(CURL)
+find_dependency(CURL 7.80.0)
 
 include("${CMAKE_CURRENT_LIST_DIR}/cryptocogsTargets.cmake")
 

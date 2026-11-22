@@ -27,6 +27,7 @@
 #include <chrono>
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace exchange::rest {
 
@@ -68,15 +69,18 @@ public:
     // body or method) reaches the next, one that threw included, while
     // connections stay open between calls (#51).
     //
-    // A POST or a DELETE is sent at most once (#58): it never rides a
-    // connection that an earlier request used, so each makes a connection of
-    // its own (a TCP connect, and a TLS handshake for https). libcurl writes a
-    // request again on a new connection when a reused one is closed without a
-    // reply, and for a POST that would reach the server twice. If the
-    // connection of a POST or a DELETE closes without a reply, perform throws,
-    // and the request may have been received and acted on: an order has to be
-    // looked for at the exchange before it is sent again. A GET keeps reusing
-    // connections.
+    // A POST or a DELETE is written at most once, whichever connection it is
+    // on and whatever the protocol. It reuses an open connection, as a GET
+    // does. libcurl writes a request again, on another connection, when the
+    // first attempt gets no reply (a reused connection that closes under it,
+    // an HTTP/2 stream that the server refuses), and for a POST that would
+    // reach the server twice: perform stops the second write and throws, and
+    // the text says that the request "was not sent a second time". The
+    // request may have been received and acted on all the same: an order has
+    // to be looked for at the exchange before it is sent again. A GET is safe
+    // to repeat, so libcurl may write one again. If the libcurl in use at run
+    // time refuses the option that this rests on, perform throws before a
+    // POST or a DELETE is sent.
     HttpResponse perform(const HttpRequest& http);
 
     // Move-only (owns a curl handle); copy is implicitly deleted by the
@@ -98,6 +102,12 @@ namespace detail {
 // not sent or that it may have been and its outcome is unknown. Apart from perform so that both texts can be tested without a timer
 // (a plain-HTTP timeout at a few milliseconds is a race between the connect and the clock). Not part of the supported surface.
 std::string timeout_message(bool request_may_have_been_sent, const HttpTimeouts& limits);
+
+// Throws std::runtime_error unless `result`, which curl_easy_setopt returned for the option named `option`, is CURLE_OK. For an option
+// that perform cannot do without: the libcurl in use at run time can be older than the one this library was compiled against, and it
+// then refuses an option that it does not have. The text names the option and both libcurls, and says that the request was not sent.
+// Apart from perform so that it can be tested, since no libcurl that has an option refuses it. Not part of the supported surface.
+void require_option(CURLcode result, std::string_view option);
 
 } // namespace detail
 
