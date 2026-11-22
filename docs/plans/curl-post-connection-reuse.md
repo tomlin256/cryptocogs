@@ -1,7 +1,8 @@
 # `CurlHttpClient::perform`: a POST or a DELETE reuses a connection, and is still written at most once
 
-**Status:** Done (2026-11-22), except Step 3, the sanitizer runs and the CI runs that follow the push. Rob approved the plan as
-written, so D1 to D4 stood at their defaults below. Steps 0 to 2 are recorded in the *Outcome*, with what differed from the plan.
+**Status:** Done (2026-11-22), except that the CI runs of the push had not finished when Step 3 was recorded: their numbers are in
+the *Outcome*. Rob approved the plan as written, so D1 to D4 stood at their defaults below. Steps 0 to 3 are recorded in the
+*Outcome*, with what differed from the plan.
 
 Closes [#59](https://github.com/tomlin256/cryptocogs/issues/59) and [#68](https://github.com/tomlin256/cryptocogs/issues/68), the
 HTTP/2 finding of the *Problem*.
@@ -343,14 +344,14 @@ dispatched. *Done when* the results are in the *Outcome*; a finding gets its own
 
 ## Outcome
 
-Steps 0 to 2 were done on 2026-11-22. Rob approved the plan as written, so D1 to D4 stood at their defaults.
+Steps 0 to 3 were done on 2026-11-22. Rob approved the plan as written, so D1 to D4 stood at their defaults.
 
 | Step | Commit | What |
 |---|---|---|
 | 0 | `12204ed` | The plan, approved. [#68](https://github.com/tomlin256/cryptocogs/issues/68) (`bug`) and [#69](https://github.com/tomlin256/cryptocogs/issues/69) (`enhancement`) opened, with no milestone (the repo has none); a comment on #59 with the plan's path |
 | 1 | `e519531` | `perform` sets the pre-request callback on every request that is not a GET, and no `FRESH_CONNECT`; the libcurl floor in three places; `test_curl_floor` and its fixtures; the tests |
-| 2 | this commit | `README.md`, `CLAUDE.md`, the status line of plan curl-post-sent-once, this *Outcome*; #59 and #68 closed by hand after the push |
-| 3 | to come | the sanitizer runs on the Mac and the CI runs of the push |
+| 2 | `0716dfd` | `README.md`, `CLAUDE.md`, the status line of plan curl-post-sent-once, this *Outcome*; #59 and #68 closed by hand after the push |
+| 3 | the commit that adds *Step 3* below | the record of the sanitizer runs on the Mac |
 
 ### Step 1
 
@@ -446,6 +447,17 @@ Each configure names the floor: `Found CURL … (found suitable version "8.18.0"
   the error names both.
 - **Tests 1 to 3 check the two phrases through one helper,** `expect_it_says_the_request_was_not_sent_again`.
 
-### Left for Step 3
+### Step 3
 
-`asan-macos-arm64` and `tsan-macos-arm64`, full suites, and the two CI runs of the push, read once they have finished.
+After the push of `e519531` and `0716dfd`, on the Mac (Apple clang 21.0.0, libcurl 8.7.1), with the options in `CLAUDE.md`:
+
+| Tree | Result |
+|---|---|
+| `asan-macos-arm64` (AddressSanitizer and UBSan) | built with no warning; **598 of 598**; no report |
+| `tsan-macos-arm64` | built with no warning; **597 of 597**; no report |
+
+The clang-tidy gate is off again in `build/debug-macos-arm64`, as it was found (595 tests).
+
+**Not read yet.** The push started two CI runs, `CMake on a single platform` (45069355290) and `clang-tidy` (45069355279). Both were
+still running when this was written, three minutes after the push, and were not waited for. The nightly `Sanitizers` run after this
+date is the first on these commits. None of the three is called green here.
