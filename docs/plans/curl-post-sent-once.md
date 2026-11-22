@@ -2,7 +2,9 @@
 
 **Status:** Done (2026-11-06), released as [v2.1.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.1.0) (2026-11-06). Rob
 approved the plan as written, so D1 to D4 stood at the defaults below (no release), and then asked for the release. Steps 0 to 4 are
-recorded in the *Outcome*.
+recorded in the *Outcome*. Its D1, a connection of its own for every POST and DELETE, was replaced on 2026-11-22 by
+[plan curl-post-connection-reuse](curl-post-connection-reuse.md): a POST or a DELETE reuses a connection again, and a pre-request
+callback holds it to one write.
 
 Closes [#58](https://github.com/tomlin256/cryptocogs/issues/58).
 

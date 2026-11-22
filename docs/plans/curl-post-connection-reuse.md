@@ -1,6 +1,7 @@
 # `CurlHttpClient::perform`: a POST or a DELETE reuses a connection, and is still written at most once
 
-**Status:** Approved as written (2026-11-22), so D1 to D4 stand at their defaults below. Nothing is implemented yet.
+**Status:** Done (2026-11-22), except Step 3, the sanitizer runs and the CI runs that follow the push. Rob approved the plan as
+written, so D1 to D4 stood at their defaults below. Steps 0 to 2 are recorded in the *Outcome*, with what differed from the plan.
 
 Closes [#59](https://github.com/tomlin256/cryptocogs/issues/59) and [#68](https://github.com/tomlin256/cryptocogs/issues/68), the
 HTTP/2 finding of the *Problem*.
@@ -332,8 +333,119 @@ dispatched. *Done when* the results are in the *Outcome*; a finding gets its own
 - **Not measured:** a proxy from `https_proxy`; HTTP/3 (libcurl does not choose it unless asked); libcurl between 7.80.0 and 8.5.0;
   the retry after a write that fails on a reused connection, which goes back through the same state as the ones that were.
 - **A GET can still be sent twice.** Deliberate, as before, and test 6 now holds it.
+- **A libcurl at run time that is older than the one at build time** (found in Step 1). It refuses the option, and nothing would
+  hold a POST to one write. Closed by `detail::require_option`: see *What differed from the plan*.
+- **A reply of 417 to `Expect: 100-continue`** (found in Step 1). libcurl answers it by sending the request again without the header,
+  and the callback stops that as well, with this plan's text, which is then wrong to say that no reply came. libcurl sends the header
+  only over HTTP/1.1 and only for a body over 1 MB (`EXPECT_100_THRESHOLD`, read in 8.5.0, 8.7.1 and 8.17.0), which no request this
+  library builds comes near. Read in the source, not measured.
 - **Time:** the six tests are a few milliseconds each.
 
 ## Outcome
 
-Not started.
+Steps 0 to 2 were done on 2026-11-22. Rob approved the plan as written, so D1 to D4 stood at their defaults.
+
+| Step | Commit | What |
+|---|---|---|
+| 0 | `12204ed` | The plan, approved. [#68](https://github.com/tomlin256/cryptocogs/issues/68) (`bug`) and [#69](https://github.com/tomlin256/cryptocogs/issues/69) (`enhancement`) opened, with no milestone (the repo has none); a comment on #59 with the plan's path |
+| 1 | `e519531` | `perform` sets the pre-request callback on every request that is not a GET, and no `FRESH_CONNECT`; the libcurl floor in three places; `test_curl_floor` and its fixtures; the tests |
+| 2 | this commit | `README.md`, `CLAUDE.md`, the status line of plan curl-post-sent-once, this *Outcome*; #59 and #68 closed by hand after the push |
+| 3 | to come | the sanitizer runs on the Mac and the CI runs of the push |
+
+### Step 1
+
+**Start from green** (`12204ed`, `debug-macos-arm64`, the gate on): 678 of 678, no warning.
+
+**Red first**, the new tests over `HEAD`'s `http_client.cpp`, each alone under a 10 s alarm, the same on the Mac and in `ubuntu-dev`:
+
+| Test | Over `HEAD` | Why |
+|---|---|---|
+| 1 `APostThatTheServerClosesWithoutAReplyIsSentOnce` | red | read once, but the text is libcurl's `Server returned nothing (no headers, no data)` |
+| 2 `ADeleteThatTheServerClosesWithoutAReplyIsSentOnce` | red | the same |
+| 3 `APostOrADeleteOnAUsedConnectionThatClosesIsSentOnce` | red, all four rows | nothing thrown: the order has a connection of its own and is answered |
+| 4 `GetsKeepSharingOneConnection` | green | |
+| 5 `AMixOfMethodsSharesOneConnection` | red | 3 connections |
+| 6 `AGetOnAUsedConnectionThatClosesIsSentAgain` | green | |
+| `test_curl_floor` | red | "looks CURL up without a minimum version, so the project states no libcurl floor" |
+| `test_curl_floor_fixtures` | green | it tests the check, not the checkout |
+
+**Green:** with the change, all of them, on both systems.
+
+**Hand-made changes**, in a scratch copy of the working tree, configured offline against the real tree's fetched sources (not in the
+tree, as Step 1 said: a copy cannot leave a change behind). For each: the fixed file copied in, the change applied (its old text
+asserted to occur once), the object, the archive and the test binary deleted, the target built, each test run alone under a 10 s
+watchdog. Tests 7 and 8 are the two `CurlHttpClientOptions` tests (see *What differed from the plan*).
+
+| Change | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| (a) no callback and no `FRESH_CONNECT` | red | red | red | green | green | green | green | green |
+| (b) the callback set before the reset, which clears it | red | red | red | green | green | green | green | green |
+| (c) the callback on POST only | green | red | red (the DELETE rows) | green | green | green | green | green |
+| (d) the callback on every method | green | green | green | green | green | red | green | green |
+| (e) the count kept across calls | red | red | red | green | red | green | green | green |
+| (f) two writes allowed | red | red | red | green | green | green | green | green |
+| (g) `FRESH_CONNECT` kept beside the callback | red (the text) | red (the text) | red | green | red | green | green | green |
+| (h) the abort reported in libcurl's words | red | red | red | green | green | green | green | green |
+| (i) a refused option ignored | green | green | green | green | green | green | red | green |
+| (j) the text without the sentence about the outcome | red | red | red | green | green | green | green | green |
+| (k) the first write refused as well | red | red | red | green | red | green | green | green |
+| the fix, before and after | green | green | green | green | green | green | green | green |
+
+Rows (a) to (h) are as Step 1 predicted. The first run showed (h) with test 5 red, which is (g)'s row: the archive had not been
+rebuilt (Apple's make compares times in whole seconds), so the binary still held the change before it. The harness now deletes the
+archive as well and reads the build log for the compile, the archive and the link. Every row above is from a run where all three
+happened, made again on the sources of `e519531`.
+
+**Repeated:** the six tests and the two new ones, 200 times each (`ctest --repeat until-fail:200`): 1600 of 1600 on the Mac (15.9 s)
+and 1600 of 1600 in `ubuntu-dev` (6.0 s).
+
+**HTTP/2 again.** The fixed `http_client.cpp`, with one line added to a scratch copy (`CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE`), compiled
+into a scratch program that uses `CurlHttpClient` itself: a POST, the order, a GET. Seven server behaviours (the six of table 4b, and
+the refusal of the first three orders), each with the order as a POST and as a DELETE: 14 runs on each system.
+
+| | libcurl 8.7.1 (Mac) | libcurl 8.5.0 (`ubuntu-dev`) |
+|---|---|---|
+| the server read the order once | 14 of 14 | 14 of 14 |
+| the POST before it and the GET after it answered 200 | 14 of 14 | 14 of 14 |
+| the order answered (the server answers it) | 2 | 2 |
+| `perform` throws this plan's text | 8: refused stream, GOAWAY, TCP reset, the first three refused | 12: those, and TCP close and session end |
+| `perform` throws `Error in the HTTP2 framing layer` | 4: TCP close and session end, where 8.7.1 does not try again | 0 |
+
+**The package config.** The library installed to a scratch prefix (Release, Mac): a consumer that calls `find_package(cryptocogs 2)`
+and links `cryptocogs::exchange_http` configures (`Found CURL … (found suitable version "8.7.1", minimum required is "7.80.0")`),
+builds and runs. With the installed config's version raised to 99.0 the consumer's configure fails with `Could NOT find CURL: Found
+unsuitable version "8.7.1", but required is at least "99.0"`, and the call stack names the config's line.
+
+**Checkpoint.**
+
+| Tree | Result |
+|---|---|
+| `debug-macos-arm64`, Apple clang 21.0.0, libcurl 8.7.1, the gate on | built with no warning; **683 of 683** (678 before: three gtests and two `cmake -P` checks are new), 595 without the `clang_tidy_` tests |
+| `debug-linux-arm64` in `ubuntu-dev`, GCC 13.3, libcurl 8.5.0 | built with no warning; **595 of 595** |
+| `release-`, `asan-` and `tsan-linux-arm64` in `ubuntu-dev` | built with no warning; in the asan tree the transport's 27 tests and the two floor checks pass with CI's options, `detect_leaks=1` included |
+| the three configurations with GCC 15.2 (a throwaway `ubuntu:26.04`, CMake 4.2.3, libcurl 8.18.0) | built with no warning; the same 29 pass in the Release tree, which makes a third libcurl for tests 1 to 6 |
+
+Each configure names the floor: `Found CURL … (found suitable version "8.18.0", minimum required is "7.80.0")`.
+
+### What differed from the plan
+
+- **`perform` refuses to send a POST or a DELETE when libcurl refuses the option** (`detail::require_option`). Found while writing the
+  change, and not in the plan as approved. The floor is checked when the library is built and when the package is found, but a program
+  can be run with a libcurl older than the one it was built with. That libcurl answers `CURLE_UNKNOWN_OPTION` to
+  `CURLOPT_PREREQFUNCTION`, and `perform` did not read the answer: with `FRESH_CONNECT` gone nothing would then hold a POST to one
+  write, and nothing would say so. Now the call throws before anything is sent, and the text names the option, the libcurl in use and
+  the one the library was built with. Cost: two comparisons for each POST or DELETE. Tests 7 and 8 hold the function and change (i)
+  the refusal. The call from `perform` is read, not run: no libcurl that has the option refuses it, so no test can reach it.
+- **The hand-made changes were made in a scratch copy,** not in the tree, and there are three more of them: (i), (j) and (k).
+- **The header comment of `test_http_client.cpp` changed in Step 1,** with the tests it describes: left for Step 2, it would have been
+  false in Step 1's commit.
+- **`test_curl_floor_fixtures` has two accept cases and nine reject cases,** not one and three. Accepted: the three files agreeing on
+  7.80.0; and agreeing on another version, with comments that show other lookups (the check knows no number, and a comment is not a
+  call). Refused: the root with no version, with a range, with two lookups; the package config with another version, with none, with
+  no lookup; a README that names another version, and one that names none; and the package config and the README both wrong, where
+  the error names both.
+- **Tests 1 to 3 check the two phrases through one helper,** `expect_it_says_the_request_was_not_sent_again`.
+
+### Left for Step 3
+
+`asan-macos-arm64` and `tsan-macos-arm64`, full suites, and the two CI runs of the push, read once they have finished.

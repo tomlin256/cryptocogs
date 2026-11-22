@@ -513,19 +513,27 @@ clients catch it and put it in `resp.errors`.
 
 ### REST — connections
 
-A GET reuses an open connection when there is one. A POST or a DELETE never does: `exchange::rest::CurlHttpClient` gives each its own
-connection. When the server closes a connection that was idle, libcurl cannot tell a request that the server never read from one that
-it read and acted on, so it writes the request again on a new connection, and for an order that would be an order placed twice. With
-a connection of its own there is none to retry on, so the transport sends a POST or a DELETE at most once
-([#58](https://github.com/tomlin256/cryptocogs/issues/58)).
+Every request reuses an open connection when there is one, whatever its method: `exchange::rest::CurlHttpClient` keeps its connections
+between calls, so a call pays for a TCP connect, and a TLS handshake for `https`, only when the client has none open.
 
-The cost is a TCP connect, and a TLS handshake for `https`, for every POST and DELETE, the calls that only read included: every Kraken
-and Crypto.com private endpoint is a POST. A loop that polls one pays it on each poll
-([#59](https://github.com/tomlin256/cryptocogs/issues/59) is a way to avoid it for the calls that only read).
+A POST or a DELETE is written at most once. When an attempt gets no reply (the server closed or reset a connection that an earlier
+request had used, or refused an HTTP/2 stream), libcurl cannot tell a request that the server never read from one that it read and
+acted on, and it writes the request again on another connection: for an order, that would be an order placed twice. The transport stops
+the second write, and the call comes back with `resp.ok == false` and this line in `resp.errors`:
 
-If the connection of a POST or a DELETE closes without a reply, the call fails and the request may have been received and acted on:
-its outcome is unknown. Check your open orders before you send an order again, or you may place it twice. The four clients put the
-failure in `resp.errors`; its text does not say this yet ([#57](https://github.com/tomlin256/cryptocogs/issues/57)).
+```
+request failed: curl_easy_perform failed: no reply came to the first attempt, and the request was not sent a second time. The request may have been received and acted on: its outcome is unknown, so check the exchange before sending it again.
+```
+
+The request went out once and may have been acted on: check your open orders before you send an order again, or you may place it
+twice. A POST or a DELETE can fail after it went out in other ways (a new connection that closes without a reply, a reply that is cut
+short), and the same is true of those, though their text is libcurl's and does not say so yet
+([#57](https://github.com/tomlin256/cryptocogs/issues/57)).
+
+A GET is safe to repeat, so libcurl's second attempt is left to run and the call returns its reply.
+
+The rule rests on an option that an older libcurl does not have. The build refuses one (see [Dependencies](#dependencies)), and if the
+libcurl in use at run time lacks the option, a POST or a DELETE fails before anything is sent, with a text that names both libcurls.
 
 ### WebSocket — `KrakenWsClient` (recommended)
 
