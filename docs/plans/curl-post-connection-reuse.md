@@ -2,8 +2,8 @@
 
 **Status:** Done (2026-11-22), released as [v2.2.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.2.0) (2026-11-23). Rob
 approved the plan as written, so D1 to D4 stood at their defaults below (no release), and then asked for the release. Steps 0 to 4
-are recorded in the *Outcome*, with what differed from the plan. The one result not in it is the nightly `Sanitizers` run, which had
-not yet run on these commits when Step 4 was recorded.
+are recorded in the *Outcome*, with what differed from the plan. The nightly `Sanitizers` run, which had not yet run on these commits
+when Step 4 was recorded, was read afterwards: it is in the section of Step 3.
 
 Closes [#59](https://github.com/tomlin256/cryptocogs/issues/59) and [#68](https://github.com/tomlin256/cryptocogs/issues/68), the
 HTTP/2 finding of the *Problem*.
@@ -476,8 +476,10 @@ libcurl 8.18.0 against the floor of 7.80.0:
 
 The push of this section's first record (`c9cb167`) changed `docs/` only and started no run.
 
-**Not read yet.** The nightly `Sanitizers` run. The latest one, of 2026-11-22, ran on `fc66fd5`, before Step 1's commit, so the next
-is the first on these commits. It is not called green here.
+**The nightly `Sanitizers` run,** read on 2026-11-23, after the release. The one before it, of 2026-11-22, ran on `fc66fd5`, before
+Step 1's commit; this is the first on these commits: run 45185813427, started by the schedule, on `8f28558`. It finished green. `tsan`
+**597 of 597** and `asan` **598 of 598**, libcurl 8.18.0 against the floor of 7.80.0, and no sanitizer report in either log. It ran
+before [plan curl-prereq-refusal-test](curl-prereq-refusal-test.md), so it holds none of that plan's tests.
 
 ### Step 4 — the release, `v2.2.0` (2026-11-23)
 
