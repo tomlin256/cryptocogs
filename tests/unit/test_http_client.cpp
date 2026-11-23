@@ -35,6 +35,12 @@
 // connection with no reply when its rule says so. The tests count what the server read, after perform() has returned: no timer.
 // Every method shares one connection. A POST or a DELETE is read once, whichever connection it is on, and perform() says that it
 // was not sent again. A GET is read again and answered.
+//
+// Holding a request to one write. perform() sets CURLOPT_PREREQFUNCTION and CURLOPT_PREREQDATA on every POST and DELETE through
+// detail::hold_to_one_write, which reads libcurl's answer to each. A libcurl that has an option does not refuse it, so no call to
+// perform() can show what a refusal does. The tests of hold_to_one_write hand it functions of the type of curl_easy_setopt that stand
+// for a libcurl that is older than the headers: one refuses an option, one takes both and counts what it was offered. The connection
+// tests described above are the ones that run the callback and the counter over a real libcurl.
 
 #include "exchange/common/http_client.hpp"
 
@@ -522,6 +528,88 @@ TEST(CurlHttpClientOptions, ARefusedOptionIsAnErrorThatNamesItAndBothLibcurls) {
 
 TEST(CurlHttpClientOptions, AnOptionThatLibcurlTookIsNoError) {
     EXPECT_NO_THROW(exchange::rest::detail::require_option(CURLE_OK, "CURLOPT_PREREQFUNCTION"));
+}
+
+// ---- Holding a request to one write ------------------------------------------------------------------------------------------
+
+namespace {
+
+using CurlHandle = std::unique_ptr<CURL, void (*)(CURL*)>;
+
+// What a libcurl that is older than the headers does with the two options that hold a request to one write: it answers
+// CURLE_UNKNOWN_OPTION for the one it does not have and takes the rest. Functions of the type of curl_easy_setopt, so that
+// hold_to_one_write can be handed one.
+CURLcode refuses_prereq_function(CURL* /*curl*/, const CURLoption option, ...) {
+    return option == CURLOPT_PREREQFUNCTION ? CURLE_UNKNOWN_OPTION : CURLE_OK;
+}
+
+CURLcode refuses_prereq_data(CURL* /*curl*/, const CURLoption option, ...) {
+    return option == CURLOPT_PREREQDATA ? CURLE_UNKNOWN_OPTION : CURLE_OK;
+}
+
+// What a libcurl that takes every option was offered: how often each option, and for which handle. It does not read the value of an
+// option: clang refuses va_start on a parameter of the type CURLoption (an enumeration is not the type that its promotion gives).
+// Plain members, so that the object at namespace scope allocates nothing (bugprone-throwing-static-initialization); a test resets it.
+struct Offered {
+    int   functions{0};
+    int   data_offers{0};
+    int   others{0};
+    CURL* function_handle{nullptr};
+    CURL* data_handle{nullptr};
+};
+
+Offered offered;
+
+CURLcode takes_every_option(CURL* curl, const CURLoption option, ...) {
+    if (option == CURLOPT_PREREQFUNCTION) {
+        ++offered.functions;
+        offered.function_handle = curl;
+    } else if (option == CURLOPT_PREREQDATA) {
+        ++offered.data_offers;
+        offered.data_handle = curl;
+    } else {
+        ++offered.others;
+    }
+    return CURLE_OK;
+}
+
+} // namespace
+
+TEST_F(CurlHttpClientPerform, HoldingARequestToOneWriteFailsWhenLibcurlRefusesThePrereqFunction) {
+    const CurlHandle curl(curl_easy_init(), &curl_easy_cleanup);
+    ASSERT_NE(curl.get(), nullptr);
+    exchange::rest::detail::SendOnce once;
+    const std::string                text = thrown_message<std::runtime_error>(
+        [&] { exchange::rest::detail::hold_to_one_write(curl.get(), once, &refuses_prereq_function); });
+    EXPECT_TRUE(has(text, "libcurl refused CURLOPT_PREREQFUNCTION")) << text;
+    EXPECT_TRUE(has(text, curl_easy_strerror(CURLE_UNKNOWN_OPTION))) << text;
+    EXPECT_TRUE(has(text, "the request was not sent")) << text;
+}
+
+TEST_F(CurlHttpClientPerform, HoldingARequestToOneWriteFailsWhenLibcurlRefusesThePrereqData) {
+    const CurlHandle curl(curl_easy_init(), &curl_easy_cleanup);
+    ASSERT_NE(curl.get(), nullptr);
+    exchange::rest::detail::SendOnce once;
+    const std::string                text = thrown_message<std::runtime_error>(
+        [&] { exchange::rest::detail::hold_to_one_write(curl.get(), once, &refuses_prereq_data); });
+    EXPECT_TRUE(has(text, "libcurl refused CURLOPT_PREREQDATA")) << text;
+    EXPECT_TRUE(has(text, curl_easy_strerror(CURLE_UNKNOWN_OPTION))) << text;
+    EXPECT_TRUE(has(text, "the request was not sent")) << text;
+}
+
+// The libcurl that takes both options: nothing is thrown, and each option is offered once, for the handle that was passed, and no
+// other option is. That the callback and the counter are the right ones is held by the connection tests, over a real libcurl.
+TEST_F(CurlHttpClientPerform, HoldingARequestToOneWriteOffersLibcurlBothOptions) {
+    const CurlHandle curl(curl_easy_init(), &curl_easy_cleanup);
+    ASSERT_NE(curl.get(), nullptr);
+    exchange::rest::detail::SendOnce once;
+    offered = {};
+    EXPECT_NO_THROW(exchange::rest::detail::hold_to_one_write(curl.get(), once, &takes_every_option));
+    EXPECT_EQ(offered.functions, 1);
+    EXPECT_EQ(offered.data_offers, 1);
+    EXPECT_EQ(offered.others, 0);
+    EXPECT_EQ(offered.function_handle, curl.get());
+    EXPECT_EQ(offered.data_handle, curl.get());
 }
 
 // ---- Connections -------------------------------------------------------------------------------------------------------------

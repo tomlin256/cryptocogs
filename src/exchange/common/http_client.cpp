@@ -40,17 +40,12 @@ HttpTimeouts checked(const HttpTimeouts& timeouts) {
 constexpr std::string_view OUTCOME_UNKNOWN =
     "The request may have been received and acted on: its outcome is unknown, so check the exchange before sending it again.";
 
-// How many times libcurl has been about to write the request of one call to perform.
-struct SendOnce {
-    int writes{0};
-};
-
 // libcurl's pre-request callback (CURLOPT_PREREQFUNCTION). libcurl calls it each time it is about to write the request, when the
-// connection is ready and nothing of the request has gone out, on a new connection and on a reused one alike. `clientp` is the SendOnce
-// of the call. The first write goes ahead; a second ends the call with CURLE_ABORTED_BY_CALLBACK.
+// connection is ready and nothing of the request has gone out, on a new connection and on a reused one alike. `clientp` is the
+// detail::SendOnce of the call. The first write goes ahead; a second ends the call with CURLE_ABORTED_BY_CALLBACK.
 int allow_one_send(void* clientp, char* /*conn_primary_ip*/, char* /*conn_local_ip*/, int /*conn_primary_port*/,
                    int /*conn_local_port*/) {
-    auto* once = static_cast<SendOnce*>(clientp);
+    auto* once = static_cast<detail::SendOnce*>(clientp);
     ++once->writes;
     return once->writes > 1 ? CURL_PREREQFUNC_ABORT : CURL_PREREQFUNC_OK;
 }
@@ -97,6 +92,11 @@ void require_option(const CURLcode result, const std::string_view option) {
     text.append(curl_version_info(CURLVERSION_NOW)->version).append(", and this library was built with ").append(LIBCURL_VERSION);
     text.append(". Without that option a POST or a DELETE cannot be held to one write, so the request was not sent.");
     throw std::runtime_error(text);
+}
+
+void hold_to_one_write(CURL* const curl, SendOnce& once, const SetoptFn setopt) {
+    require_option(setopt(curl, CURLOPT_PREREQFUNCTION, &allow_one_send), "CURLOPT_PREREQFUNCTION");
+    require_option(setopt(curl, CURLOPT_PREREQDATA, static_cast<void*>(&once)), "CURLOPT_PREREQDATA");
 }
 
 } // namespace detail
@@ -150,16 +150,14 @@ HttpResponse CurlHttpClient::perform(const HttpRequest& http) {
     // A POST or a DELETE is written at most once. libcurl writes a request again, on another connection, when the first attempt gets no
     // reply: a reused connection that closes or is reset under it, an HTTP/2 stream that the server refuses. It cannot tell a request that
     // the server never read from one that it read and acted on, so an order would reach the exchange twice, and no option turns that off.
-    // libcurl does call this callback each time it is about to write the request, on a new connection or a reused one: the callback lets
-    // the first write through and ends the call at a second. A GET is safe to repeat and gets no callback. The reset above clears both
-    // options, so they are set on every call; `once` lives until curl_easy_perform returns, and the next call resets the handle first.
-    // A libcurl that refuses either option would leave the request with nothing to hold it to one write, so the call throws here,
-    // before anything is sent.
-    SendOnce once;
-    if (http.method != M::GET) {
-        detail::require_option(curl_easy_setopt(curl, CURLOPT_PREREQFUNCTION, &allow_one_send), "CURLOPT_PREREQFUNCTION");
-        detail::require_option(curl_easy_setopt(curl, CURLOPT_PREREQDATA, static_cast<void*>(&once)), "CURLOPT_PREREQDATA");
-    }
+    // libcurl does call a pre-request callback each time it is about to write the request, on a new connection or a reused one:
+    // hold_to_one_write sets one that lets the first write through and ends the call at a second. A GET is safe to repeat and gets no
+    // callback. The reset above clears both options, so they are set on every call; `once` lives until curl_easy_perform returns, and the
+    // next call resets the handle first. A libcurl that refuses either option would leave the request with nothing to hold it to one
+    // write, so hold_to_one_write throws, before anything is sent.
+    detail::SendOnce once;
+    if (http.method != M::GET)
+        detail::hold_to_one_write(curl, once, &curl_easy_setopt);
 
     // Response buffer.
     std::string response;

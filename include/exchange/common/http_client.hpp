@@ -106,8 +106,23 @@ std::string timeout_message(bool request_may_have_been_sent, const HttpTimeouts&
 // Throws std::runtime_error unless `result`, which curl_easy_setopt returned for the option named `option`, is CURLE_OK. For an option
 // that perform cannot do without: the libcurl in use at run time can be older than the one this library was compiled against, and it
 // then refuses an option that it does not have. The text names the option and both libcurls, and says that the request was not sent.
-// Apart from perform so that it can be tested, since no libcurl that has an option refuses it. Not part of the supported surface.
+// Apart from hold_to_one_write so that its text can be tested. Not part of the supported surface.
 void require_option(CURLcode result, std::string_view option);
+
+// How many times libcurl has been about to write the request of one call to perform. Not part of the supported surface.
+struct SendOnce {
+    int writes{0};
+};
+
+// The type of curl_easy_setopt. perform passes curl_easy_setopt itself to hold_to_one_write, and a test passes a function that stands for
+// a libcurl that refuses an option, since no libcurl that has an option refuses it.
+using SetoptFn = CURLcode (*)(CURL*, CURLoption, ...);
+
+// Holds the request of a call to perform to one write: sets CURLOPT_PREREQFUNCTION to a callback that lets the first write of the request
+// through and ends the call at a second, and CURLOPT_PREREQDATA to `once`, which counts the writes and has to outlive curl_easy_perform.
+// Both options are set through `setopt` and the answer to each is read by require_option, so a libcurl that refuses either one makes this
+// throw std::runtime_error before anything is sent. Not part of the supported surface.
+void hold_to_one_write(CURL* curl, SendOnce& once, SetoptFn setopt);
 
 } // namespace detail
 
