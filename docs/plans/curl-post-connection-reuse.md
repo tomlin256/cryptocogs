@@ -1,8 +1,9 @@
 # `CurlHttpClient::perform`: a POST or a DELETE reuses a connection, and is still written at most once
 
-**Status:** Done (2026-11-22). The push's two CI runs finished green and were read on 2026-11-23; the nightly `Sanitizers` run had
-not yet run on these commits then, and is the one result not in the *Outcome*. Rob approved the plan as written, so D1 to D4 stood
-at their defaults below. Steps 0 to 3 are recorded in the *Outcome*, with what differed from the plan.
+**Status:** Done (2026-11-22), released as [v2.2.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.2.0) (2026-11-23). Rob
+approved the plan as written, so D1 to D4 stood at their defaults below (no release), and then asked for the release. Steps 0 to 4
+are recorded in the *Outcome*, with what differed from the plan. The one result not in it is the nightly `Sanitizers` run, which had
+not yet run on these commits when Step 4 was recorded.
 
 Closes [#59](https://github.com/tomlin256/cryptocogs/issues/59) and [#68](https://github.com/tomlin256/cryptocogs/issues/68), the
 HTTP/2 finding of the *Problem*.
@@ -344,14 +345,18 @@ dispatched. *Done when* the results are in the *Outcome*; a finding gets its own
 
 ## Outcome
 
-Steps 0 to 3 were done on 2026-11-22. Rob approved the plan as written, so D1 to D4 stood at their defaults.
+Steps 0 to 3 were done on 2026-11-22, and Step 4, the release, on 2026-11-23. Rob approved the plan as written, so D1 to D4 stood at
+their defaults. D4 stood at no release; Rob then asked for it, and `v2.2.0` was released for
+[#59](https://github.com/tomlin256/cryptocogs/issues/59) and [#68](https://github.com/tomlin256/cryptocogs/issues/68).
 
 | Step | Commit | What |
 |---|---|---|
 | 0 | `12204ed` | The plan, approved. [#68](https://github.com/tomlin256/cryptocogs/issues/68) (`bug`) and [#69](https://github.com/tomlin256/cryptocogs/issues/69) (`enhancement`) opened, with no milestone (the repo has none); a comment on #59 with the plan's path |
 | 1 | `e519531` | `perform` sets the pre-request callback on every request that is not a GET, and no `FRESH_CONNECT`; the libcurl floor in three places; `test_curl_floor` and its fixtures; the tests |
 | 2 | `0716dfd` | `README.md`, `CLAUDE.md`, the status line of plan curl-post-sent-once, this *Outcome*; #59 and #68 closed by hand after the push |
-| 3 | `c9cb167`, then the commit that adds the CI runs to *Step 3* below | the record of the sanitizer runs on the Mac; then the push's two CI runs |
+| 3 | `c9cb167`, then `c906e7d` | the record of the sanitizer runs on the Mac; then the push's two CI runs |
+| 4 | `08eff00` | `chore: bump version to 2.2.0`; the annotated tag `v2.2.0` on it and the GitHub release (Latest) |
+| 4 | the commit that adds *Step 4* below | the record of the release |
 
 ### Step 1
 
@@ -470,3 +475,71 @@ The push of this section's first record (`c9cb167`) changed `docs/` only and sta
 
 **Not read yet.** The nightly `Sanitizers` run. The latest one, of 2026-11-22, ran on `fc66fd5`, before Step 1's commit, so the next
 is the first on these commits. It is not called green here.
+
+### Step 4 — the release, `v2.2.0` (2026-11-23)
+
+Rob asked for it after Step 3 (*"Make a release"*). D4 had named the number.
+
+**Before the notes** (`docs/dev-recipes.md`, *Before the release notes*):
+
+- **Every commit since `v2.1.0`:** 24 before the bump. Five are this plan's. The others are documentation and one change to the
+  build: the platform guard ([#64](https://github.com/tomlin256/cryptocogs/issues/64), and
+  [#63](https://github.com/tomlin256/cryptocogs/issues/63) for its header), `CLAUDE.md`
+  ([#60](https://github.com/tomlin256/cryptocogs/issues/60)), what the repository's text may name
+  ([#61](https://github.com/tomlin256/cryptocogs/issues/61)) and the names of the plan files
+  ([#65](https://github.com/tomlin256/cryptocogs/issues/65)). The notes list them under *Also in this tag*.
+- **Every issue they touch, read:** #59, #60, #61, #63, #64 and #68 are closed; #57, #65 and #69 are open, and the notes say so of
+  each.
+- **No public type changed.** The 34 public headers of `v2.1.0` and of `HEAD`, each set included in one unit and preprocessed
+  (`c++ -E -P`: no comments, no line markers), are 101358 and 101359 lines, and the one line that differs is the declaration of
+  `detail::require_option`. `sizeof` and `alignof` (Apple clang 21, arm64) are the same at both:
+
+  | Class | `sizeof` | `alignof` |
+  |---|---|---|
+  | `exchange::rest::HttpResponse` | 32 | 8 |
+  | `exchange::rest::HttpTimeouts` | 16 | 8 |
+  | `exchange::rest::CurlHttpClient` | 56 | 8 |
+  | `KrakenRestClient`, `BinanceRestClient`, `CoinbaseRestClient` | 48 | 8 |
+  | `CryptoComRestClient` | 56 | 8 |
+  | `exchange::ws::ExchangeWsClient` | 392 | 8 |
+  | `exchange::ws::IxWsConnection` | 1664 | 8 |
+  | `exchange::ws::WsReconnectSession` | 200 | 8 |
+  | `exchange::cryptocom::ws::HeartbeatResponder` | 24 | 8 |
+
+**The number.** `v2.2.0`, a minor: no layout changes, so it is not a major by the repo's rule, and the behaviour of a POST and a
+DELETE changes and libcurl has a new minimum, so it is not a patch.
+
+**The gate,** on the tree of the bump commit:
+
+| Where | Tree | Result |
+|---|---|---|
+| Mac (Apple clang 21.0.0, libcurl 8.7.1, clang-tidy 23.1.4) | `debug-macos-arm64`, the clang-tidy gate on | built with no warning; **683 of 683**, 88 of them `clang_tidy_` |
+| | `release-macos-arm64` | built with no warning; **595 of 595** |
+| `ubuntu-dev` (GCC 13.3, libcurl 8.5.0, CMake 4.4.5, clang-tidy 23.1.6) | `debug-linux-arm64`, the gate on | built with no warning; **683 of 683**, 88 of them `clang_tidy_` |
+| | `release-linux-arm64` | built with no warning; **595 of 595** |
+| | `asan-` and `tsan-linux-arm64` | built with no warning; in the asan tree the transport's 27 tests, the two floor checks and `test_package_version` pass with CI's options (30 of 30) |
+
+The bump changes no C++ source: the Mac's release tree compiled 80 objects, and the other five trees were up to date and compiled
+none. The gate is off again in both debug trees (595 tests).
+
+**The install.** The Mac's release tree, installed to a scratch prefix, carries `cryptocogsConfigVersion.cmake` at 2.2.0 and a
+config that asks for `find_dependency(CURL 7.80.0)`. A consumer's `find_package(cryptocogs N)` finds it for 2, 2.1, 2.2 and 2.2.0,
+and is refused for 1, 3, 2.3 and 2.2.1 ("The version found is not compatible with the version requested"). The consumer that asks
+for 2 links `cryptocogs::exchange_http`, builds with no warning and runs.
+
+**The release.** `08eff00`, `chore: bump version to 2.2.0`: the `project()` line and the `GIT_TAG` of the README's example. The
+annotated tag `v2.2.0` is on it (the remote's `refs/tags/v2.2.0` is a tag object whose commit is `08eff00`), and the GitHub release
+is [v2.2.0](https://github.com/tomlin256/cryptocogs/releases/tag/v2.2.0), Latest. The commit message, the tag message and the notes
+passed the audit of public text before they went out.
+
+**What the notes say that this plan's steps did not:** *What the change gives up*, which is D1's cost in D1's words; that HTTP/2
+says a refused request was not processed, so a server that keeps to the protocol did not act twice on a POST that v2.1.0 wrote
+again; and *Also in this tag*.
+
+**CI of the bump commit** (`08eff00`). Neither run was waited for before the tag; both were read once they had finished, and this
+record was pushed after them. Each found libcurl 8.18.0 against the floor of 7.80.0:
+
+| Run | Result |
+|---|---|
+| `CMake on a single platform` (45131669560): `release-linux-x86_64`, GCC 15.2.0 | success; no warning in the log; **595 of 595** |
+| `clang-tidy` (45131669532): `debug-linux-x86_64`, clang-tidy 23.1.6 | success; **95 of 95** `clang_tidy_` tests, no finding |
