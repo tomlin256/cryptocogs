@@ -1,8 +1,8 @@
 # `CurlHttpClient::perform`: a POST or a DELETE reuses a connection, and is still written at most once
 
-**Status:** Done (2026-11-22), except that the CI runs of the push had not finished when Step 3 was recorded: their numbers are in
-the *Outcome*. Rob approved the plan as written, so D1 to D4 stood at their defaults below. Steps 0 to 3 are recorded in the
-*Outcome*, with what differed from the plan.
+**Status:** Done (2026-11-22). The push's two CI runs finished green and were read on 2026-11-23; the nightly `Sanitizers` run had
+not yet run on these commits then, and is the one result not in the *Outcome*. Rob approved the plan as written, so D1 to D4 stood
+at their defaults below. Steps 0 to 3 are recorded in the *Outcome*, with what differed from the plan.
 
 Closes [#59](https://github.com/tomlin256/cryptocogs/issues/59) and [#68](https://github.com/tomlin256/cryptocogs/issues/68), the
 HTTP/2 finding of the *Problem*.
@@ -351,7 +351,7 @@ Steps 0 to 3 were done on 2026-11-22. Rob approved the plan as written, so D1 to
 | 0 | `12204ed` | The plan, approved. [#68](https://github.com/tomlin256/cryptocogs/issues/68) (`bug`) and [#69](https://github.com/tomlin256/cryptocogs/issues/69) (`enhancement`) opened, with no milestone (the repo has none); a comment on #59 with the plan's path |
 | 1 | `e519531` | `perform` sets the pre-request callback on every request that is not a GET, and no `FRESH_CONNECT`; the libcurl floor in three places; `test_curl_floor` and its fixtures; the tests |
 | 2 | `0716dfd` | `README.md`, `CLAUDE.md`, the status line of plan curl-post-sent-once, this *Outcome*; #59 and #68 closed by hand after the push |
-| 3 | the commit that adds *Step 3* below | the record of the sanitizer runs on the Mac |
+| 3 | `c9cb167`, then the commit that adds the CI runs to *Step 3* below | the record of the sanitizer runs on the Mac; then the push's two CI runs |
 
 ### Step 1
 
@@ -458,6 +458,15 @@ After the push of `e519531` and `0716dfd`, on the Mac (Apple clang 21.0.0, libcu
 
 The clang-tidy gate is off again in `build/debug-macos-arm64`, as it was found (595 tests).
 
-**Not read yet.** The push started two CI runs, `CMake on a single platform` (45069355290) and `clang-tidy` (45069355279). Both were
-still running when this was written, three minutes after the push, and were not waited for. The nightly `Sanitizers` run after this
-date is the first on these commits. None of the three is called green here.
+The push started two CI runs on `0716dfd`. Neither was waited for; both were read on 2026-11-23, after they had finished. Each found
+libcurl 8.18.0 against the floor of 7.80.0:
+
+| Run | Result |
+|---|---|
+| `CMake on a single platform` (45069355290): `release-linux-x86_64`, GCC 15.2.0 | success; no warning in the log; **595 of 595** |
+| `clang-tidy` (45069355279): `debug-linux-x86_64`, clang-tidy 23.1.6 | success; **95 of 95** `clang_tidy_` tests, no finding |
+
+The push of this section's first record (`c9cb167`) changed `docs/` only and started no run.
+
+**Not read yet.** The nightly `Sanitizers` run. The latest one, of 2026-11-22, ran on `fc66fd5`, before Step 1's commit, so the next
+is the first on these commits. It is not called green here.
