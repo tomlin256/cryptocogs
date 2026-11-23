@@ -442,6 +442,9 @@ Each configure names the floor: `Found CURL … (found suitable version "8.18.0"
   write, and nothing would say so. Now the call throws before anything is sent, and the text names the option, the libcurl in use and
   the one the library was built with. Cost: two comparisons for each POST or DELETE. Tests 7 and 8 hold the function and change (i)
   the refusal. The call from `perform` is read, not run: no libcurl that has the option refuses it, so no test can reach it.
+  [Plan curl-prereq-refusal-test](curl-prereq-refusal-test.md)
+  ([#70](https://github.com/tomlin256/cryptocogs/issues/70)) then moved the call into `detail::hold_to_one_write`, which a test hands
+  a libcurl that refuses an option.
 - **The hand-made changes were made in a scratch copy,** not in the tree, and there are three more of them: (i), (j) and (k).
 - **The header comment of `test_http_client.cpp` changed in Step 1,** with the tests it describes: left for Step 2, it would have been
   false in Step 1's commit.
