@@ -1,7 +1,7 @@
 # `CurlHttpClient::perform`: a test holds that a refused `CURLOPT_PREREQFUNCTION` or `CURLOPT_PREREQDATA` ends the call before anything is sent
 
-**Status:** Steps 0 to 2 done (2026-11-23). Rob approved the plan as written, so D1 stood at its default (no release). Step 3, after
-the push, is recorded in the *Outcome* once it has run.
+**Status:** Done (2026-11-23). Rob approved the plan as written, so D1 stood at its default (no release). Steps 0 to 3 are recorded in
+the *Outcome*, with what differed from the plan.
 
 Closes [#70](https://github.com/tomlin256/cryptocogs/issues/70).
 
@@ -176,7 +176,7 @@ Not blocking. `asan-macos-arm64` and `tsan-macos-arm64`, full suites, with the o
 
 ## Outcome
 
-Steps 0 to 2 are done (2026-11-23). Counts and figures are measured. Step 3 has not run yet.
+Steps 0 to 3 are done (2026-11-23). Counts and figures are measured.
 
 ### Commits
 
@@ -184,7 +184,8 @@ Steps 0 to 2 are done (2026-11-23). Counts and figures are measured. Step 3 has 
 |---|---|
 | 0 | `367e387` `docs(plan): curl-prereq-refusal-test approved as written`; pushed, and #70 commented with the plan's URL |
 | 1 | `6aad06c` `test: hold_to_one_write is handed a libcurl that refuses a pre-request option` |
-| 2 | the commit that holds this record |
+| 2 | `8bbe726` `docs: plan curl-prereq-refusal-test records its outcome`; pushed with Step 1, and #70 closed with its comment |
+| 3 | the commit that holds this record |
 
 ### Start from green, and the gap shown
 
@@ -251,6 +252,24 @@ made direct, against the two `curl_easy_setopt` calls with a call of `require_op
 
 The pointer is not slower. The medians differ by 0.24 ns and the ranges overlap, so the sign is not a gain either. Against the 23 ms
 of a request on a reused connection (plan curl-post-connection-reuse, table 1) it is nothing.
+
+### After the push (Step 3)
+
+The push was `367e387..8bbe726`, Steps 1 and 2 together. The Mac sanitizer trees were run after it, and its two CI runs were read once
+they had finished; none was waited for or dispatched.
+
+| Run | Result |
+|---|---|
+| `asan-macos-arm64` (AddressSanitizer and UBSan), Apple clang 21.0.0, `ASAN_OPTIONS=detect_stack_use_after_return=1:strict_string_checks=1`, `UBSAN_OPTIONS=print_stacktrace=1`, and `symbolize=0` so that `atos` and its Developer Tools prompt stay out | 18 objects built, no warning; **601 of 601**, no sanitizer report in the log |
+| `tsan-macos-arm64`, `TSAN_OPTIONS=second_deadlock_stack=1` and `symbolize=0` | 18 objects built, no warning; **600 of 600**, no report |
+| `CMake on a single platform` (45261070367): `release-linux-x86_64`, GCC 15.2.0, libcurl 8.18.0 | success; no warning in the log; **598 of 598** |
+| `clang-tidy` (45261070269): `debug-linux-x86_64`, benchmarks on, clang-tidy 23.1.6 | success; **95 of 95** `clang_tidy_` tests, `clang_tidy_src_exchange_common_http_client` and `clang_tidy_tests_unit_test_http_client` among them |
+
+A sanitizer tree runs more tests than the 598 of a debug tree because it adds its own: `sanitizer_canary_asan`, `sanitizer_canary_ubsan`
+and `test_sanitizer_coverage` in the asan tree, `sanitizer_canary_tsan` and `test_sanitizer_coverage` in the tsan tree.
+
+No finding, so no issue. The nightly `Sanitizers` run that followed v2.2.0 was read in passing and is recorded in plan
+curl-post-connection-reuse, where it had been left open.
 
 ### What differed from the plan
 
