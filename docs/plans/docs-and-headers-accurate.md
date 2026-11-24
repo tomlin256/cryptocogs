@@ -1,6 +1,6 @@
 # Docs and headers are accurate: the six issues of milestone 1
 
-**Status:** Approved as written (2026-11-24), so D1 to D5 stand at their defaults. Step 0 is done; Step 1 is under way.
+**Status:** Approved as written (2026-11-24), so D1 to D5 stand at their defaults. Steps 0 and 1 are done; Step 2 is under way.
 
 Closes [#31](https://github.com/tomlin256/cryptocogs/issues/31), [#35](https://github.com/tomlin256/cryptocogs/issues/35),
 [#53](https://github.com/tomlin256/cryptocogs/issues/53), [#62](https://github.com/tomlin256/cryptocogs/issues/62),
@@ -12,7 +12,8 @@ playbook, example comments, plan-doc links and public headers say what the code 
 
 **Follows:** [plan unnumbered-plan-docs](unnumbered-plan-docs.md), whose Step 3 left 8 GitHub texts for #65.
 **Not here:** README sections for Coinbase and Crypto.com ([#71](https://github.com/tomlin256/cryptocogs/issues/71)), and the other
-includes that the sweep below reports in public headers ([#72](https://github.com/tomlin256/cryptocogs/issues/72)); a rewrite of the
+includes that the sweep below reports in public headers ([#72](https://github.com/tomlin256/cryptocogs/issues/72)); a comment in
+`common/rest.hpp` that the playbook audit found false ([#73](https://github.com/tomlin256/cryptocogs/issues/73)); a rewrite of the
 names that 8 old texts carry (D1); a release (D5).
 
 ## Problem
@@ -255,13 +256,15 @@ once they have finished, and not waited for. A finding gets its own issue. *Done
 
 ## Outcome
 
-Step 0 is done (2026-11-24). Each later step adds to this section when it is done, and Step 5 checks it. Counts and figures are measured.
+Steps 0 and 1 are done (2026-11-24). Each later step adds to this section when it is done, and Step 5 checks it. Counts and figures are
+measured.
 
 ### Commits
 
 | Step | Commit |
 |---|---|
-| 0 | `15b7130` `docs(plan): docs-and-headers-accurate approved as written`: pushed, no CI run started (documentation only); the six issues commented with the plan's URL; the commit that holds this record links the two new issues |
+| 0 | `15b7130` `docs(plan): docs-and-headers-accurate approved as written`: pushed, no CI run started (documentation only); the six issues commented with the plan's URL; `902ea22` links the two new issues |
+| 1 | the commit that holds this record |
 
 ### Step 0
 
@@ -273,3 +276,63 @@ passed `check_public_leaks.py --tree` (exit 0) before it was posted.
 
 What differed from the plan: the sweep of public headers read 33 of the 34 (the tool cannot process `ix_ws_connection.hpp`), and it
 also reports 43 includes that a header uses and gets only through another one; both are in #72 and in *What I checked* above.
+
+### Step 1 — #53 and #62
+
+*Start from green.* `debug-macos-arm64`, Apple clang 21.0.0, at `902ea22`: the tree was up to date and built with no warning;
+**598 of 598** (27.9 s).
+
+*The change.* `tests/examples/kraken_example.cpp:11` says `exchange/kraken/types.hpp` and `tests/examples/public_ws.cpp:10` says
+`exchange/kraken/ws_api.hpp`. In `docs/agent-add-exchange.md`:
+- the 7 line citations are gone (`rest.hpp:77,87`, `rest.hpp:32`, `rest.hpp:57`, `rest_api.hpp:55`, `:119`, `:71` and `types.hpp:47`;
+  each is the file or the symbol now): `grep -nE '\.(hpp|inl|cpp):[0-9]'` prints nothing;
+- §4 no longer mentions a compat shim; the flag bullet says it is added wherever the root `CMakeLists.txt` lists every venue flag;
+- `TickPrice` is cited at `exchange/common/tick_price.hpp`;
+- the REST test pattern names `make_<name>_test_client(fn)` (`make_binance_test_client`, `make_coinbase_test_client` and
+  `make_cryptocom_test_client` take a function from `HttpRequest` to `HttpResponse`; Kraken's `make_test_client` returns the body as a
+  string);
+- §2 says that `TypedPrivateRequest<R>` mandates no `build` signature, and gives both shapes: `build()` with the client signing
+  (Binance, Coinbase), `build(const <Name>Credentials&)` (Kraken, Crypto.com);
+- item 8 says what the venue's flag touches: the option, the two "all venues OFF" conditions, the header install rule and the
+  library's entry in the install list of `src/CMakeLists.txt`, and says that a benchmark is optional. No test and no workflow reads
+  the install rules (`grep` over `tests/`, `cmake/` and `.github/` for `--install`, `install(DIRECTORY`, `install(TARGETS` and
+  `CMAKE_INSTALL_PREFIX` finds nothing), so a venue that leaves either rule out builds and passes every test.
+
+*The audit, claim by claim.* 180 machine checks over the playbook after the edit (a script in the scratch directory, not in the
+repository), each a path that exists, a symbol or a line that is in the file it names, or a commit that is on `main`: introduction
+14, §0 4, §1 (fixture names) 4, §2 REST 27, §2 auth 9, §2 enums 12, §2 WS 34, §3 paths 30, §3 test patterns 8, §4 4, the 13 commits
+cited 13, and the 21 claims of the text added here 21. Before the edit the same script, run over the unedited playbook, listed 5 FAILs;
+none was a falsehood of the playbook, each was a pattern of mine that was too narrow (Kraken's `RestResponse<T>` and
+`parse_rest_response<T>` are in `kraken/types.hpp`, not `rest_api.hpp`; the client keys a request by `std::to_string(id)` after
+`req.req_id = id`; the Binance WS factory's arguments are on three lines; `GTest::gtest_main` is linked in
+`tests/unit/CMakeLists.txt`). The two checks added for the new text that failed at first had the same cause (`sign` takes
+`exchange::rest::HttpRequest&`). With these seven patterns corrected the script prints 180 OK and no FAIL. Each cited commit was also
+read with `git show --stat`: all 13 are on `main`, and each touches a header, a test or a CMake file that the playbook cites it for.
+The *Reference* column of §3 names commits to read for the pattern, not one commit per file: `src/binance/auth.cpp`, and the
+bodies in `src/binance/ws_api.cpp` and `ws_streams.cpp`, came later with plan declarative-headers (`5430030`, `c1a9479`), and the
+playbook says so for the WS bodies. That is left as it is.
+
+What the audit cannot check, and so was read and left as it is: the instructions to the reader (the per-item loop, the commit
+message form `feat: <exchange> — <what>`, what to ask the user in §1), "run both CLI examples against the live exchange" (no network
+here), and §5 item 4's command (`cmake -S . -B build/decoupled-macos-arm64 -DCRYPTOCOGS_BUILD_<NAME>=OFF`: read, not run).
+
+*The sweep.* Over `include/`, `src/`, `tests/examples`, `tests/unit`, `tests/benchmarks`, the README and the two docs, with the
+third-party headers left out: 10 names, all of them placeholders in the playbook (7 `.cpp` and 3 `_example_json.hpp` suffixes, as in
+`<name>_auth.cpp`), and no other. The two stale comments are gone.
+
+*Checkpoint.* `debug-macos-arm64`: 2 objects built (the two examples), no warning; **598 of 598**, `test_kraken_example`,
+`test_plan_docs` and `test_plan_docs_fixtures` among them. The three edited files and the text of the new issue passed
+`check_public_leaks.py --tree` (exit 0).
+
+*What differed from the plan.*
+- The sweep prints 10 names, not 7: the plan counted the `.cpp` placeholders and left out the three `_example_json.hpp` suffixes, which
+  are the same kind.
+- The install rule has two halves, not one: the playbook said neither. Both are in item 8.
+- Two statements outside the plan's list were corrected: `RestResponse<T>` is `{ ok, result, errors }` in that order, and the
+  `BinancePingRequest` snippet has `override`, as the header does.
+- No scratch copy was made for the hand-made change of each edit. The edits are the change itself, so there is nothing to revert; the
+  Edit tool refuses an old text that does not occur exactly once, and each new text was grepped for once (the `grep` of the line
+  citations and the 21 checks of the new text above).
+- The audit found a header comment that says what the playbook said: `common/rest.hpp` lists `build(const Auth&)` for a private
+  request, a few lines above the comment that says the base mandates no signature. It is a public header and not in this plan's list:
+  [#73](https://github.com/tomlin256/cryptocogs/issues/73) (`documentation`, in this milestone).

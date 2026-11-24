@@ -8,7 +8,7 @@
 // =============================================================================
 //
 // Demonstrates REST and WebSocket API usage.
-// Both layers share types from kraken_types.hpp.
+// Both layers share types from exchange/kraken/types.hpp.
 
 #include "exchange/kraken/types.hpp"
 #include "exchange/kraken/rest_api.hpp"

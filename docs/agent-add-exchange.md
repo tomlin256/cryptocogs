@@ -99,32 +99,37 @@ Each request type binds its result type at compile time via
 `using response_type = …`, and a client templated on the request resolves it
 with no casts. The common base templates are
 `exchange::rest::TypedPublicRequest<R>` / `TypedPrivateRequest<R>`
-(`exchange/common/rest.hpp:77,87`); each adapter re-derives its own thin
+(`exchange/common/rest.hpp`); each adapter re-derives its own thin
 `PublicRequest`/`PrivateRequest` bases and mirrors the `Typed*` templates.
 
 ```cpp
-// exchange/binance/rest_api.hpp:55 — the adapter's own Typed* over its bases
+// exchange/binance/rest_api.hpp — the adapter's own Typed* over its bases
 template<typename R> struct TypedPublicRequest  : PublicRequest  { using response_type = R; };
 template<typename R> struct TypedPrivateRequest : PrivateRequest { using response_type = R; };
 
-struct BinancePingRequest : TypedPublicRequest<BinancePing> {  // rest_api.hpp:119
-    HttpRequest build() const;                                 // path + query
+struct BinancePingRequest : TypedPublicRequest<BinancePing> {  // rest_api.hpp
+    HttpRequest build() const override;                        // path + query
 };
 ```
 
 - **Public** requests implement `build() -> HttpRequest`.
-- **Private** requests implement `build(const Credentials&)` (adds the signature).
+- **Private** requests: the common `TypedPrivateRequest<R>` mandates no `build` signature,
+  because venues authenticate in different ways. Binance and Coinbase implement `build()` with
+  no argument, and the client signs the result before it dispatches it (`BinanceAuth::sign`,
+  `CoinbaseAuth::sign`). Kraken and Crypto.com implement `build(const <Name>Credentials&)`,
+  because part of the authentication is in the request body (Kraken's nonce, Crypto.com's
+  signature). Take the shape that your venue's signing needs.
 - `HttpRequest` is the shared struct `exchange::rest::HttpRequest`
-  (`rest.hpp:32`): `{ method, path, query, body, headers }`.
+  (`exchange/common/rest.hpp`): `{ method, path, query, body, headers }`.
 
 ### REST: the response envelope
 
 The exchange wraps results in an envelope; you parse it into
-`exchange::rest::RestResponse<T>` (`rest.hpp:57` — `{ ok, errors, result }`).
+`exchange::rest::RestResponse<T>` (`exchange/common/rest.hpp` — `{ ok, result, errors }`).
 Binance does this with a status-aware free function:
 
 ```cpp
-// exchange/binance/rest_api.hpp:71
+// exchange/binance/rest_api.hpp (the body is in rest_api.inl)
 template<typename T>
 exchange::rest::RestResponse<T> parse_binance_response(int http_status, const json& j);
 ```
@@ -157,7 +162,7 @@ client infra together.
 uses bare names, and add **per-exchange string converters** (wire formats differ):
 
 ```cpp
-// exchange/binance/types.hpp:47
+// exchange/binance/types.hpp
 using exchange::Side; using exchange::OrderType;
 using exchange::TimeInForce; using exchange::OrderStatus;
 // then: binance_side_to_string(...), binance_order_type_to_string(...), etc.
@@ -265,13 +270,20 @@ pattern from (and a commit for the non-obvious ones). `<name>` is your slug.
 | 6 | **WS structs + `<name>_frame_descriptor`** *(+ separate `ws_streams.hpp` if the exchange splits stream vs. trading protocols)* | `include/exchange/<name>/ws_api.hpp`, `src/<name>/ws_api.cpp` *(`ws_streams.hpp`, `ws_streams.cpp`)* | `exchange/binance/ws_api.hpp`, `exchange/binance/ws_streams.hpp` (bodies in `src/binance/`) · `7d461fc`, `398d2a8` |
 | 7 | **WS client alias + factory** | in `ws_api.hpp` / `ws_streams.hpp` — bare `using` alias + the `make_<name>_*_client` declaration; the body is in `src/<name>/ws_api.cpp` / `ws_streams.cpp` | factories in `exchange/binance/ws_api.hpp` + `ws_streams.hpp`; separate-header style: `exchange/kraken/ws_client.hpp` + `src/kraken/ws_client.cpp` |
 | — | **WS source** — *almost never needed*; only if you have genuinely non-template WS code beyond the bodies above | `src/<name>/ws_client.cpp` | *(Binance has none: its WS bodies are in `ws_api.cpp` and `ws_streams.cpp`)* |
-| 8 | **CMake wiring** | `CRYPTOCOGS_BUILD_<NAME>` option + guard in `CMakeLists.txt`; `<name>` target in `src/CMakeLists.txt`; test + example targets behind the guard in `tests/CMakeLists.txt` + `tests/unit/CMakeLists.txt` | Binance blocks in each · `9e73dc1`, `28179fd` |
+| 8 | **CMake wiring** | `CRYPTOCOGS_BUILD_<NAME>` option, the flag in the two "all venues OFF" conditions, and the header install rule, all in `CMakeLists.txt`; `<name>` target and its install-list entry in `src/CMakeLists.txt`; test + example targets behind the guard in `tests/CMakeLists.txt` + `tests/unit/CMakeLists.txt` (details below) | Binance blocks in each · `9e73dc1`, `28179fd` |
 | 9 | **WS fixtures + tests** | `tests/unit/<name>_ws_example_json.hpp`, `test_<name>_ws_client.cpp` | `binance_ws_stream_example_json.hpp`, `binance_ws_api_example_json.hpp`, `test_binance_ws_client.cpp` · `b833587`, `d9592c7` |
 | 10 | **REST CLI example** | `tests/examples/<name>/<name>_rest_client_example.cpp` | `tests/examples/binance/binance_rest_client_example.cpp` |
 | 11 | **WS CLI example** | `tests/examples/<name>/<name>_ws_client_example.cpp` | `tests/examples/binance/binance_ws_client_example.cpp`, `binance_ws_api_example.cpp` |
 
 ### CMake specifics (item 8)
 
+- `CMakeLists.txt` (root): `option(CRYPTOCOGS_BUILD_<NAME> "Build the <Name> exchange adapter" ON)`;
+  the flag in the two conditions that test whether every venue flag is `OFF` (the
+  configure-time warning, and the benchmarks' one: both name every flag); and the header
+  install rule, `install(DIRECTORY include/exchange/<name> DESTINATION
+  ${CMAKE_INSTALL_INCLUDEDIR}/exchange)` inside `if(CRYPTOCOGS_BUILD_<NAME>)`, beside the other
+  venues'. No test reads the install rules: a venue that leaves its rule out builds and passes
+  every test, and the installed package ships none of its headers.
 - `src/CMakeLists.txt`: `add_library(<name> STATIC <name>/types.cpp
   <name>/auth.cpp <name>/rest_api.cpp <name>/rest_client.cpp …)` (every `.cpp` of
   the adapter) inside `if(CRYPTOCOGS_BUILD_<NAME>)`; link
@@ -281,17 +293,23 @@ pattern from (and a commit for the non-obvious ones). `<name>` is your slug.
   Give the library `target_compile_features(<name> PUBLIC
   cxx_std_23)` like the others: the install export hands it to a `find_package`
   consumer, and `test_standard_requirement` fails for a library in `src/` that
-  would compile its consumers at any other standard.
+  would compile its consumers at any other standard. Add the library to the install list
+  at the end of the file (`if(TARGET <name>) list(APPEND _cryptocogs_targets <name>)`),
+  or `find_package(cryptocogs)` hands a consumer no `cryptocogs::<name>`.
 - `tests/*`: wrap your test/example targets in `if(CRYPTOCOGS_BUILD_<NAME>)`.
   Link tests `<name> GTest::gtest_main`. WS tests/examples need **only**
   `<name>` (it reaches the engine via `exchange_common` — do **not** add
   `kraken`). WS examples also link `ixwebsocket spdlog::spdlog CLI11::CLI11
-  example_backward`.
+  example_backward`. A benchmark is optional: `tests/benchmarks/CMakeLists.txt` has one block
+  per venue behind its flag.
 
 ### Test patterns (no network — ever)
 
-- **REST**: inject a mock HTTP performer via the adapter's `make_test_client(fn)`
-  factory; assert `http.path`/`method`/`body` on the way out and feed canned
+- **REST**: inject a mock HTTP performer via the adapter's `make_<name>_test_client(fn)`
+  factory (`make_binance_test_client`, `make_coinbase_test_client`,
+  `make_cryptocom_test_client`: `fn` takes an `HttpRequest` and returns an `HttpResponse`;
+  Kraken's is `make_test_client`, with no venue in its name, and returns the body as a
+  string); assert `http.path`/`method`/`body` on the way out and feed canned
   JSON back. See `test_binance_client.cpp` (`8b63fa9`).
 - **WS**: drive `MockWsConnection` (`tests/unit/mock_ws_connection.hpp`, shared):
   `fire_open()`, inspect `sent()` (a copy of the outbound messages, taken under a lock), `inject_message(raw)`, `fire_close()`.
@@ -308,11 +326,11 @@ These apply to every adapter and are easy to miss:
 
 - **File banner** on every `.hpp`/`.inl`/`.cpp` — the exact MIT block from
   `CLAUDE.md`, before `#pragma once`. (Markdown docs are exempt.)
-- **`CRYPTOCOGS_BUILD_<NAME>` defaults `ON`.** If your exchange needs a compat
-  shim, add the matching configure-time dependency rule.
+- **`CRYPTOCOGS_BUILD_<NAME>` defaults `ON`**, and is added wherever the root
+  `CMakeLists.txt` lists every venue flag (item 8).
 - **REST numbers arrive as JSON strings** — deserialise monetary/qty fields with
   `std::stod(j.value("field", "0"))`, never `.get<double>()`. For prices that
-  must round-trip to an exact decimal, use `TickPrice` (`exchange/kraken/types.hpp`).
+  must round-trip to an exact decimal, use `TickPrice` (`exchange/common/tick_price.hpp`).
 - **Optional fields are `std::optional<T>`** and must **not** be serialised in
   `to_json()` when unset.
 - **JSON goes through `to_json()` / `from_json()` static methods on each struct.**

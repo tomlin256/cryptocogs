@@ -7,7 +7,7 @@
 // full license information.
 // =============================================================================
 //
-// Low-level public WebSocket example using raw ixwebsocket + kraken_ws_api.hpp.
+// Low-level public WebSocket example using raw ixwebsocket + exchange/kraken/ws_api.hpp.
 // Supports all public channels. Use --dump-json to capture raw frames as
 // test fixtures.
 //
