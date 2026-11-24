@@ -1,6 +1,6 @@
 # Docs and headers are accurate: the six issues of milestone 1
 
-**Status:** Approved as written (2026-11-24), so D1 to D5 stand at their defaults. Steps 0 to 4 and 6 are done; Step 5, the closing record, is next.
+**Status:** Approved as written (2026-11-24), so D1 to D5 stand at their defaults. **Done (2026-11-24).** The six issues of the milestone are closed; the three that the work opened in it (#71, #73, #74) keep it open.
 
 Closes [#31](https://github.com/tomlin256/cryptocogs/issues/31), [#35](https://github.com/tomlin256/cryptocogs/issues/35),
 [#53](https://github.com/tomlin256/cryptocogs/issues/53), [#62](https://github.com/tomlin256/cryptocogs/issues/62),
@@ -257,7 +257,7 @@ once they have finished, and not waited for. A finding gets its own issue. *Done
 
 ## Outcome
 
-Steps 0 to 4 and 6 are done (2026-11-24). Each later step adds to this section when it is done, and Step 5 checks it. Counts and figures are
+Every step is done (2026-11-24). Each step added its record to this section when it was done, and Step 5 checked it. Counts and figures are
 measured.
 
 ### Commits
@@ -267,7 +267,8 @@ measured.
 | 0 | `15b7130` `docs(plan): docs-and-headers-accurate approved as written`: pushed, no CI run started (documentation only); the six issues commented with the plan's URL; `902ea22` links the two new issues |
 | 1 | `569895c` `docs: the playbook and two example comments name what the tree holds (plan docs-and-headers-accurate, step 1)`: pushed; the two CI runs it started (`cmake-single-platform.yml`, `clang-tidy.yml`) finished `success`; #53 and #62 closed with their comments |
 | 2 | `1f94a74` `docs: the README names four venues, six libraries and what CMake fetches (plan docs-and-headers-accurate, step 2)`: pushed; the two CI runs it started (`cmake-single-platform.yml`, 45363411696, and `clang-tidy.yml`, 45363411681) finished `success`; #31 and #35 closed with their comments; #74 opened |
-| 3, 4, 6 | the commit that holds this record (Step 4 edited GitHub texts only, and Step 6 ran before the push) |
+| 3, 4, 6 | `bee8078` `build: common/ws.hpp no longer includes <cstdio> and <type_traits> (plan docs-and-headers-accurate, step 3)`: pushed; #38 closed with its comment. Step 4 (#65: 8 GitHub texts) and Step 6 (the Mac sanitizers) have no commit of their own, so their records are in this one; #65 was closed with its comment |
+| 5 | the commit that holds this record: documentation only, so no CI run starts |
 
 ### Step 0
 
@@ -495,3 +496,29 @@ patterns for a plan path with its directory in front, and the test refuses a pat
 plan must not). I reworded the text, and `test_plan_docs` and its fixtures pass in both trees.
 
 The plan puts this step after the push; the machine was idle while the GCC 15.2 builds ran, and the code is the code that is pushed.
+
+### Step 5 — Record
+
+*The six issues.*
+
+| Issue | Closed by |
+|---|---|
+| #53 `kraken_example.cpp`'s comment, #62 the playbook | Step 1, `569895c`; the playbook's claims were audited one by one (above) |
+| #31 the README's test paragraph, #35 the README's build facts | Step 2, `1f94a74`; `test_readme_dependencies` now holds the dependency table |
+| #38 the two includes of `common/ws.hpp` | Step 3, `bee8078` (the enum half: v2.0.0) |
+| #65 the 8 held GitHub texts | Step 4: 12 links edited, no file of the repository |
+
+*What the work opened.* [#71](https://github.com/tomlin256/cryptocogs/issues/71) (README sections for the Coinbase and Crypto.com
+adapters), [#73](https://github.com/tomlin256/cryptocogs/issues/73) (a comment in `common/rest.hpp`) and
+[#74](https://github.com/tomlin256/cryptocogs/issues/74) (the `CRYPTOCOGS_BUILD_BENCHMARKS` description), each `documentation` in this
+milestone, which therefore stays open; and [#72](https://github.com/tomlin256/cryptocogs/issues/72) (`enhancement`, no milestone: the
+includes that `clang-include-cleaner` reports in public headers, which is hygiene and not accuracy). The repository has kind labels only,
+so none has an area.
+
+*Final figures.* `debug-macos-arm64`, gate off: **600 of 600**. The gate on, in the Mac and the Linux debug trees: 688 of 688. D5: no
+release; the removal of the two includes ships with the next one.
+
+*Left for later.* The nightly `sanitizers.yml` run on x86_64 will be the first to run the asan and tsan trees on Linux with this
+change; the arm64 Linux trees were built here and not run.
+
+*Done when* (Step 5): pushed, and this section holds measured figures only. Every number above was measured in the step that names it.
