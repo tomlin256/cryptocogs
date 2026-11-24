@@ -1,6 +1,6 @@
 # Docs and headers are accurate: the six issues of milestone 1
 
-**Status:** Approved as written (2026-11-24), so D1 to D5 stand at their defaults. Steps 0 and 1 are done; Step 2 is under way.
+**Status:** Approved as written (2026-11-24), so D1 to D5 stand at their defaults. Steps 0, 1 and 2 are done; Step 3 is next.
 
 Closes [#31](https://github.com/tomlin256/cryptocogs/issues/31), [#35](https://github.com/tomlin256/cryptocogs/issues/35),
 [#53](https://github.com/tomlin256/cryptocogs/issues/53), [#62](https://github.com/tomlin256/cryptocogs/issues/62),
@@ -13,7 +13,8 @@ playbook, example comments, plan-doc links and public headers say what the code 
 **Follows:** [plan unnumbered-plan-docs](unnumbered-plan-docs.md), whose Step 3 left 8 GitHub texts for #65.
 **Not here:** README sections for Coinbase and Crypto.com ([#71](https://github.com/tomlin256/cryptocogs/issues/71)), and the other
 includes that the sweep below reports in public headers ([#72](https://github.com/tomlin256/cryptocogs/issues/72)); a comment in
-`common/rest.hpp` that the playbook audit found false ([#73](https://github.com/tomlin256/cryptocogs/issues/73)); a rewrite of the
+`common/rest.hpp` that the playbook audit found false ([#73](https://github.com/tomlin256/cryptocogs/issues/73)); the description of the
+`CRYPTOCOGS_BUILD_BENCHMARKS` option, which says Kraken only ([#74](https://github.com/tomlin256/cryptocogs/issues/74)); a rewrite of the
 names that 8 old texts carry (D1); a release (D5).
 
 ## Problem
@@ -256,7 +257,7 @@ once they have finished, and not waited for. A finding gets its own issue. *Done
 
 ## Outcome
 
-Steps 0 and 1 are done (2026-11-24). Each later step adds to this section when it is done, and Step 5 checks it. Counts and figures are
+Steps 0, 1 and 2 are done (2026-11-24). Each later step adds to this section when it is done, and Step 5 checks it. Counts and figures are
 measured.
 
 ### Commits
@@ -264,7 +265,8 @@ measured.
 | Step | Commit |
 |---|---|
 | 0 | `15b7130` `docs(plan): docs-and-headers-accurate approved as written`: pushed, no CI run started (documentation only); the six issues commented with the plan's URL; `902ea22` links the two new issues |
-| 1 | the commit that holds this record |
+| 1 | `569895c` `docs: the playbook and two example comments name what the tree holds (plan docs-and-headers-accurate, step 1)`: pushed; the two CI runs it started (`cmake-single-platform.yml`, `clang-tidy.yml`) finished `success`; #53 and #62 closed with their comments |
+| 2 | the commit that holds this record |
 
 ### Step 0
 
@@ -336,3 +338,90 @@ third-party headers left out: 10 names, all of them placeholders in the playbook
 - The audit found a header comment that says what the playbook said: `common/rest.hpp` lists `build(const Auth&)` for a private
   request, a few lines above the comment that says the base mandates no signature. It is a public header and not in this plan's list:
   [#73](https://github.com/tomlin256/cryptocogs/issues/73) (`documentation`, in this milestone).
+
+### Step 2 — #31 and #35
+
+*Start from green.* Not measured again at the start of this step: `569895c` is the Step 1 checkpoint (598 of 598, no warning) and the
+two CI runs it started finished `success` (45360953746 and 45360953853); the working tree held only this step's files.
+
+*The gap, shown.* `check_readme_dependencies.cmake` was written first and run over the unedited README: exit 1 and five problems,
+"the README's row for IXWebSocket says v11.4.6, and CMakeLists.txt fetches ixwebsocket at v12.1.0", and no row for toml++, Google
+Benchmark, backward-cpp or CLI11. Over the edited README it exits 0 and says it held the table to 8 `FetchContent_Declare` calls.
+
+*The change.*
+- Quick start: `zlib1g-dev` in the `apt` line; the sentence after it names no library and links the table.
+- *Dependencies*: `Library | Version | Needed by`, one row for each of the 8 fetched libraries (nlohmann/json v3.12.0, toml++ v3.4.0,
+  IXWebSocket v12.1.0, Google Test v1.18.0, spdlog v1.17.0, CLI11 v2.4.2, backward-cpp v1.6, Google Benchmark v1.9.5) and for the
+  system's OpenSSL, libcurl ("libcurl 7.80.0 or later" is kept: `test_curl_floor` reads it) and zlib. A sentence above the table says
+  where the pins are and that `test_readme_dependencies` holds the table to them.
+- *Running the tests*: no count and no binary table (the old text said 312 tests in twelve executables, and 147 and 176 for the two
+  single-venue trees). It says what runs, that `ctest --preset <tree> -N` lists it, and that each venue flag drops only its own unit tests.
+  `grep -nE '[0-9]+ (unit |gtest )?tests?'` over the README prints nothing.
+- D2: the intro names the four venues and their four flags; the option table has the `CRYPTOCOGS_BUILD_COINBASE` and
+  `CRYPTOCOGS_BUILD_CRYPTOCOM` rows; "three peer static libraries" is "up to six" (it left out `exchange_http`); the flags paragraph says
+  that each flag drops only its own adapter, tests and examples; both link snippets name the four adapters; "installs the four static
+  libraries" is "the static libraries (six, with every exchange flag on)".
+- D3: `tests/doc_checks/check_readme_dependencies.cmake` and `check_readme_dependencies_fixtures.cmake`, registered in
+  `tests/CMakeLists.txt` as `test_readme_dependencies` and `test_readme_dependencies_fixtures` (top level only, as `test_curl_floor` is),
+  and one clause in `CLAUDE.md` (19643 to 19717 bytes of 21000).
+
+*The check.* It reads the `CMakeLists.txt`, `*.cmake` and `*.cmake.in` of the checkout (the files that `test_ci_cache_key` hashes), takes
+their `FetchContent_Declare` calls (any case; what follows a `#` is not read), and holds the README's `## Dependencies` table to them:
+each declaration has a row whose first cell links its repository (a trailing `.git` is not part of the address), a row's version is its
+declaration's `GIT_TAG`, and a row that is not a system library links a repository that something fetches. A declaration without a
+`GIT_REPOSITORY`, without a literal `GIT_TAG`, or whose repository another declaration names is refused, and so is a checkout that
+declares nothing. One run lists every problem.
+
+*The fixtures.* 21 small checkouts made at run time, 3 accepted and 18 refused, each refusal by a message that names the row or the
+declaration at fault. Accepted: a table that agrees with declarations in two files (system rows, a `;` in a cell, a section after the
+table); declarations that are only in comments; a commit hash as the tag. Refused: a stale pin in either file; a bumped pin; a call in
+lower case; a row with no version, with one cell, with no link, or with no library behind it; a library with no row; no table, or the
+heading renamed, or the table in another section; a declaration with no tag, no repository, a variable for a tag, or a repository
+another declaration names; a checkout with no declaration; and one run that names four problems.
+
+*Hand-made changes.* The six of the plan, each in a scratch copy of the whole repository (`rsync` without `build*`; each old text
+asserted to occur exactly once; the copy diffed against the repository to show that only that change is in it), and each turned the
+check red with the message that names what was changed; the unchanged copy exits 0:
+
+| Change | The message |
+|---|---|
+| `ixwebsocket` pinned at v12.2.0 in `CMakeLists.txt` | the README's row for IXWebSocket says v12.1.0, and CMakeLists.txt fetches ixwebsocket at v12.2.0 |
+| `spdlog` pinned at v1.18.0 in `tests/CMakeLists.txt` | the README's row for spdlog says v1.17.0, and tests/CMakeLists.txt fetches spdlog at v1.18.0 |
+| the CLI11 row deleted | the README has no row for https://github.com/CLIUtils/CLI11, which tests/CMakeLists.txt fetches as CLI11 at v2.4.2 |
+| a row for fmt added | the README's row for fmt links https://github.com/fmtlib/fmt, which no FetchContent_Declare fetches |
+| Google Test's version edited to v1.17.0 in the README | the README's row for Google Test says v1.17.0, and CMakeLists.txt fetches googletest at v1.18.0 |
+| the heading renamed `## Requirements` | README.md has no "## Dependencies" section, so nothing holds the libraries that CMake fetches to it |
+
+The fixtures are a check of the check, so 18 more changes were made, each to a scratch copy of `check_readme_dependencies.cmake`, and
+each turned `test_readme_dependencies_fixtures` red on the case that holds it: the version not compared; a declaration with no row not
+reported; a row with no declaration not reported; comments read as code; system rows held to a declaration; a missing section not an
+error; a variable accepted as a tag; a repository declared twice accepted; the call name read in one case; the section not ending at the
+next heading; a checkout that declares nothing passing; the header row read as a library; a row with no link skipped; a row with no
+version accepted; a row of one cell skipped; a declaration with no tag and one with no repository accepted; a trailing `.git` kept in
+the address. One of the 18 first failed to apply: its old text had the wrong indentation, the once-only assertion refused it, and the
+corrected text turned the fixtures red.
+
+*What I checked in the README's new statements,* each against the file that holds it: the four `option(CRYPTOCOGS_BUILD_<VENUE> … ON)`
+lines and the "nothing will be built" warning (root `CMakeLists.txt`); `cryptocogs::common`, `::http` and the four venue aliases, and the
+install list (`exchange_common exchange_http`, then one entry for each flag on) in `src/CMakeLists.txt`; `exchange_http` links
+`CURL::libcurl` PUBLIC and `exchange_common` links no libcurl; toml++ is linked PRIVATE and `BUILD_INTERFACE` only, nlohmann/json is
+included by the public headers; ixwebsocket, googletest, spdlog, CLI11 and backward-cpp are fetched only inside `CRYPTOCOGS_BUILD_TESTS`
+(root file and `tests/`), and are used as the table says (`grep` finds spdlog in 14 files and CLI11 in 15 under `tests/examples`, and
+`backward_init.cpp`; ixwebsocket in 7 files under `tests/examples` and 4 under `tests/unit`; gtest in none of the examples); Google Benchmark is fetched only under `CRYPTOCOGS_BUILD_BENCHMARKS`; the eight
+`tests/*_checks/` directories exist; the clang-tidy paragraph the new list points up to is at line 662; and "mock HTTP performer" is the
+playbook's wording for `make_<name>_test_client`. One statement was found false outside the README: the description of the
+`CRYPTOCOGS_BUILD_BENCHMARKS` option says Kraken only, though `tests/benchmarks/CMakeLists.txt` makes four executables, one for each
+adapter: [#74](https://github.com/tomlin256/cryptocogs/issues/74) (`documentation`, in this milestone).
+
+*Checkpoint.* `debug-macos-arm64`: 0 objects built (the change is CMake scripts and prose), no warning; **600 of 600** (7.8 s with `-j8`),
+the two new tests at 0.02 s and 0.20 s; `test_cmake_floor`, `test_curl_floor`, `test_ci_cache_key`, `test_ci_paths`,
+`test_claude_md_budget` and `test_plan_docs` among them. `ubuntu-dev` (CMake 4.4.5): `debug-linux-arm64` reconfigured, 600 tests listed,
+and the 11 that read the README, `CLAUDE.md`, the workflows and the plans passed in 0.67 s. The README, `CLAUDE.md`, the two scripts,
+`tests/CMakeLists.txt`, the text of #74 and the plan passed `check_public_leaks.py --tree` (exit 0).
+
+*What differed from the plan.*
+- *Start from green* was the Step 1 checkpoint and CI's verdict on it, not a new run.
+- 21 fixtures, not 7, and 18 hand-made changes to the check script on top of the six of the plan: six changes to the repository
+  exercise the check's main rules, and a fixture that passes whatever the check does is what the fixtures exist to rule out.
+- #74 was opened: a false statement outside the README that the step's reading found.
+- The new comments in the check scripts and in `tests/CMakeLists.txt` name the plan and no issue, because the issue closes with the step.

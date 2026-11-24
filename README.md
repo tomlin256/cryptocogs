@@ -1,14 +1,15 @@
 # cryptocogs
 
-A type-safe C++ library for the [Kraken](https://kraken.com) **and**
-[Binance](https://binance.com) Spot REST and WebSocket APIs.
+A type-safe C++ library for the [Kraken](https://kraken.com), [Binance](https://binance.com),
+[Coinbase](https://exchange.coinbase.com) and [Crypto.com](https://crypto.com/exchange) Spot REST and
+WebSocket APIs.
 
 The compiler links each request type to its exact response type — no casts, no
-stringly-typed keys. Both exchanges are built on one shared, exchange-agnostic
+stringly-typed keys. The four exchanges are built on one shared, exchange-agnostic
 engine; each is an independent static library you can enable or disable at
-configure time (`CRYPTOCOGS_BUILD_KRAKEN` / `CRYPTOCOGS_BUILD_BINANCE`, both `ON`
-by default). Adding a third exchange follows a documented
-[playbook](docs/agent-add-exchange.md).
+configure time (`CRYPTOCOGS_BUILD_KRAKEN`, `CRYPTOCOGS_BUILD_BINANCE`,
+`CRYPTOCOGS_BUILD_COINBASE` and `CRYPTOCOGS_BUILD_CRYPTOCOM`, all `ON` by default).
+Adding another exchange follows a documented [playbook](docs/agent-add-exchange.md).
 
 ---
 
@@ -16,7 +17,7 @@ by default). Adding a third exchange follows a documented
 
 ```bash
 # 1. Install system dependencies (Debian/Ubuntu)
-sudo apt install libssl-dev libcurl4-openssl-dev
+sudo apt install libssl-dev libcurl4-openssl-dev zlib1g-dev
 
 # 2. Clone and build
 git clone https://github.com/tomlin256/cryptocogs.git
@@ -33,7 +34,7 @@ cmake -B build && cmake --build build
 ./build/bin/binance_ws_client_example aggtrade BTCUSDT
 ```
 
-All other dependencies (IXWebSocket, nlohmann/json, spdlog, Google Test) are fetched automatically by CMake.
+All other dependencies are fetched automatically by CMake; [Dependencies](#dependencies) lists them with their versions.
 Building needs a C++23 compiler and CMake 4.0 or later.
 
 `build/` above is the tree this snippet makes, and the examples below run from it. A checkout that is built on more
@@ -326,21 +327,26 @@ comment block at the top of each header in [`include/exchange/binance/`](include
 
 ## Building your own project
 
-The build produces three peer static libraries: `exchange_common` (the generic
-WebSocket-client engine, always built) and two adapters that each link it,
-`cryptocogs::kraken` (Kraken) and `cryptocogs::binance` (Binance). Link
+The build produces up to six static libraries: two that are always built, `exchange_common`
+(the generic WebSocket-client engine, which needs no libcurl) and `exchange_http` (the shared
+libcurl transport), and one adapter per exchange, each linking both: `cryptocogs::kraken`,
+`cryptocogs::binance`, `cryptocogs::coinbase` and `cryptocogs::cryptocom`. Link
 whichever adapter(s) you use — each one transitively pulls in `exchange_common`,
-OpenSSL, and libcurl, so you do not name those yourself.
+`exchange_http`, OpenSSL, and libcurl, so you do not name those yourself.
 
 | CMake option | Default | Effect |
 |---|---|---|
 | `CRYPTOCOGS_BUILD_KRAKEN` | `ON` | Build the Kraken adapter + its tests/examples |
 | `CRYPTOCOGS_BUILD_BINANCE` | `ON` | Build the Binance adapter + its tests/examples |
+| `CRYPTOCOGS_BUILD_COINBASE` | `ON` | Build the Coinbase adapter + its tests/examples |
+| `CRYPTOCOGS_BUILD_CRYPTOCOM` | `ON` | Build the Crypto.com adapter + its tests/examples |
 | `CRYPTOCOGS_BUILD_TESTS` | `ON` | Build unit tests and example programs |
 | `CRYPTOCOGS_WARNINGS_AS_ERRORS` | `ON` (top level only) | `-Werror` on cryptocogs's own targets, on top of `-Wall -Wextra -Wpedantic`; a project that fetches cryptocogs keeps its own flags |
 
-The two exchange flags are independent — `-DCRYPTOCOGS_BUILD_KRAKEN=OFF` builds a
-Binance-only tree, and vice versa.
+The four exchange flags are independent: each one drops only its own adapter, tests and
+examples, so `-DCRYPTOCOGS_BUILD_KRAKEN=OFF` builds the other three, and turning off all
+but one builds a tree of a single exchange. `exchange_common` and `exchange_http` are
+always built, and with all four flags `OFF` CMake warns that nothing will be built.
 
 A build of cryptocogs itself is strict: its own targets compile with `-Wall -Wextra -Wpedantic` and `-Werror` on GCC and Clang, and
 none of it reaches a dependency or a project that fetches it. `-DCRYPTOCOGS_WARNINGS_AS_ERRORS=OFF` takes `-Werror` off, for a build
@@ -357,7 +363,7 @@ FetchContent_Declare(cryptocogs
 )
 FetchContent_MakeAvailable(cryptocogs)
 
-target_link_libraries(my_app PRIVATE cryptocogs::kraken)   # and/or cryptocogs::binance
+target_link_libraries(my_app PRIVATE cryptocogs::kraken)   # and/or cryptocogs::binance, ::coinbase, ::cryptocom
 ```
 
 v1.0.0 is the first release that is C++23 and needs CMake 4.0; v0.6.0 and the tags before it are C++17 and CMake 3.15.
@@ -377,12 +383,12 @@ cmake --build build
 cmake --install build --prefix /your/prefix
 ```
 
-This installs the four static libraries, the public headers, and a CMake package
-config. A downstream project then just:
+This installs the static libraries (six, with every exchange flag on), the public headers,
+and a CMake package config. A downstream project then just:
 
 ```cmake
 find_package(cryptocogs 2 REQUIRED)      # add -DCMAKE_PREFIX_PATH=/your/prefix
-target_link_libraries(my_app PRIVATE cryptocogs::kraken)   # and/or cryptocogs::binance
+target_link_libraries(my_app PRIVATE cryptocogs::kraken)   # and/or cryptocogs::binance, ::coinbase, ::cryptocom
 ```
 
 `find_package(cryptocogs 2)` accepts any 2.y.z release and nothing older or newer (`SameMajorVersion`), so a project
@@ -662,34 +668,45 @@ cmake --preset debug-macos-arm64 -DCRYPTOCOGS_CLANG_TIDY=clang-tidy
 ctest --preset debug-macos-arm64 -R '^clang_tidy_' -j8
 ```
 
-Tests require no network access or credentials — all I/O is mocked. **312 tests**
-across twelve executables (six Kraken/common, six Binance):
+Tests require no network access or credentials: all I/O is mocked, except tests that talk to a
+server of their own on `127.0.0.1`. `ctest --preset <tree> -N` lists what a tree runs, which is:
 
-| Binary | What it covers |
-|---|---|
-| `kraken_unit_tests` | HMAC signing, REST request building, JSON deserialization, HTTP mock round-trip |
-| `test_ws_client` / `test_ws_responses` | `KrakenWsClient` lifecycle, subscription handle, pre-connection queue; WS `from_json` |
-| `test_tick_price` / `test_order_type` / `test_ws_reconnect_session` | exact-decimal prices; wire formats; reconnect/backoff |
-| `test_binance_auth` / `test_binance_types` | HMAC-SHA256 signing; Binance enum converters |
-| `test_binance_rest_requests` / `test_binance_rest_responses` / `test_binance_client` | REST request building, JSON parsing, signed round-trip |
-| `test_binance_ws_client` | Binance market-stream + trading-WS-API lifecycle with `MockWsConnection` |
+- each exchange's unit tests: request signing, request building, JSON parsing, the REST client
+  against a mock HTTP performer, and the WebSocket client against `MockWsConnection`;
+- the exchange-agnostic unit tests (`TickPrice`, the credentials file, the HTTP client, the
+  WebSocket transports), which build with any one exchange on;
+- the repository's own checks, `cmake -P` scripts in `tests/*_checks/`, which hold what the build
+  files, the workflows, `CLAUDE.md` and this README say to the build and to one another (the
+  CMake and libcurl floors, the package version, the build-tree names, the warning and sanitizer
+  wiring, the plan docs, and the Dependencies table below);
+- clang-tidy, when a configure names the tool (above).
 
-With `-DCRYPTOCOGS_BUILD_KRAKEN=OFF`, 147 tests build and run (the Binance suite
-plus the exchange-agnostic `TickPrice` tests); with `-DCRYPTOCOGS_BUILD_BINANCE=OFF`,
-the 176 Kraken/common tests.
+Each exchange flag drops only its own unit tests: a tree configured with
+`-DCRYPTOCOGS_BUILD_KRAKEN=OFF` runs the other three exchanges' tests and the
+exchange-agnostic ones.
 
 ---
 
 ## Dependencies
 
-| Library | Version | Fetched by CMake |
+CMake fetches these libraries at configure time, at the versions below. The pins are in
+[`CMakeLists.txt`](CMakeLists.txt) and [`tests/CMakeLists.txt`](tests/CMakeLists.txt), and
+`test_readme_dependencies` holds this table to them. nlohmann/json and toml++ are always
+fetched; the others only when the option named in the last column is on.
+
+| Library | Version | Needed by |
 |---|---|---|
-| [IXWebSocket](https://github.com/machinezone/IXWebSocket) | v11.4.6 | Yes |
-| [nlohmann/json](https://github.com/nlohmann/json) | v3.12.0 | Yes |
-| [spdlog](https://github.com/gabime/spdlog) | v1.17.0 | Yes |
-| [Google Test](https://github.com/google/googletest) | v1.18.0 | Yes |
-| OpenSSL | system | No — `sudo apt install libssl-dev` |
-| libcurl | system (libcurl 7.80.0 or later) | No — `sudo apt install libcurl4-openssl-dev` |
+| [nlohmann/json](https://github.com/nlohmann/json) | v3.12.0 | the library: its public headers include it, so an install carries a copy |
+| [toml++](https://github.com/marzer/tomlplusplus) | v3.4.0 | the library, at build time only: the credentials-file loader |
+| [IXWebSocket](https://github.com/machinezone/IXWebSocket) | v12.1.0 | the examples and tests (`CRYPTOCOGS_BUILD_TESTS`): `IxWsConnection`, the real WebSocket transport |
+| [Google Test](https://github.com/google/googletest) | v1.18.0 | the unit tests (`CRYPTOCOGS_BUILD_TESTS`) |
+| [spdlog](https://github.com/gabime/spdlog) | v1.17.0 | the examples (`CRYPTOCOGS_BUILD_TESTS`) |
+| [CLI11](https://github.com/CLIUtils/CLI11) | v2.4.2 | the examples (`CRYPTOCOGS_BUILD_TESTS`) |
+| [backward-cpp](https://github.com/bombela/backward-cpp) | v1.6 | the examples (`CRYPTOCOGS_BUILD_TESTS`) |
+| [Google Benchmark](https://github.com/google/benchmark) | v1.9.5 | the benchmarks (`CRYPTOCOGS_BUILD_BENCHMARKS`, `OFF` by default) |
+| OpenSSL | system | the library: `sudo apt install libssl-dev` |
+| libcurl | system (libcurl 7.80.0 or later) | the REST clients: `sudo apt install libcurl4-openssl-dev` |
+| zlib | system | IXWebSocket, so the examples and tests: `sudo apt install zlib1g-dev` |
 
 ---
 

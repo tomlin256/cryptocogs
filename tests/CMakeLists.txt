@@ -334,6 +334,27 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 endif()
 
 #-------------------------------------------------------------------------------
+# The README's Dependencies table says what the build fetches (plan docs-and-headers-accurate): plain cmake -P scripts
+#-------------------------------------------------------------------------------
+
+# README.md has a table of the libraries that CMake fetches and the version of each. This holds it to the FetchContent_Declare calls
+# of the checkout, so that a pin that moves turns this test red until the table says so, and a library that is fetched has a row.
+# A plain script, so it runs in every tree. Top level only, where the checkout it reads is this project's own.
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_test(NAME test_readme_dependencies
+             COMMAND ${CMAKE_COMMAND}
+                     -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/doc_checks/check_readme_dependencies.cmake)
+
+    # The check itself: small checkouts whose table agrees with the declarations, and ones where it does not, are made at run time
+    # and the check is run over each. A check that accepted everything would pass the test above.
+    add_test(NAME test_readme_dependencies_fixtures
+             COMMAND ${CMAKE_COMMAND}
+                     -DSCRATCH_ROOT=${CMAKE_CURRENT_BINARY_DIR}/doc_checks
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/doc_checks/check_readme_dependencies_fixtures.cmake)
+endif()
+
+#-------------------------------------------------------------------------------
 # Plan docs carry no sequence number (plan unnumbered-plan-docs, cryptocogs#65): plain cmake -P scripts
 #-------------------------------------------------------------------------------
 

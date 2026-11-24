@@ -29,7 +29,7 @@ Headers are in `include/exchange/<tier>/`, bodies in `src/`.
 
 ## Build and test
 
-CMake 4.0+ (a plain `cmake_minimum_required`; `test_cmake_floor` holds one minimum in the checkout and "CMake 4.0 or later" in the README), a C++23 compiler, system OpenSSL, libcurl 7.80.0+ and zlib (`libssl-dev libcurl4-openssl-dev zlib1g-dev`; Ubuntu's libcurl package only suggests zlib, which ixwebsocket needs; `test_curl_floor` holds the libcurl version in the root's `find_package`, the package config and the README to one). Everything else is fetched at configure time (pins in `CMakeLists.txt`, `tests/CMakeLists.txt`). `CMakePresets.json` stays at `cmakeMinimumRequired` 3.21 on purpose: it names which CMake can read the file, and 4.0 would turn CMake 3's "CMake 4.0 or higher is required" into "major version 4 must be less than 3".
+CMake 4.0+ (a plain `cmake_minimum_required`; `test_cmake_floor` holds one minimum in the checkout and "CMake 4.0 or later" in the README), a C++23 compiler, system OpenSSL, libcurl 7.80.0+ and zlib (`libssl-dev libcurl4-openssl-dev zlib1g-dev`; Ubuntu's libcurl package only suggests zlib, which ixwebsocket needs; `test_curl_floor` holds the libcurl version in the root's `find_package`, the package config and the README to one). Everything else is fetched at configure time (pins in `CMakeLists.txt`, `tests/CMakeLists.txt`; `test_readme_dependencies` holds the README's Dependencies table to them). `CMakePresets.json` stays at `cmakeMinimumRequired` 3.21 on purpose: it names which CMake can read the file, and 4.0 would turn CMake 3's "CMake 4.0 or higher is required" into "major version 4 must be less than 3".
 
 ```bash
 cmake --preset debug-macos-arm64 && cmake --build --preset debug-macos-arm64 && ctest --preset debug-macos-arm64
