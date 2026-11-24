@@ -1,6 +1,6 @@
 # Docs and headers are accurate: the six issues of milestone 1
 
-**Status:** Approved as written (2026-11-24), so D1 to D5 stand at their defaults. Step 0 is under way.
+**Status:** Approved as written (2026-11-24), so D1 to D5 stand at their defaults. Step 0 is done; Step 1 is under way.
 
 Closes [#31](https://github.com/tomlin256/cryptocogs/issues/31), [#35](https://github.com/tomlin256/cryptocogs/issues/35),
 [#53](https://github.com/tomlin256/cryptocogs/issues/53), [#62](https://github.com/tomlin256/cryptocogs/issues/62),
@@ -11,8 +11,9 @@ Closes [#31](https://github.com/tomlin256/cryptocogs/issues/31), [#35](https://g
 playbook, example comments, plan-doc links and public headers say what the code and the build do today."
 
 **Follows:** [plan unnumbered-plan-docs](unnumbered-plan-docs.md), whose Step 3 left 8 GitHub texts for #65.
-**Not here:** README sections for Coinbase and Crypto.com, and the other unused includes that the sweep below found in public headers
-(each becomes an issue in Step 0); a rewrite of the names that 8 old texts carry (D1); a release (D5).
+**Not here:** README sections for Coinbase and Crypto.com ([#71](https://github.com/tomlin256/cryptocogs/issues/71)), and the other
+includes that the sweep below reports in public headers ([#72](https://github.com/tomlin256/cryptocogs/issues/72)); a rewrite of the
+names that 8 old texts carry (D1); a release (D5).
 
 ## Problem
 
@@ -65,13 +66,15 @@ OpenSSL, libcurl (7.80.0 or later, held by `test_curl_floor`) and zlib are the s
    leaves that out builds and passes every test, and ships no headers.
 
 **Unused includes.** `clang-include-cleaner` (LLVM 23, the library that clangd's unused-include hint is built on) run over the 34
-public `.hpp` files: for `common/ws.hpp` it lists `<cstdio>` and `<type_traits>` (and `nlohmann/json.hpp`, a choice: see Not here).
+public `.hpp` files (it cannot process `ix_ws_connection.hpp`, which needs ixwebsocket on its include path, so 33 were read): for
+`common/ws.hpp` it lists `<cstdio>` and `<type_traits>` (and `nlohmann/json.hpp`, a choice: see Not here).
 `<cstdio>` is used only by `src/exchange/common/ws.cpp`, which includes it itself. `std::is_base_of_v` is used once near it, in
 `ws_client.inl`, which reaches `<type_traits>` through `ws_client.hpp` and so through `ws.hpp`: that include must become
 `ws_client.hpp`'s own. `clangd --check` prints no include diagnostics, so the hint itself was not reproduced; the tool is the proof.
 The same sweep lists three more unused includes (`<utility>` in `binance/rest_client.hpp` and `coinbase/rest_client.hpp`; `kraken/ws_api.hpp` in
-`kraken/ws_client.hpp`) and `json_fwd.hpp` for `json.hpp` in 14 headers. Taking an include out of a public header can break a project
-that took the type from it, so those wait for their own issue.
+`kraken/ws_client.hpp`) and `json_fwd.hpp` for `json.hpp` in 14 headers, and 43 includes that a header uses and reaches only through
+another one. Taking an include out of a public header can break a project that took the type from it, so those wait for their own
+issue (#72).
 
 **File names that exist nowhere.** A sweep for `*.hpp`, `*.inl` and `*.cpp` names in `include/`, `src/`, `tests/examples`,
 `tests/unit`, `tests/benchmarks`, the README and the two docs (157 files, 4.5 s in the shell) finds 9: the two stale comments, and 7
@@ -249,3 +252,24 @@ once they have finished, and not waited for. A finding gets its own issue. *Done
   for `docs/plans/<x>` and the old names are gone.
 - **Hash and date assumptions:** every figure is at `3096404`, 2026-11-23, Apple clang 21 and LLVM 23; each is measured again in
   its step and the *Outcome* records the new figure, not this one.
+
+## Outcome
+
+Step 0 is done (2026-11-24). Each later step adds to this section when it is done, and Step 5 checks it. Counts and figures are measured.
+
+### Commits
+
+| Step | Commit |
+|---|---|
+| 0 | `15b7130` `docs(plan): docs-and-headers-accurate approved as written`: pushed, no CI run started (documentation only); the six issues commented with the plan's URL; the commit that holds this record links the two new issues |
+
+### Step 0
+
+Issues opened: [#71](https://github.com/tomlin256/cryptocogs/issues/71) *README: sections for the Coinbase and Crypto.com adapters*
+(`documentation`, milestone *Docs and headers are accurate*) and [#72](https://github.com/tomlin256/cryptocogs/issues/72) *Public
+headers: unused includes that `clang-include-cleaner` reports* (`enhancement`, no milestone: it concerns hygiene and not accuracy). The
+repository has kind labels only, so neither has an area. Comments with the plan's URL: #31, #35, #38, #53, #62 and #65. Every text
+passed `check_public_leaks.py --tree` (exit 0) before it was posted.
+
+What differed from the plan: the sweep of public headers read 33 of the 34 (the tool cannot process `ix_ws_connection.hpp`), and it
+also reports 43 includes that a header uses and gets only through another one; both are in #72 and in *What I checked* above.
