@@ -1,6 +1,6 @@
 # Docs and headers are accurate: the six issues of milestone 1
 
-**Status:** Approved as written (2026-11-24), so D1 to D5 stand at their defaults. Steps 0, 1 and 2 are done; Step 3 is next.
+**Status:** Approved as written (2026-11-24), so D1 to D5 stand at their defaults. Steps 0 to 4 and 6 are done; Step 5, the closing record, is next.
 
 Closes [#31](https://github.com/tomlin256/cryptocogs/issues/31), [#35](https://github.com/tomlin256/cryptocogs/issues/35),
 [#53](https://github.com/tomlin256/cryptocogs/issues/53), [#62](https://github.com/tomlin256/cryptocogs/issues/62),
@@ -257,7 +257,7 @@ once they have finished, and not waited for. A finding gets its own issue. *Done
 
 ## Outcome
 
-Steps 0, 1 and 2 are done (2026-11-24). Each later step adds to this section when it is done, and Step 5 checks it. Counts and figures are
+Steps 0 to 4 and 6 are done (2026-11-24). Each later step adds to this section when it is done, and Step 5 checks it. Counts and figures are
 measured.
 
 ### Commits
@@ -266,7 +266,8 @@ measured.
 |---|---|
 | 0 | `15b7130` `docs(plan): docs-and-headers-accurate approved as written`: pushed, no CI run started (documentation only); the six issues commented with the plan's URL; `902ea22` links the two new issues |
 | 1 | `569895c` `docs: the playbook and two example comments name what the tree holds (plan docs-and-headers-accurate, step 1)`: pushed; the two CI runs it started (`cmake-single-platform.yml`, `clang-tidy.yml`) finished `success`; #53 and #62 closed with their comments |
-| 2 | the commit that holds this record |
+| 2 | `1f94a74` `docs: the README names four venues, six libraries and what CMake fetches (plan docs-and-headers-accurate, step 2)`: pushed; the two CI runs it started (`cmake-single-platform.yml`, 45363411696, and `clang-tidy.yml`, 45363411681) finished `success`; #31 and #35 closed with their comments; #74 opened |
+| 3, 4, 6 | the commit that holds this record (Step 4 edited GitHub texts only, and Step 6 ran before the push) |
 
 ### Step 0
 
@@ -425,3 +426,72 @@ and the 11 that read the README, `CLAUDE.md`, the workflows and the plans passed
   exercise the check's main rules, and a fixture that passes whatever the check does is what the fixtures exist to rule out.
 - #74 was opened: a false statement outside the README that the step's reading found.
 - The new comments in the check scripts and in `tests/CMakeLists.txt` name the plan and no issue, because the issue closes with the step.
+
+### Step 3 — #38
+
+*Start from green.* `debug-macos-arm64` (Apple clang 21.0.0) with the gate on (`-DCRYPTOCOGS_CLANG_TIDY=clang-tidy`, LLVM 23.1.4), at
+`1f94a74`: up to date, no warning; **688 of 688** (24.3 s with `-j8`), the 88 `clang_tidy_*` tests among them.
+
+*The gap, shown.* `clang-include-cleaner` over `include/exchange/common/ws.hpp` (`-p build/debug-macos-arm64 --print=changes`) at
+`1f94a74` lists `- <cstdio> @Line:40` and `- <type_traits> @Line:45`, beside the three entries that are #72's (`<nlohmann/json.hpp>`
+for `json_fwd.hpp`, and `<exception>` and `<utility>` to add).
+
+*The change.* `<cstdio>` and `<type_traits>` are gone from `ws.hpp`. `<cstdio>` is used only by `src/exchange/common/ws.cpp` (two
+`std::fprintf`), which includes it itself. `<type_traits>` is used once, by `std::is_base_of_v` in `ws_client.inl`, and is included
+there, with a sentence in the file's header comment that says why (below). A sweep over `include`, `src`, `tests/examples`,
+`tests/unit` and `tests/benchmarks` for a file that uses a `<cstdio>` symbol and does not include `<cstdio>` finds none.
+
+*Tests.* None new: no behaviour and no layout changes, and the build of every unit that includes the header is the test (the
+checkpoint). `clang-include-cleaner` after the change lists neither include for `ws.hpp` (the three entries of #72 remain), and for
+`ws_client.hpp` the same as before (`ws_client.inl` as unused, 7 includes to add: #72).
+
+*Checkpoint.*
+- `debug-macos-arm64`, gate on: 26 objects rebuilt, no warning; **688 of 688** (22.4 s with `-j8`); the gate off again (600 tests).
+- `ubuntu-dev` (GCC 13.3, `clang-tidy-23`): `debug-linux-arm64` with the gate on, 26 objects, no warning, **688 of 688** (56.3 s with
+  `-j4`), the gate off again; `release-`, `asan-` and `tsan-linux-arm64` built, 26 objects each, no warning.
+- GCC 15.2 (a throwaway `ubuntu:26.04` container, CMake 4.2.3, a copy of the working tree, the dependencies of `debug-linux-arm64`,
+  `-Werror` as by default, `-j4`): `release-`, `asan-` and `tsan-linux-arm64` built in full, 132, 134 and 133 objects, no warning, no
+  error, no compiler killed. The container is removed.
+
+*What differed from the plan.*
+- `<type_traits>` went to `ws_client.inl` and not to `ws_client.hpp`. With the include in the header, `clang-include-cleaner` listed
+  `- <type_traits> @Line:36` for `ws_client.hpp` and clangd put its `unused-includes` hint there: both read the header alone and do not
+  see a use in its `.inl`. The plan's *Done when* says "nothing new for `ws_client.hpp`", and the include in the `.inl` is the
+  placement that meets it. There is a precedent, `binance/rest_api.inl`, which includes `<string>`. The other headers of #72 that
+  include for their `.inl` have the same hint and are left to it.
+- The Linux debug tree was run with the clang-tidy gate on, which the plan names for the Mac only: CI's clang-tidy job runs on Linux.
+
+### Step 4 — #65
+
+*The change.* The 8 texts were fetched (the two issue bodies with `gh api repos/tomlin256/cryptocogs/issues/N`, the six comments with
+`gh api repos/tomlin256/cryptocogs/issues/comments/ID`; none has a carriage return), and every link to a plan file by its old
+numbered name (`NNN-name.md`) was rewritten with the number taken off, in the link text and in the URL: 12 links of 4 names (`030-ci-cache` 3 times,
+`033-tsan-races-in-the-tests` once, `035-clang-tidy-opt-in-test-step` 6 times, `036-warnings-as-errors` twice). The body of #46 has one
+more `docs/plans/` path, `clang_tidy_ci_plan.md`; it is a link into another repository's plan and was left. The names in the texts are
+not touched (D1).
+
+*Before posting.* The edited text of each file equals the original with the number taken off the 4 names (`cmp` against a `sed` of the
+original, a check that does not use the `perl` that made the edit); `diff` shows 1 changed line in each of the 8; the audit
+(`check_public_leaks.py --tree`) prints the same 28 findings over the originals and over the edits, identical once the directory is
+normalized, exit 1 for both; the 4 new paths exist on `main` (`git cat-file -e`).
+
+*Posting and read-back.* `gh issue edit 46` and `47 --body-file`, and `gh api -X PATCH …/issues/comments/ID -F body=@file` for the 6
+ids: all exit 0. All 8 were fetched again and are byte-equal to what was sent (`cmp`), differ from the original in 1 line each, and hold
+no link to a numbered plan file. Each of the 4 new paths was fetched once through the contents API (23985, 17341, 49671 and 49886 bytes). The
+six comments are on #37 (2), #30, #34 (2) and #47.
+
+*Closed.* A comment on #65 with the table of the 12 links (audited, exit 0), then #65 closed. The memory note that held these 8 items is
+deleted.
+
+*What differed from the plan.* Nothing.
+
+### Step 6 — the Mac sanitizers (run before the push)
+
+`asan-macos-arm64` and `tsan-macos-arm64`, built (26 objects each, no warning) and run in full with the options of `CLAUDE.md`
+(`ASAN_OPTIONS=detect_stack_use_after_return=1:strict_string_checks=1`, `UBSAN_OPTIONS=print_stacktrace=1`;
+`TSAN_OPTIONS=second_deadlock_stack=1`; `-j4`): asan 602 of 603 (10.4 s) and tsan 601 of 602 (26.1 s), with no sanitizer report in
+either log. The one failure in each was `test_plan_docs`: the Step 4 text above, which I appended after the debug runs, had written two
+patterns for a plan path with its directory in front, and the test refuses a path that names no file (the self-review above says this
+plan must not). I reworded the text, and `test_plan_docs` and its fixtures pass in both trees.
+
+The plan puts this step after the push; the machine was idle while the GCC 15.2 builds ran, and the code is the code that is pushed.

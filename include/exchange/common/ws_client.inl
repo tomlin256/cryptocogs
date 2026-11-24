@@ -10,8 +10,14 @@
 // exchange/common/ws_client.inl — inline and template method implementations
 // for ExchangeWsClient.  Included at the bottom of ws_client.hpp; do not
 // include directly.
+//
+// It includes the standard header that only it uses, <type_traits>: clangd and
+// clang-include-cleaner read ws_client.hpp alone, and would report that include
+// there as unused.
 
 #pragma once
+
+#include <type_traits>
 
 namespace exchange::ws {
 
